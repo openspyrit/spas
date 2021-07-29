@@ -5,7 +5,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.io import loadmat
 
-from singlepixel import *
+from spas import *
 
 def reconstruction_hadamard(acquisition_metadata, Q, M, N=64):
     ind_opt = acquisition_metadata.patterns[1::2]

@@ -1,4 +1,4 @@
-from singlepixel import *
+from spas import *
 
 #%% Init
 spectrometer, DMD, DMD_initial_memory = init() # just once, two consecutively returns an error

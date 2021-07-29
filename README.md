@@ -25,7 +25,7 @@ They should be placed inside the folder `lib` in the project's root as follows.
 │   └───avaspec3
 │   │   └───avaspecx64.dll
 ├───scripts
-├───singlepixel
+├───spas
 ├───requirements.txt
 ├───setup.py
 ├───stats
@@ -40,7 +40,7 @@ They should be placed inside the folder `lib` in the project's root as follows.
 In python:
     
 ``` python
-import singlepixel as sp
+import spas as sp
 sp.walsh_patterns(save_data=True)
 ```
 By default the patterns are 1024x768 PNG images saved in `./Walsh_64_64/`
@@ -81,7 +81,7 @@ conda install pywin32
 
 * Initilization (just once, two consecutively returns an error)
 ``` python 
-from singlepixel import *
+from spas import *
 spectrometer, DMD, DMD_initial_memory = init() 
 ```
 
@@ -140,7 +140,7 @@ disconnect(spectrometer, DMD)
 Reconstruct the measurements contained in the variable `meas` 
 ``` python 
 import spyrit.misc.walsh_hadamard as wh
-from singlepixel import reconstruction_hadamard
+from spas import reconstruction_hadamard
 H = wh.walsh2_matrix(64)
 rec = reconstruction_hadamard(acquisition_parameters.patterns, 'walsh', H,
                                 meas)
@@ -149,14 +149,14 @@ rec = reconstruction_hadamard(acquisition_parameters.patterns, 'walsh', H,
 Bin the reconstructed hypercube in 8 bins between 530 and 730 nm
 
 ``` python
-from singlepixel import spectral_binning
+from spas import spectral_binning
 rec_bin, wavelengths_bin, _ = spectral_binning(
                             rec.T, acquisition_parameters.wavelengths, 530, 730, 8)
 ```
 
 Plot the 8 bins
 ``` python
-from singlepixel import plot_color
+from spas import plot_color
 plot_color(rec_bin, wavelengths_bin)
 ```
   
@@ -173,7 +173,7 @@ meas = file['spectral_data']
 
 Read the metadata (we need the get the acquisition order of the patterns)
 ``` python
-from singlepixel import read_metadata, reconstruction_hadamard
+from spas import read_metadata, reconstruction_hadamard
 _, acquisition_parameters, _, _ = read_metadata('../meas/my_first_measurement' + '_metadata.json')
 
 ```
@@ -201,7 +201,7 @@ meas = file['spectral_data']
 
 Read the metadata (we need the get the acquisition order of the patterns)
 ``` python
-from singlepixel import read_metadata, reconstruction_hadamard
+from spas import read_metadata, reconstruction_hadamard
 _, acquisition_parameters, _, _ = read_metadata('../meas/my_first_measurement' + '_metadata.json')
 
 ```
@@ -211,7 +211,7 @@ _, acquisition_parameters, _, _ = read_metadata('../meas/my_first_measurement' +
 An example network can be downloaded [here](https://www.creatis.insa-lyon.fr/~ducros/spyritexamples/2021_ISTE/NET_c0mp_N0_50.0_sig_0.0_Denoi_N_64_M_1024_epo_40_lr_0.001_sss_20_sdr_0.2_bs_256_reg_1e-07.pth) , which you can save in `./models/`. It allows to reconstruction images from only 1'024 hadamard coefficients (i.e., 2'048 raw measurements)
   
 ``` python
-from singlepixel import ReconstructionParameters, setup_reconstruction
+from spas import ReconstructionParameters, setup_reconstruction
 network_params = ReconstructionParameters(
     img_size=64,
     CR=1024,
@@ -237,18 +237,18 @@ model, device = setup_reconstruction(cov_path, mean_path, '../stats/H.npy', mode
 
 Load noise calibration parameters (provided with the data or computed using `/noise-calibration/noise_modeling.py`)
 ``` python
-from singlepixel import load_noise
+from spas import load_noise
 noise = load_noise('../noise-calibration/fit_model.npz')
 ```
 
 Bin before reconstruction and plot
 
 ``` python
-from singlepixel import spectral_binning
+from spas import spectral_binning
 meas_bin, wavelengths_bin, _, noise_bin = spectral_binning(meas.T, acquisition_parameters.wavelengths, 530, 730, 8, noise)
 ```
 ``` python
-from singlepixel import reconstruct, plot_color
+from spas import reconstruct, plot_color
 rec = reconstruct(model, device, meas_bin[0:8192//4,:], 1, noise_bin)           
 plot_color(rec, wavelengths_bin)
 

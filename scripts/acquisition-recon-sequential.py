@@ -5,7 +5,7 @@ Hadamard patterns and then, a reconstruction using 1/4 of the patterns
 performed after the acquisition and not in "real-time".
 """
 
-from singlepixel import *
+from spas import *
 
 import numpy as np
 import spyrit.misc.walsh_hadamard as wh

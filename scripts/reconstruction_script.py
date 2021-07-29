@@ -6,7 +6,7 @@ from scipy.io import loadmat
 from matplotlib import pyplot as plt
 from spyrit.learning.model_Had_DCAN import Hadamard_Transform_Matrix
 
-from singlepixel import read_metadata, reconstruction_hadamard
+from spas import read_metadata, reconstruction_hadamard
 
 # Matlab patterns
 #file = loadmat('../data/matlab.mat')

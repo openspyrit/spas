@@ -21,7 +21,7 @@ from matplotlib import pyplot as plt
 from spyrit.learning.model_Had_DCAN import compNet, noiCompNet, DenoiCompNet 
 from spyrit.learning.nets import load_net
 
-from singlepixel.noise import noiseClass
+from spas.noise import noiseClass
 
 class netType(IntEnum):
     """Possible model architectures.

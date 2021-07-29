@@ -4,7 +4,7 @@ reconstruction using 1/4 of the patterns  a DenoiCompNet model and a noise model
 in "real-time", using multiprocessing.
 """
 
-from singlepixel import *
+from spas import *
 
 if __name__ == '__main__':
 
