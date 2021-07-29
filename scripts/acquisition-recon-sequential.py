@@ -15,15 +15,15 @@ spectrometer, DMD, DMD_initial_memory = init()
     
 #%% Setup and acquire
 metadata = MetaData(
-    output_directory='../data/2021-07-21-walsh-patterns',
-    pattern_order_source='../stats/new-nicolas/Cov_64x64.npy',
-    pattern_source='../Patterns/PosNeg/DMD_Walsh_64x64',
-    pattern_prefix='Walsh_64x64',
-    experiment_name='walsh-siemens-star1',
-    light_source='White lamp LED',
-    object='Siemens star',
-    filter='Diffuser',
-    description='Testing acquisition using torch-generated Walsh patterns')
+    output_directory='...',
+    pattern_order_source='...',
+    pattern_source='...',
+    pattern_prefix='...',
+    experiment_name='...',
+    light_source='...',
+    object='...',
+    filter='...',
+    description='...')
     
 acquisition_parameters = AcquisitionParameters(
     pattern_compression=1.0,
@@ -55,20 +55,13 @@ network_params = ReconstructionParameters(
     sig=0.0,
     arch_name='c0mp',)
         
-cov_path = '../stats/new-nicolas/Cov_64x64.npy'
-mean_path = '../stats/new-nicolas/Average_64x64.npy'
-H_path = '../stats/new-nicolas/H.npy'
-model_root = '../models/new-nicolas/'
+cov_path = '../stats/Cov_64x64.npy'
+mean_path = '../stats/Average_64x64.npy'
+H_path = '../stats/H.npy'
+model_root = '../models/'
         
 model, device = setup_reconstruction(cov_path, mean_path, H_path, model_root, network_params)
-noise = load_noise('../noise-calibration/fit_model2.npz')
-
-reconstruction_params = {
-    'model': model,
-    'device': device,
-    'batches': 1,
-    'noise': noise,
-}
+noise = load_noise('../noise-calibration/fit_model.npz')
 
 #%% Acquire
 spectral_data = acquire(

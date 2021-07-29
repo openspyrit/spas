@@ -20,12 +20,11 @@ data_path = '../data/22-04-2021-test-acq/fht_patterns'
 file = np.load(data_path+'_spectraldata.npz')
 M = file['spectral_data']
 
-metadata, acquisition_metadata, spectrometer_params, DMD_params = read_metadata(data_path+'_metadata.json')
-wavelengths = acquisition_metadata.wavelengths
+metadata, acquisition_parameters, spectrometer_params, DMD_params = read_metadata(data_path+'_metadata.json')
 
 N = 64
 
-frames = reconstruction_hadamard(acquisition_metadata.patterns, 'fht', Q, M)
+frames = reconstruction_hadamard(acquisition_parameters.patterns, 'fht', Q, M)
 
 
 plt.figure(1)
