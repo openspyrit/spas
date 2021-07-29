@@ -394,7 +394,7 @@ def _update_sequence(DMD: ALP4,
 
 def _setup_patterns(DMD: ALP4, metadata: MetaData, DMD_params: DMDParameters, 
                    acquisition_params: AcquisitionParameters,
-                   cov_path: str = None, pos_neg: bool = True) -> None:
+                   cov_path: str = None) -> None:
     """Read and send patterns to DMD.
 
     Reads patterns from a file and sends a percentage of them to the DMD,
@@ -416,27 +416,11 @@ def _setup_patterns(DMD: ALP4, metadata: MetaData, DMD_params: DMDParameters,
         acquisition_params (AcquisitionParameters):
             Acquisition related metadata object. User must partially fill up
             with pattern_compression, pattern_dimension_x, pattern_dimension_y.
-        pos_neg (bool):
-            Boolean indicating if sequence is formed by positive and negative
-            patterns. Default is True.
     """
 
-    pattern_order_source = Path(metadata.pattern_order_source)
-
-    if pattern_order_source.suffix == '.txt':
-
-        # Pattern order is written directly in a text file
-        file = open(pattern_order_source)
-        pattern_order = file.readlines()[0].split(';')
-        pattern_order.remove('')
-        file.close()
-        pattern_order = [int(pattern) for pattern in pattern_order]
-        print(f'Found {len(pattern_order)} patterns')
-    
-    elif pattern_order_source.suffix == '.npy':
-
-        # Pattern order needs to be calculated from covariance matrix
-        pattern_order = generate_hadamard_order(64, pattern_order_source, pos_neg)
+    file = np.load(Path(metadata.pattern_order_source))
+    pattern_order = file['pattern_order']
+    pos_neg = file['pos_neg']
 
     bitplanes = 1
     DMD_params.bitplanes = bitplanes
@@ -529,7 +513,6 @@ def setup(spectrometer: Avantes,
           add_illumination_time: int = 356,
           dark_phase_time: int = 44,
           DMD_trigger_in_delay: int = 0,
-          pos_neg: bool = True,
           ) -> Tuple[SpectrometerParameters, DMDParameters]:
     """Setup everything needed to start an acquisition.
 
@@ -576,9 +559,6 @@ def setup(spectrometer: Avantes,
         DMD_trigger_in_delay (int):
             Time in microseconds between the incoming trigger edge and the start
             of the pattern display on DMD (slave mode). Default is 0 us.
-        pos_neg (bool):
-            Boolean indicating if sequence is formed by positive and negative
-            patterns. Default is True.
     Raises:
         ValueError: Sum of dark phase and additional illumination time is lower
         than 400 us.
@@ -625,7 +605,7 @@ def setup(spectrometer: Avantes,
     DMD_params = _setup_DMD(DMD, add_illumination_time, DMD_initial_memory)
 
     _setup_patterns(DMD=DMD, metadata=metadata, DMD_params=DMD_params, 
-                    acquisition_params=acquisition_params, pos_neg=pos_neg)
+                    acquisition_params=acquisition_params)
     _setup_timings(DMD, DMD_params, picture_time, illumination_time, 
                    DMD_output_synch_pulse_delay, synch_pulse_width, 
                    DMD_trigger_in_delay, add_illumination_time)
