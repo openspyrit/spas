@@ -9,7 +9,7 @@ from typing import Tuple
 
 import numpy as np
 from PIL import Image
-from spyrit.learning.model_Had_DCAN import Hadamard_Transform_Matrix, Cov2Var
+from spyrit.misc.statistics import Cov2Var
 from spyrit.learning.model_Had_DCAN import Permutation_Matrix
 import spyrit.misc.walsh_hadamard as wh
 
@@ -241,26 +241,28 @@ def resize_to_DMD(width: int, height: int, N: int, N_DMD: int,
     return DMD_patterns
 
 
-def generate_hadamard_order(N: int, cov_path: str = None, 
-                            pos_neg: bool = True) -> np.ndarray:
-    """Generates the Hadamard pattern index order.
+def generate_hadamard_order(N: int, name: str, cov_path: str = None, 
+                            pos_neg: bool = True) -> None:
+    """Generates the Hadamard pattern index order and saves it.
 
     Args:
         N (int): 
             Hadamard patterns dimension.
+        name (str):
+            Output file name.
         cov_path (str, optional): 
             Covariance matrix path. Defaults to None.
         pos_neg (bool, optional): 
             Boolean to select if the generated index sequence should consider
             positive and negative patterns. Defaults to True.
-
-    Returns:
-        np.ndarray:
-            Array containing the ordered pattern index sequence.
     """
     if cov_path is None:
         cov_path = Path(__file__).parent.joinpath(f'../stats/Cov_{N}x{N}.npy')
-        cov_path = cov_path.resolve(strict=True)
+    
+    else:
+        cov_path = Path(cov_path)
+
+    cov_path = cov_path.resolve(strict=True)
         
     Cov = np.load(cov_path)
     Var = Cov2Var(Cov)
@@ -275,8 +277,10 @@ def generate_hadamard_order(N: int, cov_path: str = None,
                                 dtype=np.uint16)
         pattern_order[0::2] = positions
         pattern_order[1::2] = positions_
-
-        return pattern_order
     
     else:
-        return np.asarray(positions, dtype=np.uint16)
+        pattern_order = np.asarray(positions, dtype=np.uint16)
+
+    np.savez(cov_path.parent / name, 
+        pattern_order=pattern_order, 
+        pos_neg=pos_neg)

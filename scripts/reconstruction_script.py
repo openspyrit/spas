@@ -4,7 +4,7 @@ __author__ = 'Guilherme Beneti Martins'
 import numpy as np
 from scipy.io import loadmat
 from matplotlib import pyplot as plt
-from spyrit.learning.model_Had_DCAN import Hadamard_Transform_Matrix
+from spyrit.misc.statistics import Hadamard_Transform_Matrix
 
 from spas import read_metadata, reconstruction_hadamard
 
