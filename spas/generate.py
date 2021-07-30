@@ -9,7 +9,7 @@ from typing import Tuple
 
 import numpy as np
 from PIL import Image
-from spyrit.learning.model_Had_DCAN import Hadamard_Transform_Matrix, Cov2Var
+from spyrit.misc.statistics import Cov2Var
 from spyrit.learning.model_Had_DCAN import Permutation_Matrix
 import spyrit.misc.walsh_hadamard as wh
 
@@ -258,7 +258,11 @@ def generate_hadamard_order(N: int, name: str, cov_path: str = None,
     """
     if cov_path is None:
         cov_path = Path(__file__).parent.joinpath(f'../stats/Cov_{N}x{N}.npy')
-        cov_path = cov_path.resolve(strict=True)
+    
+    else:
+        cov_path = Path(cov_path)
+
+    cov_path = cov_path.resolve(strict=True)
         
     Cov = np.load(cov_path)
     Var = Cov2Var(Cov)
