@@ -65,7 +65,17 @@ from spyrit.misc.statistics import stat_walsh_stl10
 stat_walsh_stl10()
 ```
 
-### 3. We recommend using spyder for acquisition
+### 3. Generate the pattern order
+It is necessary to generate an array that will contain the order in which the patterns must be acquired. This can be done by running:
+
+``` python
+from spas import generate_hadamard_order
+generate_hadamard_order(N=64, name='pattern_order', cov_path='./stats/Cov_64x64.npy', pos_neg=True)
+```
+
+The output array will be placed in `./stats/pattern_order.npz`. It may be necessary to change `cov_path` depending on how it was defined in the last step.
+
+### 4. We recommend using spyder for acquisition
    
 In a terminal, run:
 ``` shell
