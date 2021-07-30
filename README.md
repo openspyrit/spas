@@ -6,8 +6,8 @@ A python toolbox for acquisition of images based on the single-pixel framework.
 ---
 
 Clone this repository. 
-Install the [Spyrit](https://github.com/openspyrit/spyrit) package and its dependencies.
-This version was tested using spyrit 0.13.5, available at [PyPI](https://pypi.org/project/spyrit/).
+Install the [Spyrit](https://github.com/openspyrit/spyrit) package and its dependencies. This version was tested using spyrit 0.13.5, available at [PyPI](https://pypi.org/project/spyrit/) and the more recent source code version available in ths [commit](https://github.com/openspyrit/spyrit/commit/5a0007015ec8daa1795c82140f8537cab75aeafa).
+
 Navigate to `spas/Programs/Python` and run the following commands to install developper mode:
 ```
 pip install -r requirements.txt
