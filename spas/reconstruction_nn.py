@@ -67,7 +67,7 @@ class ReconstructionParameters:
         self._net_arch = int(netType[arch_name])
     
 
-def setup_reconstruction(cov_path: str, mean_path: str, H_path: str, 
+def setup_reconstruction(cov_path: str, mean_path: str, H: np.ndarray, 
     model_root: str, network_params: ReconstructionParameters
     ) -> Tuple[Union[compNet, noiCompNet, DenoiCompNet], str]:
     """Loads a neural network for reconstruction.
@@ -77,8 +77,8 @@ def setup_reconstruction(cov_path: str, mean_path: str, H_path: str,
             Path to the covariance matrix.
         mean_path (str): 
             Path to the mean matrix.
-        H_path (str): 
-            Path to the Hadamard matrix used for creating the acquired patterns.
+        H (nd.array): 
+            Hadamard matrix with patterns.
         model_root (str): 
             Folder containing trained models for reconstruction.
         network_params (ReconstructionParameters): 
@@ -99,8 +99,6 @@ def setup_reconstruction(cov_path: str, mean_path: str, H_path: str,
 
     Cov_had = np.load(cov_path)
     Mean_had = np.load(mean_path)
-
-    H = np.load(H_path)
 
     suffix = '_N_{}_M_{}_epo_{}_lr_{}_sss_{}_sdr_{}_bs_{}_reg_{}'.format(
            network_params.img_size, network_params.CR, 

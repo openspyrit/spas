@@ -230,7 +230,7 @@ model_root = '../models/'
 
 import spyrit.misc.walsh_hadamard as wh
 H = wh.walsh2_matrix(64)/64        
-model, device = setup_reconstruction(cov_path, mean_path, '../stats/H.npy', model_root, network_params)
+model, device = setup_reconstruction(cov_path, mean_path, H, model_root, network_params)
 ```
 
 Load noise calibration parameters (provided with the data or computed using tools in `/noise-calibration`):

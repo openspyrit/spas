@@ -3,7 +3,7 @@ Example of an acquisition of 1/4 of the Hadamard patterns and then performs a
 reconstruction using 1/4 of the patterns  a DenoiCompNet model and a noise model
 in "real-time", using multiprocessing.
 """
-
+import spyrit.misc.walsh_hadamard as wh
 from spas import *
 
 if __name__ == '__main__':
@@ -53,10 +53,10 @@ if __name__ == '__main__':
         
     cov_path = './...'
     mean_path = './...'
-    H_path = './...'
+    H = wh.walsh2_matrix(64)/64
     model_root = './...'
         
-    model, device = setup_reconstruction(cov_path, mean_path, H_path, model_root, network_params)
+    model, device = setup_reconstruction(cov_path, mean_path, H, model_root, network_params)
     noise = load_noise('../noise-calibration/fit_model.npz')
     
     reconstruction_params = {

@@ -57,10 +57,10 @@ network_params = ReconstructionParameters(
         
 cov_path = '../stats/Cov_64x64.npy'
 mean_path = '../stats/Average_64x64.npy'
-H_path = '../stats/H.npy'
+H = wh.walsh2_matrix(64)/64
 model_root = '../models/'
         
-model, device = setup_reconstruction(cov_path, mean_path, H_path, model_root, network_params)
+model, device = setup_reconstruction(cov_path, mean_path, H, model_root, network_params)
 noise = load_noise('../noise-calibration/fit_model.npz')
 
 #%% Acquire
