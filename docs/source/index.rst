@@ -12,6 +12,7 @@ Single-Pixel Acquisition Software (SPAS) is a Python toolbox for acquisition of 
    :maxdepth: 2
    :caption: Contents:
 
+   api
 
 
 Indices and tables
