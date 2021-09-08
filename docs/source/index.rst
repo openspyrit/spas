@@ -3,8 +3,10 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to spas's documentation!
+Spas's documentation!
 ================================
+
+Single-Pixel Acquisition Software (SPAS) is a Python toolbox for acquisition of images based on the single-pixel framework.
 
 .. toctree::
    :maxdepth: 2
