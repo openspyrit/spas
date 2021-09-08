@@ -22,6 +22,8 @@ project = 'spas'
 copyright = '2021, Guilherme Beneti Martins'
 author = 'Guilherme Beneti Martins'
 
+# The full version, including alpha/beta/rc tags
+release = '0.0.1'
 
 # -- General configuration ---------------------------------------------------
 
