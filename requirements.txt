@@ -1,17 +1,7 @@
-ALP4lib @ git+https://github.com/guilhermebene/ALP4lib.git@7e35abf3a5c2e31652f7cfb2e4243b279b6a3a47
-dataclasses-json==0.5.2
-certifi
-cycler
-kiwisolver
-matplotlib
-numpy
-msl-equipment @ git+https://github.com/MSLNZ/msl-equipment.git
-Pillow
-pyparsing
-python-dateutil
-six
-tqdm==4.60.0
-torch
-torchvision
-spyrit
-wincertstore
+# installs dependencies from ./setup.py, and the package itself,
+# in editable mode
+# -e .
+# (the -e above is optional). you could also just install the package
+# normally with just the line below :
+.
+
