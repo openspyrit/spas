@@ -109,7 +109,7 @@ You may experience an issue launcing spyder (July 2021). It is solved with:
 conda install pywin32
 ```
 
-  ## First acquisition
+  ## First Acquisition
 
 We provides several script examples in `./scripts/`. A minimal working example is provided below.
 
@@ -166,8 +166,8 @@ meas = acquire(
 disconnect(spectrometer, DMD)
 ```
 
-## First reconstruction (no neural networks)
----
+## First Reconstruction (No Neural Networks)
+
 Here, we consider an acquisition with `pattern_compression=1.0`, meaning all the patterns are acquired.
 
 * Measurements are in memory (fully sampled)
@@ -217,7 +217,7 @@ import spyrit.misc.walsh_hadamard as wh
 H = wh.walsh2_matrix(64)
 rec = reconstruction_hadamard(acquisition_metadata.patterns, 'walsh', H, meas)
 ```
-## Reconstruction with a neural network
+## Reconstruction with a Neural Network
 
 * Measurements are on the disk (fully-sampled here, works too with `pattern_compression=.25`) 
 
