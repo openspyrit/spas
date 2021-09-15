@@ -3,23 +3,46 @@
 A python toolbox for acquisition of images based on the single-pixel framework.
 
 ## Installation (Windows only)
----
 
-Clone this repository. 
-Install the [Spyrit](https://github.com/openspyrit/spyrit) package and its dependencies. This version was tested using spyrit 0.13.5, available at [PyPI](https://pypi.org/project/spyrit/) and the more recent source code version available in ths [commit](https://github.com/openspyrit/spyrit/commit/5a0007015ec8daa1795c82140f8537cab75aeafa).
+1.  Create a new environment (tested under conda)
 
-Navigate to `spas/Programs/Python` and run the following commands to install developper mode:
+```powershell
+conda create --name my_spas_env
+conda activate my_spas_env
+conda install -c anaconda pip 
 ```
+
+2. Install the [SPyRiT](https://github.com/openspyrit/spyrit) package (tested with version 1.0.0). Typically
+
+```powershell
+pip install requests torch==1.8.0+cpu torchvision==0.9.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
+pip install spyrit==1.0.0
+```
+
+2. Clone the SPAS repository
+
+```powershell
+git clone git@github.com:openspyrit/spas.git
+```
+
+Navigate to `./spas/` and install the SPAS package in editable mode
+
+```powershell
 pip install -r requirements.txt
 pip install -e .
 ```
 
-### Necessary dlls
+3. Add DLLs 
 
-* `avaspecx64.dll` normally given by an Avantes distributor
+The following dynamic-link libraries (DLLs) are required
+
+* `avaspecx64.dll` provided by your Avantes distributor
 * `alpV42.dll` available [here](https://www.vialux.de/en/hi-speed-download.html) by installing the entire ALP4 library
 
-They should be placed inside the folder `lib` in the project's root as follows.
+They should be placed inside the  `lib` folder
+
+4. The typical directory structure is
+
 ```
 ├───lib
 │   ├───alpV42
@@ -39,13 +62,11 @@ They should be placed inside the folder `lib` in the project's root as follows.
 ```
 
 ## Preparation (just once)
----
 ### 1. Creating Walsh-Hadamard patterns
 
 Run in Python:
-    
 ``` python
-from spas import walsh patterns
+from spas import walsh_patterns
 walsh_patterns(save_data=True)
 ```
 By default the patterns are 1024x768 PNG images saved in `./Walsh_64_64/`.
@@ -66,34 +87,33 @@ stat_walsh_stl10()
 ```
 
 ### 3. Generate the pattern order
-It is necessary to generate an array that will contain the order in which the patterns must be acquired. This can be done by running:
+It is necessary to generate an array that specifies the order in which the patterns are acquired. This can be done by running:
 
 ``` python
 from spas import generate_hadamard_order
 generate_hadamard_order(N=64, name='pattern_order', cov_path='./stats/Cov_64x64.npy', pos_neg=True)
 ```
 
-The output array will be placed in `./stats/pattern_order.npz`. It may be necessary to change `cov_path` depending on how it was defined in the last step.
+The output array will be placed in `./stats/pattern_order.npz`. It may be necessary to change `cov_path` depending on the previous step.
 
 ### 4. We recommend using spyder for acquisition
-   
-In a terminal, run:
-``` shell
+
+In a terminal :
+``` powershell
 pip install spyder
 spyder
 ```
 
-You may experience an issue launcing spyder (July 2021) that is solved with:
-``` shell
+You may experience an issue launcing spyder (July 2021). It is solved with:
+``` powershell
 conda install pywin32
 ```
 
   ## First acquisition
-  ---
 
-  Script examples are available in `./scripts/`.
+We provides several script examples in `./scripts/`. A minimal working example is provided below.
 
-* Initilization (just once, two consecutively returns an error):
+* Initialization (just once, two consecutively returns an error):
 ``` python 
 from spas import *
 spectrometer, DMD, DMD_initial_memory = init() 
@@ -102,9 +122,9 @@ spectrometer, DMD, DMD_initial_memory = init()
 * Setup:
 ``` python   
 metadata = MetaData(
-    output_directory='../meas/',
-    pattern_order_source='../stats_download/Cov_64x64.npy',
-    pattern_source='../Walsh_64x64/',
+    output_directory='./meas/',
+    pattern_order_source='./stats_download/pattern_order.npz',
+    pattern_source='./Walsh_64x64/',
     pattern_prefix='Walsh_64x64',
     experiment_name='my_first_measurement',
     light_source='white_lamp',
@@ -125,7 +145,7 @@ spectrometer_params, DMD_params = setup(
     acquisition_params=acquisition_parameters,
     integration_time=1.0)
 
-``` 
+```
 
 * Acquisition:
 ``` python 
@@ -139,7 +159,7 @@ meas = acquire(
     repetitions=1,
     reconstruct=False)
 
-``` 
+```
 
 * Disconnect, otherwise it is possible to run setup and/or acquisition again.
 ``` python 
@@ -152,6 +172,7 @@ Here, we consider an acquisition with `pattern_compression=1.0`, meaning all the
 
 * Measurements are in memory (fully sampled)
   
+
 Reconstruct the measurements contained in variable `meas`:
 ``` python 
 import spyrit.misc.walsh_hadamard as wh
@@ -172,7 +193,7 @@ Plot the 8 spectral bins:
 from spas import plot_color
 plot_color(rec_bin, wavelengths_bin)
 ```
-  
+
 * Measurements are saved in the disk (fully sampled)
 
 Reconstruct the measurements saved as `../meas/my_first_measurement`.
@@ -197,10 +218,9 @@ H = wh.walsh2_matrix(64)
 rec = reconstruction_hadamard(acquisition_metadata.patterns, 'walsh', H, meas)
 ```
 ## Reconstruction with a neural network
----
 
 * Measurements are on the disk (fully-sampled here, works too with `pattern_compression=.25`) 
-  
+
 Read the data:
 ``` python
 import numpy as np
@@ -217,7 +237,7 @@ _, acquisition_parameters, _, _ = read_metadata('../meas/my_first_measurement' +
 * We have access to a trained network:
 
 An example network can be downloaded [here](https://www.creatis.insa-lyon.fr/~ducros/spyritexamples/2021_ISTE/NET_c0mp_N0_50.0_sig_0.0_Denoi_N_64_M_1024_epo_40_lr_0.001_sss_20_sdr_0.2_bs_256_reg_1e-07.pth) , which you can save in `./models/`. It allows to reconstruction images from only 1024 hadamard coefficients (i.e., 2048 raw measurements):
-  
+
 ``` python
 from spas import ReconstructionParameters, setup_reconstruction
 network_params = ReconstructionParameters(
@@ -243,20 +263,20 @@ H = wh.walsh2_matrix(64)/64
 model, device = setup_reconstruction(cov_path, mean_path, H, model_root, network_params)
 ```
 
-Load noise calibration parameters (provided with the data or computed using tools in `/noise-calibration`):
+Load noise calibration parameters (provided with the data or computed using tools in `/noise-calibration`)
 ``` python
 from spas import load_noise
 noise = load_noise('../noise-calibration/fit_model.npz')
 ```
 
-Bin before reconstruction and plot:
+Bin before reconstruction and plot
 
 ``` python
 from spas import spectral_binning
 meas_bin, wavelengths_bin, _, noise_bin = spectral_binning(meas.T, acquisition_parameters.wavelengths, 530, 730, 8, noise)
 ```
 
-Reconstruction and plot:
+Reconstruction and plot
 ``` python
 from spas import reconstruct, plot_color
 rec = reconstruct(model, device, meas_bin[0:8192//4,:], 1, noise_bin)           
