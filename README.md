@@ -1,6 +1,7 @@
 # Single-Pixel Acquisition Software (SPAS) - Python version
 
 A python toolbox for acquisition of images based on the single-pixel framework.
+It has been tested using a Digital Light Processor [DLP7000](https://www.vialux.de/en/hi-speed-v-modules.html) from ViALUX GmbH and a Spectrometer [AvaSpec-ULS2048CL-EVO](https://www.avantes.com/products/spectrometers/starline/avaspec-uls2048cl-evo/) from Avantes, but may as well work for similar equipment with a few minor changes.
 
 ## Installation (Windows only)
 
