@@ -29,5 +29,6 @@ setup(
         'torchvision',
         'spyrit',
         'wincertstore',
-    ]
-    packages=find_packages())
+    ],
+    packages=find_packages()
+)
