@@ -88,4 +88,4 @@ master_doc = 'index'
 html_sidebars = { '**': ['globaltoc.html', 'relations.html', 'sourcelink.html', 'searchbox.html'] }
 
 # http://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html#confval-autodoc_mock_imports
-autodoc_mock_imports = "numpy matplotlib mpl_toolkits scipy torch torchvision Pillow opencv-python imutils PyWavelets pywt wget imageio ALP4lib dataclasses-json certifi cycler kiwisolver msl-equipment pyparsing python-dateutil six tqdm wincertstore".split()
+autodoc_mock_imports = "numpy matplotlib mpl_toolkits scipy torch torchvision Pillow opencv-python imutils PyWavelets pywt wget imageio ALP4lib dataclasses-json certifi cycler kiwisolver msl-equipment pyparsing python-dateutil six tqdm wincertstore _winreg spyrit".split()
