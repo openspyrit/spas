@@ -261,6 +261,7 @@ def plot_color(F: np.ndarray, wavelengths: np.ndarray,
         if bin_ + 1 <= rows*cols:
             
             ax = fig.add_subplot(rows, cols, bin_+1)
+            ax.axis('off')
             
             divider = make_axes_locatable(ax)
             cax = divider.append_axes('right', size='5%', pad=0.05)
