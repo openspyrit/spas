@@ -264,21 +264,19 @@ class AcquisitionParameters:
 
     @staticmethod
     def readable_pattern_order(acquisition_params_dict: dict) -> dict:
-        """Turns list of patternss into a string.
+        """Turns list of patterns into a string.
 
-        Turns the list of patterns attribute from an AcquisitionParameters 
+        Turns the list of pattern attributes from an AcquisitionParameters 
         object (turned into a dictionary) into a string that will improve
         readability once all metadata is dumped into a JSON file.
-        This function must be called before dumping 
+        This function must be called before dumping.
 
         Args:
-            acquisition_params_dict (dict):
-                Dictionary obtained from converting an AcquisitionParameters 
-                object.
+            acquisition_params_dict (dict): Dictionary obtained from converting 
+            an AcquisitionParameters object.
 
         Returns:
-            [dict]:
-                Modified dictionary with acquisition parameters metadata.
+            [dict]: Modified dictionary with acquisition parameters metadata.
         """
 
         def _hard_coded_conversion(data):
