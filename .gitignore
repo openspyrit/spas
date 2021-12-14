@@ -159,6 +159,8 @@ Patterns/
 /Programs/Matlab/test
 /Programs/Matlab/main_Hadamard_spectro_2.m
 *.asv
+*.npy
+*.npz
 *.zip
 *.xlsx
 *.lnk

@@ -151,7 +151,8 @@ def setup_reconstruction(cov_path: str, mean_path: str, H: np.ndarray,
             network_params._net_arch,
             network_params.N0,
             network_params.sig, 
-            H)
+            H,
+            None)
 
     torch.cuda.empty_cache()
 

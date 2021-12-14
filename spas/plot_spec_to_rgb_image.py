@@ -23,12 +23,12 @@ Z=∫P(λ)z¯(λ)dλ
 
 """
 
-from singlepixel import convert_spec_to_rgb
-from singlepixel.convert_spec_to_rgb import ColourSystem
+from spas import convert_spec_to_rgb
+from spas.convert_spec_to_rgb import ColourSystem
 import numpy as np
 from matplotlib import pyplot as plt
 # import spyrit.misc.walsh_hadamard as wh
-# from singlepixel import read_metadata, reconstruction_hadamard
+# from spas import read_metadata, reconstruction_hadamard
 import math
 from scipy import interpolate
 from scipy.signal import medfilt
