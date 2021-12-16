@@ -409,7 +409,7 @@ def _setup_patterns(DMD: ALP4, metadata: MetaData, DMD_params: DMDParameters,
             Connected DMD object.
         metadata (MetaData):
             Metadata concerning the experiment, paths, file inputs and file 
-            outputs. Must be create and filled up by the user.
+            outputs. Must be created and filled up by the user.
         DMD_params (DMDParameters):
             DMD metadata object to be updated with pattern related data and with
             memory available after patterns are sent to DMD.
@@ -528,7 +528,7 @@ def setup(spectrometer: Avantes,
             Initial memory available in DMD after initialization.
         metadata (MetaData):
             Metadata concerning the experiment, paths, file inputs and file 
-            outputs. Must be create and filled up by the user.
+            outputs. Must be created and filled up by the user.
         acquisition_params (AcquisitionParameters):
             Acquisition related metadata object. User must partially fill up
             with pattern_compression, pattern_dimension_x, pattern_dimension_y.
@@ -830,7 +830,7 @@ def acquire(ava: Avantes,
     """Perform a complete acquisition.
 
     Performs single or multiple acquisitions using the same setup configurations
-    previosly chosen.
+    previously chosen.
     Finnaly saves all acqusition related data and metadata.
 
     Args:
@@ -840,7 +840,7 @@ def acquire(ava: Avantes,
             Connected DMD.
         metadata (MetaData): 
             Metadata concerning the experiment, paths, file inputs and file 
-            outputs. Must be create and filled up by the user.
+            outputs. Must be created and filled up by the user.
         spectrometer_params (SpectrometerParameters): 
             Spectrometer metadata object with spectrometer configurations.
         DMD_params (DMDParameters):
