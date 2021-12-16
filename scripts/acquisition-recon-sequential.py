@@ -18,7 +18,7 @@ spectrometer, DMD, DMD_initial_memory = init()
     
 #%% Setup acquisition and send pattern to the DMD
 setup_version = 'setup_v1.2'
-data_folder_name = '2021-12-14_test_NN'
+data_folder_name = '2021-12-15_test_3ieme'
 data_name = 'tomato_slice'
 
 if not os.path.exists('../data/' + data_folder_name):
