@@ -63,7 +63,6 @@ from tqdm import tqdm
 
 from .metadata import DMDParameters, MetaData, AcquisitionParameters
 from .metadata import SpectrometerParameters, save_metadata
-from .generate import generate_hadamard_order
 from .reconstruction_nn import reconstruct_process, plot_recon, ReconstructionParameters
 
 
