@@ -237,6 +237,7 @@ def spectral_slicing(F: np.ndarray, wavelengths: np.ndarray, lambda_min: int,
     else:
         return F_bin, wavelengths_bin, bin_width, noise_bin
 
+
 def wavelength_to_rgb(wavelength: float,
     gamma: float = 0.8) -> Tuple[float, float, float]:
     """Converts wavelength to RGB.
@@ -338,7 +339,7 @@ def generate_colormap(wavelength: float, img_size: int,
     return colormap
 
 
-def plot_color(F: np.ndarray, wavelengths: np.ndarray,
+def plot_color(F: np.ndarray, wavelengths: np.ndarray, save_path: str = None,
     gamma: float = 0.8, fontsize: int = 12) -> None:
     """Plots data for each binned wavelength.
 
@@ -390,3 +391,8 @@ def plot_color(F: np.ndarray, wavelengths: np.ndarray,
     
     fig.tight_layout()
     plt.show()
+    
+    if save_path:
+        
+        fig.savefig(f'{save_path}.png', dpi=300, bbox_inches='tight')
+
