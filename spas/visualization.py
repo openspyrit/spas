@@ -339,7 +339,7 @@ def generate_colormap(wavelength: float, img_size: int,
     return colormap
 
 
-def plot_color(F: np.ndarray, wavelengths: np.ndarray, save_path: str = None,
+def plot_color(F: np.ndarray, wavelengths: np.ndarray, filename: str = None,
     gamma: float = 0.8, fontsize: int = 12) -> None:
     """Plots data for each binned wavelength.
 
@@ -353,6 +353,9 @@ def plot_color(F: np.ndarray, wavelengths: np.ndarray, save_path: str = None,
             Second and third dimensions contain the reconstructed pixels. 
         wavelengths (np.ndarray): 
             Wavelenghts for plotting (must be already in bins).
+        filename (str, option):
+            Filename to save the resulting plot in the working directory.
+            Defaults to None.
         gamma (float, optional): 
             Gamma correction. Defaults to 0.8.
         fontsize (int, optional): 
