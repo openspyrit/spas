@@ -97,8 +97,8 @@ def setup_reconstruction(cov_path: str, mean_path: str, H: np.ndarray,
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f'Device: {device}')
 
-    Cov_had = np.load(cov_path)
-    Mean_had = np.load(mean_path)
+    Cov_had = np.load(cov_path) / network_params.img_size**2
+    Mean_had = np.load(mean_path) / network_params.img_size
 
     suffix = '_N_{}_M_{}_epo_{}_lr_{}_sss_{}_sdr_{}_bs_{}_reg_{}'.format(
            network_params.img_size, network_params.CR, 
