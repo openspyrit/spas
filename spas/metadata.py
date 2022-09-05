@@ -15,10 +15,14 @@ from enum import IntEnum
 from dataclasses import dataclass, InitVar, field
 from typing import Optional, Union, List, Tuple, Optional
 from pathlib import Path
+import os
 
 from msl.equipment.resources.avantes import MeasConfigType
 from dataclasses_json import dataclass_json
 import numpy as np
+import pyueye as ueye
+import ctypes as ct
+import pickle
 
 
 class DMDTypes(IntEnum):
@@ -204,6 +208,7 @@ class AcquisitionParameters:
     saturation_detected: Optional[bool] = None
 
     patterns: Optional[Union[List[int], str]] = field(default=None, repr=False)
+    patterns_wp: Optional[Union[List[int], str]] = field(default=None, repr=False)
     wavelengths: Optional[Union[np.ndarray, str]] = field(default=None, 
                                                         repr=False)
     timestamps: Optional[Union[List[float], str]] = field(default=None, 
@@ -235,6 +240,9 @@ class AcquisitionParameters:
         
         self.patterns = self.patterns.strip('[').strip(']').split(', ')
         self.patterns = [int(s) for s in self.patterns if s.isdigit()]
+
+        self.patterns_wp = self.patterns_wp.strip('[').strip(']').split(', ')
+        self.patterns_wp = [int(s) for s in self.patterns_wp if s.isdigit()]
 
         if self.wavelengths:
             self.wavelengths = (
@@ -290,6 +298,7 @@ class AcquisitionParameters:
 
         readable_dict = acquisition_params_dict
         readable_dict['patterns'] = str(readable_dict['patterns'])
+        readable_dict['patterns_wp'] = str(readable_dict['patterns_wp'])
         
         readable_dict['wavelengths'] = _hard_coded_conversion(
             readable_dict['wavelengths'])
@@ -324,6 +333,7 @@ class AcquisitionParameters:
 
         self.timestamps = timestamps
         self.measurement_time = measurement_time
+
 
 
 @dataclass_json
@@ -565,7 +575,11 @@ class DMDParameters:
 
     synch_polarity: Optional[str] = None
     trigger_edge: Optional[str] = None
-
+    
+    # synch_polarity_OUT1: Optional[str] = None
+    # synch_period_OUT1: Optional[str] = None
+    # synch_gate_OUT1: Optional[str] = None
+    
     type: Optional[str] = None
     usb_connection: Optional[bool] = None
 
@@ -617,6 +631,8 @@ class DMDParameters:
             elif edge == 2009:
                 self.trigger_edge = 'Rising'
                 
+           # synch_polarity_OUT1 = 
+                
             self.type = DMDTypes(DMD.DevInquire(ALP4.ALP_DEV_DMDTYPE))
 
             if DMD.DevInquire(ALP4.ALP_USB_CONNECTION) == 0:
@@ -653,6 +669,124 @@ class DMDParameters:
         self.synch_pulse_delay = DMD.SeqInquire(ALP4.ALP_SYNCH_DELAY) 
         self.add_illumination_time_us = add_illumination_time
 
+
+@dataclass_json
+@dataclass
+class CAM(object):
+    """Class containing IDS camera configurations.
+
+    Further information: https://en.ids-imaging.com/manuals/ids-software-suite/ueye-manual/4.95/en/c_programmierung.html.
+
+    Attributes:
+        hCam (ueye.c_uint):
+            Handle of the camera.
+        sInfo (ueye.SENSORINFO):
+            sensor information : [SensorID [c_ushort] = 566;
+                                strSensorName [c_char_Array_32] = b'UI388xCP-M';
+                                nColorMode [c_char] = b'\x01';
+                                nMaxWidth [c_uint] = 3088;
+                                nMaxHeight [c_uint] = 2076;
+                                bMasterGain [c_int] = 1;
+                                bRGain [c_int] = 0;
+                                bGGain [c_int] = 0;
+                                bBGain [c_int] = 0;
+                                bGlobShutter [c_int] = 0;
+                                wPixelSize [c_ushort] = 240;
+                                nUpperLeftBayerPixel [c_char] = b'\x00';
+                                Reserved].
+        cInfo (ueye.BOARDINFO):
+            Camera information: [SerNo [c_char_Array_12] = b'4103219888';
+                                ID [c_char_Array_20] = b'IDS GmbH';
+                                Version [c_char_Array_10] = b'';
+                                Date [c_char_Array_12] = b'30.11.2017';
+                                Select [c_ubyte] = 1;
+                                Type [c_ubyte] = 100;
+                                Reserved [c_char_Array_8] = b'';]                
+        nBitsPerPixel (ueye.c_int):
+            number of bits per pixel (8 for monochrome, 24 for color).
+        m_nColorMode (ueye.c_int):
+            color mode : Y8/RGB16/RGB24/REG32.
+        bytes_per_pixel (int):
+            bytes_per_pixel = int(nBitsPerPixel / 8).
+        rectAOI (ueye.IS_RECT()):
+            rectangle of the Area Of Interest (AOI):    s32X [c_int] = 0;
+                                                        s32Y [c_int] = 0;
+                                                        s32Width [c_int] = 3088;
+                                                        s32Height [c_int] = 2076;                
+        pcImageMemory (ueye.c_mem_p()):
+            memory allocation.
+        MemID (ueye.int()):
+            memory identifier.
+        pitch (ueye.INT()):
+            ???.
+        fps (float):
+            set frame per second.
+        gain (int):
+            Set gain between [0 - 100].
+        gainBoost (str):
+            Activate gain boosting ("ON") or deactivate ("OFF").
+        gamma (float):
+            Set Gamma between [1 - 2.5] to change the image contrast
+        exposureTime (float):
+            Set the exposure time between [0.032 - 56.221]
+        blackLevel (int):
+            Set the black level between [0 - 255] to set an offset in the image.
+    """
+
+    # hCam: ueye.c_uint()
+    # sInfo: ueye.SENSORINFO
+    # cInfo: ueye.BOARDINFO
+    # nBitsPerPixel: ueye.c_int()
+    # m_nColorMode: ueye.c_int()
+    # bytes_per_pixel: int
+    # rectAOI: ueye.IS_RECT()
+    # pcImageMemory: ueye.c_mem_p()
+    # MemID: ueye.c_int()
+    # pitch: ueye.c_int()    
+    # fps: float
+    # gain: int
+    # gainBoost: str
+    # gamma: float 
+    # exposureTime: float
+    # blackLevel: int
+    # camActivated : bool
+    # pixelClock : int
+    # bandwidth : float
+    # Memory : bool
+    # Exit : bool
+    # vidFormat : str
+    # gate_period : int
+    # trigger_mode : str
+    # avi : ueye.int
+    # punFileID : ueye.c_int()
+    # timeout : int
+    # time_array : []
+    # int_time_spect : float
+    # black_pattern_num : int
+    
+    
+    # _fields_ = [("hCam"),# ueye.c_uint()),
+    #             ("sInfo"),# ueye.SENSORINFO),
+    #             ("cInfo"),# ueye.BOARDINFO),
+    #             ("nBitsPerPixel"),# ueye.c_int),
+    #             ("m_nColorMode"),# ueye.c_int),
+    #             ("bytes_per_pixel", int),
+    #             ("rectAOI")],# ueye.IS_RECT()),               
+    #             # ("pcImageMemory"),# ueye.c_mem_p()),
+    #             # ("MemID"),# ueye.int()),
+    #             # ("pitch"),# ueye.INT()),                
+    #             # ("fps", float),
+    #             # ("gain", int),
+    #             # ("gainBoost", str),
+    #             # ("gamma", float ),
+    #             # ("exposureTime", float),
+    #             # ("blackLevel", int)]
+
+    class_description: str = 'IDS camera configuration'
+    
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)            
+            
 
 def read_metadata(file_path: str) -> Tuple[MetaData,
                                            AcquisitionParameters,
@@ -695,6 +829,48 @@ def read_metadata(file_path: str) -> Tuple[MetaData,
     return (saved_metadata, saved_acquisition_params, 
             saved_spectrometer_params, saved_dmd_params)
 
+def read_metadata_2arms(file_path: str) -> Tuple[MetaData,
+                                           AcquisitionParameters,
+                                           SpectrometerParameters,
+                                           DMDParameters]:
+    """Reads metadata of a previous acquisition from JSON file.
+
+    Args:
+        file_path (str):
+            Name of JSON file containing all metadata.
+
+    Returns:
+        Tuple[MetaData, AcquisitionParameters, SpectrometerParameters, 
+        DMDParameters]:
+            saved_metadata (MetaData):
+                Metadata object read from JSON.
+            saved_acquisition_params(AcquisitionParameters):
+                AcquisitionParameters object read from JSON.
+            saved_spectrometer_params(SpectrometerParameters):
+                SpectrometerParameters object read from JSON.
+            saved_dmd_params(DMDParameters):
+                DMDParameters object read from JSON.
+    """
+    
+    file = open(file_path,'r')
+    data = json.load(file)
+    file.close()
+        
+    for object in data:
+        if object['class_description'] == 'Metadata':
+            saved_metadata = MetaData.from_dict(object)
+        if object['class_description'] == 'Acquisition parameters':
+            saved_acquisition_params = AcquisitionParameters.from_dict(object)
+            saved_acquisition_params.undo_readable_pattern_order()
+        if object['class_description'] == 'Spectrometer parameters':
+            saved_spectrometer_params = SpectrometerParameters.from_dict(object)
+        if object['class_description'] == 'DMD parameters':
+            saved_dmd_params = DMDParameters.from_dict(object)
+        if object['class_description'] == 'IDS camera configuration':
+            saved_cam_params = CAM.from_dict(object)    
+
+    return (saved_metadata, saved_acquisition_params, 
+            saved_spectrometer_params, saved_dmd_params, saved_cam_params)
 
 def save_metadata(metadata: MetaData, 
                   DMD_params: DMDParameters, 
@@ -727,3 +903,124 @@ def save_metadata(metadata: MetaData,
                 acquisition_parameters.to_dict())]
 
         json.dump(output_params,output,ensure_ascii=False,indent=4)
+        
+def save_metadata_2arms(metadata: MetaData, 
+                  DMD_params: DMDParameters, 
+                  spectrometer_params: SpectrometerParameters, 
+                  camPar,
+                  acquisition_parameters: AcquisitionParameters) -> None:
+    """Saves metadata to JSON file.
+
+    Args:
+        metadata (MetaData):
+            Metadata concerning the experiment, paths, file inputs and file
+            outputs.
+        DMD_params (DMDParameters):
+            Class containing DMD configurations and status.
+        spectrometer_params (SpectrometerParameters):
+            Object containing spectrometer configurations.
+        acquisition_parameters (AcquisitionParameters):
+            Object containing acquisition specifications and timing results.
+    """
+    
+    # camPar2 = camPar
+    
+    # for key in list(camPar.__dict__):
+    #     key_str = str(type(camPar.__dict__[key]))
+    #     print(key_str)
+    #     if key_str.find('pyueye.ueye.c') != -1:
+    #         print(key)
+    #         camPar2.__dict__[key] = camPar.__dict__[key].value
+    #     elif key == 'sInfo' or key == 'cInfo' or 'rectAOI':
+    #         print(camPar.__dict__[key])
+    #         for key2, value in list(camPar.__dict__[key]._fields_):
+    #             print('key2 : ' + key2)
+    #             key_str2 = str(type(camPar.__dict__[key].__getattribute__(key2)))
+    #             if key_str2.find('pyueye.ueye.c') != -1:
+    #                 print('ici key2 : ' + key2)
+    #                 camPar2.__dict__[key+'_'+key2] = camPar.__dict__[key].__getattribute__(key2).value
+    #             else:
+    #                 camPar2.__dict__[key+'_'+key2] = camPar.__dict__[key].__getattribute__(key2)
+    #         #delattr(camPar2, 'sInfo')
+    #         # del camPar2.sInfo
+    #     else:
+    #         camPar2.__dict__[key] = camPar.__dict__[key]
+            
+    # del camPar2.sInfo
+    # del camPar2.cInfo
+    # del camPar2.rectAOI
+    
+    path = Path(metadata.output_directory)
+    with open(
+        path / f'{metadata.experiment_name}_metadata.json',
+        'w', encoding='utf8') as output:
+
+        output_params = [
+            metadata.to_dict(),
+            DMD_params.to_dict(), 
+            spectrometer_params.to_dict(),
+            #CAM.to_dict(camPar.__dict__),            
+            AcquisitionParameters.readable_pattern_order(acquisition_parameters.to_dict())]
+        
+
+        # for key in list(output_params[4]):
+        #     print(key)
+        #     key_str = str(type(output_params[4][key]))
+        #     print(key_str)
+        #     if key_str.find('pyueye.ueye.c') != -1 and key != 'Reserved':
+        #         print('-----------')
+        #         print(key)
+        #         print('-----------')
+        #         output_params[4][key] = output_params[4][key].value
+        #     elif key == 'sInfo':# or key == 'cInfo' or 'rectAOI':
+        #         print('sInfo beginning')
+        #         print(output_params[4][key])
+        #         for key2, value2 in output_params[4][key]._fields_:
+        #             print('key2 : ' + key2)
+        #             #print('value2 : ' + value2)
+        #             if key2 != 'Reserved':
+        #                 key_str2 = str(type(output_params[4][key].__getattribute__(key2)))
+        #                 if key_str2.find('pyueye.ueye.c') != -1:
+        #                     print('ici key2 : ' + key2)
+        #                     #output_params2[4][key + '_' + key2] = output_params[4][key].__getattribute__(key2).value
+        #                     #setattr(output_params[4], key + '_' + key2, output_params[4][key].__getattribute__(key2).value)
+        #                     #setattr(output_params[4][key], key2, output_params[4][key].__getattribute__(key2).value)
+        #                     output_params[4][key + '_' + key2] = output_params[4][key].__getattribute__(key2).value
+
+        # del output_params[4]['sInfo']
+        # del output_params[4]['cInfo']
+        # del output_params[4]['rectAOI']
+        # del output_params[4]['sInfo_nColorMode']
+        # del output_params[4]['sInfo_nUpperLeftBayerPixel']
+        
+        # def convert(o):
+        #     print(o)
+        #     if isinstance(o, ct.c_uint): 
+        #         return int(o)  
+        #     raise TypeError
+        
+        json.dump(output_params, output, ensure_ascii=False, indent=4)#, default=convert)
+    
+    with open(path / f'{metadata.experiment_name}_metadata_cam.pkl', 'wb') as f:
+        pickle.dump(camPar.__dict__, f)    
+
+@dataclass_json
+@dataclass
+class func_path:
+    def __init__(self, data_folder_name, data_name):
+        if not os.path.exists('../data/' + data_folder_name):
+            os.makedirs('../data/' + data_folder_name)
+
+        self.subfolder_path = '../data/' + data_folder_name + '/' + data_name    
+        self.overview_path = self.subfolder_path + '/overview'
+        if not os.path.exists(self.overview_path):
+            os.makedirs(self.overview_path)
+
+        self.data_path = self.subfolder_path + '/' + data_name
+        self.had_reco_path = self.data_path + '_had_reco.npz'         
+        self.fig_had_reco_path = self.overview_path + '/' + 'HAD_RECO_' + data_name   
+        self.pathIDSsnapshot = Path(self.data_path + '_IDScam_before_acq.npy')
+        self.pathIDSsnapshot_overview = self.overview_path + '/' + 'CAM_before_acq_' + data_name + '.png'
+        
+
+  

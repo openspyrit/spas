@@ -4,14 +4,21 @@ __author__ = 'Guilherme Beneti Martins'
 import warnings
 import colorsys
 from typing import Tuple, Optional
+import os
 
+from spas import *
+from spas.reconstruction_nn import reconstruct
 import numpy as np
 from matplotlib.colors import ListedColormap
 from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-
+from spas import plot_spec_to_rgb_image as plt_rgb
 from .noise import noiseClass
 
+# Libraries for the IDS CAMERA
+from pyueye import ueye
+import cv2
+import time
 
 def spectral_binning(F: np.ndarray, wavelengths: np.ndarray, lambda_min: int, 
     lambda_max: int, n_bin: int, noise: noiseClass=None
@@ -389,4 +396,165 @@ def plot_color(F: np.ndarray, wavelengths: np.ndarray,
             fig.tight_layout()
     
     fig.tight_layout()
+    #plt.show()
+
+######################### IDS CAM visualisationtion ###########################    
+def snapshotVisu(camPar):
+    """
+    Snapshot of the IDS camera
+    
+    Args:
+        camPar: a structure containing the parameters of the IDS camera
+    """
+    array = ueye.get_data(camPar.pcImageMemory, camPar.rectAOI.s32Width, camPar.rectAOI.s32Height, camPar.nBitsPerPixel, camPar.pitch, copy=False)
+    
+    # ...reshape it in an numpy array...
+    frame = np.reshape(array,(camPar.rectAOI.s32Height.value, camPar.rectAOI.s32Width.value, camPar.bytes_per_pixel))
+    maxi = np.amax(frame)
+    # print()
+    # print('frame max = ' + str(maxi))
+    # print('frame min = ' + str(np.amin(frame)))
+    if maxi >= 255:
+        print('Saturation detected')
+        
+    plt.figure
+    plt.imshow(frame)#, cmap='gray', vmin=mini, vmax=maxi)  
+    plt.colorbar();
+    
+    
+def displayVid(camPar):
+    """
+    Continuous image display of the IDS camera
+    
+    Args:
+        CAM: a structure containing the parameters of the IDS camera
+    """
+    ii = 0
+    start_time = time.time()
+    t1 = camPar.exposureTime/1000
+    t2 = 1/camPar.fps
+    t_wait = max(t1, t2)
+    print('Press "q" on the new window to exit')
+    window_name = "window_live_openCV"
+    while 1:
+        time.sleep(t_wait) # Sleep for 1 seconds
+        ii = ii + 1
+
+        # extract the data of the image memory
+        array = ueye.get_data(camPar.pcImageMemory, camPar.rectAOI.s32Width, camPar.rectAOI.s32Height, camPar.nBitsPerPixel, camPar.pitch, copy=False)
+
+        # ...reshape it in an numpy array...
+        frame = np.reshape(array,(camPar.rectAOI.s32Height.value, camPar.rectAOI.s32Width.value, camPar.bytes_per_pixel))
+
+        if ii%100 == 0:
+            print('frame max = ' + str(np.amax(frame)))
+            print('frame min = ' + str(np.amin(frame)))
+            print("--- enlapse time :" + str(round((time.time() - start_time)*1000)/100) + 'ms')
+            start_time = time.time()
+        
+        #...and finally display it
+        cv2.imshow(window_name, frame)
+
+        # Press q if you want to end the loop
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            cv2.destroyWindow(window_name)
+            break
+
+
+def plot_reco_without_NN(acquisition_parameters, GT, Q, had_reco_path, fig_had_reco_path):
+    
+    GT = np.rot90(GT, 1)
+    GT = np.rot90(GT, 1)
+
+    if not os.path.exists(had_reco_path):
+        np.savez_compressed(had_reco_path, GT)
+        
+    F_bin, wavelengths_bin, bin_width = spectral_binning(GT.T, acquisition_parameters.wavelengths, 530, 730, 8)
+    F_bin_rot = np.rot90(F_bin, axes=(1,2))
+    F_bin_flip = F_bin_rot[:,::-1,:]
+    F_bin_1px, wavelengths_bin, bin_width = spectral_slicing(GT.T, acquisition_parameters.wavelengths, 530, 730, 8)
+
+    ############### spatial view, wavelength bin #############
+    #plt.figure()
+    plot_color(F_bin_flip, wavelengths_bin)
+    plt.savefig(fig_had_reco_path + '_spatial_view_sum_wavelength_binning.png')
     plt.show()
+
+    ############### spatial view, one wavelength #############
+    #plt.figure()
+    plot_color(F_bin_1px, wavelengths_bin)
+    plt.savefig(fig_had_reco_path + '_spatial_view_single_slide_by_wavelength.png')
+    plt.show()
+
+    ############### spatial view, wavelength sum #############
+    #plt.figure()
+    plt.imshow(np.sum(GT[:,:,193:877], axis=2))#[:,:,193:877] #(540-625 nm)
+    plt.title('Sum of all wavelengths')
+    plt.savefig(fig_had_reco_path + '_spatial_view_sum_of_wavelengths.png')
+    plt.show()
+
+    ####################### RGB view ########################
+    print('Beging RGB convertion ...')
+    image_arr = plt_rgb.plot_spec_to_rgb_image(GT, acquisition_parameters.wavelengths)
+    print('RGB convertion finished')
+    plt.figure()
+    plt.imshow(image_arr, extent=[0, 10.5, 0, 10.5])
+    plt.xlabel('X (mm)')
+    plt.ylabel('Y (mm)')
+    plt.savefig(fig_had_reco_path + '_RGB_view.png')
+    plt.show()
+
+    ####################### spectral view ###################
+    GT50 = GT[16:48,16:48,:]
+    GT25 = GT[24:40,24:40,:]
+    plt.figure()
+    plt.plot(acquisition_parameters.wavelengths, np.mean(np.mean(GT25,axis=1),axis=0))
+    plt.plot(acquisition_parameters.wavelengths, np.mean(np.mean(GT50,axis=1),axis=0))
+    plt.plot(acquisition_parameters.wavelengths, np.mean(np.mean(GT,axis=1),axis=0))
+    plt.grid()
+    plt.title("% of region from the center of the image")
+    plt.legend(['25%', '50%', '100%'])
+    plt.xlabel(r'$\lambda$ (nm)')
+    plt.savefig(fig_had_reco_path + '_spectral_view.png')
+    plt.show()
+
+
+def plot_reco_with_NN(acquisition_parameters, network_params, spectral_data, noise, model, device):
+    CRreco = int(acquisition_parameters.acquired_spectra / 2 / network_params.CR)
+    F_bin, wavelengths_bin, bin_width, noise_bin = spectral_binning(spectral_data.T, acquisition_parameters.wavelengths, 530, 730, 8, noise)
+    recon = reconstruct(model, device, F_bin[:,0:acquisition_parameters.acquired_spectra//CRreco], 4, noise_bin)       
+    recon = np.flip(recon, axis = 1)
+    recon = np.flip(recon, axis = 2)
+    plot_color(recon, wavelengths_bin)
+    plt.show()
+
+    plt.imshow(np.sum(recon, axis=0))
+    plt.title('NN reco, sum of all wavelengths')
+    plt.show()
+
+    F_bin, wavelengths_bin, bin_width, noise_bin = spectral_slicing(spectral_data.T, acquisition_parameters.wavelengths, 530, 730, 8, noise)
+    recon2 = reconstruct(model, device, F_bin[:,0:acquisition_parameters.acquired_spectra//CRreco], 4, noise_bin)
+    recon2 = np.flip(recon2, axis = 1)
+    recon2 = np.flip(recon2, axis = 2)
+    plot_color(recon2, wavelengths_bin)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
