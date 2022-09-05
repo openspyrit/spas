@@ -244,6 +244,7 @@ def spectral_slicing(F: np.ndarray, wavelengths: np.ndarray, lambda_min: int,
     else:
         return F_bin, wavelengths_bin, bin_width, noise_bin
 
+
 def wavelength_to_rgb(wavelength: float,
     gamma: float = 0.8) -> Tuple[float, float, float]:
     """Converts wavelength to RGB.
@@ -345,7 +346,7 @@ def generate_colormap(wavelength: float, img_size: int,
     return colormap
 
 
-def plot_color(F: np.ndarray, wavelengths: np.ndarray,
+def plot_color(F: np.ndarray, wavelengths: np.ndarray, filename: str = None,
     gamma: float = 0.8, fontsize: int = 12) -> None:
     """Plots data for each binned wavelength.
 
@@ -359,6 +360,9 @@ def plot_color(F: np.ndarray, wavelengths: np.ndarray,
             Second and third dimensions contain the reconstructed pixels. 
         wavelengths (np.ndarray): 
             Wavelenghts for plotting (must be already in bins).
+        filename (str, option):
+            Filename to save the resulting plot in the working directory.
+            Defaults to None.
         gamma (float, optional): 
             Gamma correction. Defaults to 0.8.
         fontsize (int, optional): 
@@ -396,7 +400,7 @@ def plot_color(F: np.ndarray, wavelengths: np.ndarray,
             fig.tight_layout()
     
     fig.tight_layout()
-    #plt.show()
+    plt.show()
 
 ######################### IDS CAM visualisationtion ###########################    
 def snapshotVisu(camPar):
@@ -478,13 +482,13 @@ def plot_reco_without_NN(acquisition_parameters, GT, Q, had_reco_path, fig_had_r
     #plt.figure()
     plot_color(F_bin_flip, wavelengths_bin)
     plt.savefig(fig_had_reco_path + '_spatial_view_sum_wavelength_binning.png')
-    plt.show()
+    #plt.show()
 
     ############### spatial view, one wavelength #############
     #plt.figure()
     plot_color(F_bin_1px, wavelengths_bin)
     plt.savefig(fig_had_reco_path + '_spatial_view_single_slide_by_wavelength.png')
-    plt.show()
+    #plt.show()
 
     ############### spatial view, wavelength sum #############
     #plt.figure()
@@ -526,7 +530,7 @@ def plot_reco_with_NN(acquisition_parameters, network_params, spectral_data, noi
     recon = np.flip(recon, axis = 1)
     recon = np.flip(recon, axis = 2)
     plot_color(recon, wavelengths_bin)
-    plt.show()
+    #plt.show()
 
     plt.imshow(np.sum(recon, axis=0))
     plt.title('NN reco, sum of all wavelengths')
@@ -537,24 +541,7 @@ def plot_reco_with_NN(acquisition_parameters, network_params, spectral_data, noi
     recon2 = np.flip(recon2, axis = 1)
     recon2 = np.flip(recon2, axis = 2)
     plot_color(recon2, wavelengths_bin)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    #plt.show()
+    
+    if save_path:
+        fig.savefig(f'{save_path}.png', dpi=300, bbox_inches='tight')

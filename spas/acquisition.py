@@ -64,7 +64,6 @@ from tqdm import tqdm
 
 from .metadata import DMDParameters, MetaData, AcquisitionParameters
 from .metadata import SpectrometerParameters, save_metadata, CAM, save_metadata_2arms
-from .generate import generate_hadamard_order
 from .reconstruction_nn import reconstruct_process, plot_recon, ReconstructionParameters
 
 # Librarie for the IDS CAMERA

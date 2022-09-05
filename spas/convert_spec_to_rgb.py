@@ -5,11 +5,10 @@ Created on Thu Sep 30 11:49:31 2021
 @author: mahieu
 """
 
-# colour_system.py
-import numpy as np
-import sys
+from pathlib import Path
 
-sys.path.append('C:\\spas\\Programs\\Python\\singlepixel')
+import numpy as np
+
 
 def xyz_from_xy(x, y):
     """Return the vector (x, y, 1-x-y)."""
@@ -26,7 +25,7 @@ class ColourSystem:
     """
 
     # The CIE colour matching function for 380 - 780 nm in 5 nm intervals
-    cmf = np.loadtxt('C:\\spas\\Programs\\Python\\singlepixel\\cie-cmf.txt', usecols=(1,2,3))
+    cmf = np.loadtxt(Path(__file__).parent.joinpath('cie-cmf.txt'), usecols=(1,2,3))
 
     def __init__(self, red, green, blue, white):
         """Initialise the ColourSystem object.
@@ -47,6 +46,7 @@ class ColourSystem:
         self.wscale = self.MI.dot(self.white)
         # xyz -> rgb transformation matrix
         self.T = self.MI / self.wscale[:, np.newaxis]
+
 
     def xyz_to_rgb(self, xyz, out_fmt=None):
         """Transform from xyz to rgb representation of colour.
@@ -73,11 +73,13 @@ class ColourSystem:
             return self.rgb_to_hex(rgb)
         return rgb
 
+
     def rgb_to_hex(self, rgb):
         """Convert from fractional rgb values to HTML-style hex string."""
 
         hex_rgb = (255 * rgb).astype(int)
         return '#{:02x}{:02x}{:02x}'.format(*hex_rgb)
+
 
     def spec_to_xyz(self, spec):
         """Convert a spectrum to an xyz point.
@@ -93,11 +95,13 @@ class ColourSystem:
             return XYZ
         return XYZ / den
 
+
     def spec_to_rgb(self, spec, out_fmt=None):
         """Convert a spectrum to an rgb value."""
 
         xyz = self.spec_to_xyz(spec)
         return self.xyz_to_rgb(xyz, out_fmt)
+    
 
 illuminant_D65 = xyz_from_xy(0.3127, 0.3291)
 cs_hdtv = ColourSystem(red=xyz_from_xy(0.67, 0.33),

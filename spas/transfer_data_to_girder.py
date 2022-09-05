@@ -12,7 +12,6 @@ import shutil
 
 def transfer_data(metadata, acquisition_parameters, spectrometer_params, DMD_params, 
                             setup_version, data_folder_name, data_name):
-# data_name = 'inverted_telecentric'
 
     #%%########################## Girder info #################################    
     url = 'https://pilot-warehouse.creatis.insa-lyon.fr/api/v1'
@@ -20,21 +19,27 @@ def transfer_data(metadata, acquisition_parameters, spectrometer_params, DMD_par
     txt_file = open('C:/private/no_name.txt', 'r', encoding='utf8')
     apiKey = txt_file.read()
     txt_file.close()
+    
     #%%############################## path ####################################
     data_path = '../data/' + data_folder_name + '/' + data_name  # here, data_name is the subfolder
     temp_path = '../temp/data/' + setup_version + '/' + data_folder_name + '/' + data_name
+    
     #%%######################## erase temp folder #############################
     if len(os.listdir('../temp')) != 0:      
         list_TempFolder = os.listdir('../temp')
         for list_temp in list_TempFolder:
             shutil.rmtree('../temp/' + list_temp) 
+            
     #%%################## copy data to temp folder ############################  
     shutil.copytree(data_path, temp_path)
+    
     #%%################### Girder authentification ############################
     gc = girder_client.GirderClient(apiUrl=url)  # Generate the warehouse client
     gc.authenticate(apiKey=apiKey)  # Authentication to the warehouse
+    
     #%%##################### begin data transfer ##############################
     gc.upload('../temp/data/', collectionId, 'collection', reuseExisting=True)
+    
     #%%############## find data folder id to uplaod metada ####################
     girder_data_folder_id = '6149c3ce29e3fc10d47dbffb'
     version_list = gc.listFolder(girder_data_folder_id, 'folder')
@@ -49,7 +54,8 @@ def transfer_data(metadata, acquisition_parameters, spectrometer_params, DMD_par
                     for data_folder in data_list:
                         if data_folder['name'] == data_name:
                             data_folder_id = data_folder['_id']
-                            #print('data_folder_id = ' + data_folder_id)                   
+                            #print('data_folder_id = ' + data_folder_id)        
+                                       
     #%%####################### prepare metadata dict ############################
     #metadata, acquisition_parameters, spectrometer_params, DMD_params = read_metadata(data_path + '/' + data_name +'_metadata.json')
     experiment_dict = metadata.__dict__
@@ -97,10 +103,10 @@ def transfer_data(metadata, acquisition_parameters, spectrometer_params, DMD_par
     del dict['c)_SPECTRO_initial_available_pixels']
     del dict['c)_SPECTRO_store_to_ram'] 
     del dict['c)_SPECTRO_class_description']
-    del dict['c)_SPECTRO_detector']#SENS_HAMS11639
-    del dict['c)_SPECTRO_firmware_version']#001.011.000.000
-    del dict['c)_SPECTRO_fpga_version']#014.000.012.000
-    del dict['c)_SPECTRO_dll_version']#9.10.3.0
+    del dict['c)_SPECTRO_detector'] #SENS_HAMS11639
+    del dict['c)_SPECTRO_firmware_version'] #001.011.000.000
+    del dict['c)_SPECTRO_fpga_version'] #014.000.012.000
+    del dict['c)_SPECTRO_dll_version'] #9.10.3.0
     del dict['d)_DMD_apps_fpga_temperature']
     del dict['d)_DMD_class_description']
     del dict['d)_DMD_ddc_fpga_temperature']
@@ -111,9 +117,11 @@ def transfer_data(metadata, acquisition_parameters, spectrometer_params, DMD_par
     del dict['d)_DMD_bitplanes']  
     del dict['d)_DMD_type'] 
     del dict['d)_DMD_usb_connection']    
-    del dict['d)_DMD_ALP_version']  
+    del dict['d)_DMD_ALP_version']
+      
     #%%################### begin metadata transfer ############################
     gc.addMetadataToFolder(data_folder_id, dict)     
+    
     #%%##################### erase temp folder ################################
     if len(os.listdir('../temp')) != 0:      
         list_TempFolder = os.listdir('../temp')

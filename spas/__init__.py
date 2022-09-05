@@ -10,3 +10,5 @@ from .reconstruction import *
 from .visualization import *
 from .noise import *
 from .reconstruction_nn import *
+from .convert_spec_to_rgb import *
+from .plot_spec_to_rgb_image import *
