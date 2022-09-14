@@ -400,7 +400,7 @@ def plot_color(F: np.ndarray, wavelengths: np.ndarray, filename: str = None,
             fig.tight_layout()
     
     fig.tight_layout()
-    plt.show()
+    # plt.show()
 
 ######################### IDS CAM visualisationtion ###########################    
 def snapshotVisu(camPar):
@@ -482,13 +482,13 @@ def plot_reco_without_NN(acquisition_parameters, GT, Q, had_reco_path, fig_had_r
     #plt.figure()
     plot_color(F_bin_flip, wavelengths_bin)
     plt.savefig(fig_had_reco_path + '_spatial_view_sum_wavelength_binning.png')
-    #plt.show()
+    plt.show()
 
     ############### spatial view, one wavelength #############
     #plt.figure()
     plot_color(F_bin_1px, wavelengths_bin)
     plt.savefig(fig_had_reco_path + '_spatial_view_single_slide_by_wavelength.png')
-    #plt.show()
+    plt.show()
 
     ############### spatial view, wavelength sum #############
     #plt.figure()
@@ -527,10 +527,11 @@ def plot_reco_with_NN(acquisition_parameters, network_params, spectral_data, noi
     CRreco = int(acquisition_parameters.acquired_spectra / 2 / network_params.CR)
     F_bin, wavelengths_bin, bin_width, noise_bin = spectral_binning(spectral_data.T, acquisition_parameters.wavelengths, 530, 730, 8, noise)
     recon = reconstruct(model, device, F_bin[:,0:acquisition_parameters.acquired_spectra//CRreco], 4, noise_bin)       
+    # recon = reconstruct(model, device, F_bin[:,0:8192//4], 4, noise_bin)
     recon = np.flip(recon, axis = 1)
     recon = np.flip(recon, axis = 2)
     plot_color(recon, wavelengths_bin)
-    #plt.show()
+    plt.show()
 
     plt.imshow(np.sum(recon, axis=0))
     plt.title('NN reco, sum of all wavelengths')
@@ -538,10 +539,11 @@ def plot_reco_with_NN(acquisition_parameters, network_params, spectral_data, noi
 
     F_bin, wavelengths_bin, bin_width, noise_bin = spectral_slicing(spectral_data.T, acquisition_parameters.wavelengths, 530, 730, 8, noise)
     recon2 = reconstruct(model, device, F_bin[:,0:acquisition_parameters.acquired_spectra//CRreco], 4, noise_bin)
+    # recon2 = reconstruct(model, device, F_bin[:,0:8192//4], 4, noise_bin)
     recon2 = np.flip(recon2, axis = 1)
     recon2 = np.flip(recon2, axis = 2)
     plot_color(recon2, wavelengths_bin)
-    #plt.show()
+    plt.show()
     
-    if save_path:
-        fig.savefig(f'{save_path}.png', dpi=300, bbox_inches='tight')
+    # if save_path:
+    #     fig.savefig(f'{save_path}.png', dpi=300, bbox_inches='tight')

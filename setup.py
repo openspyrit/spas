@@ -29,6 +29,8 @@ setup(
         'torchvision',
         'spyrit',
         'wincertstore',
+        'pyueye',
+        'girder-client'
     ],
     packages=find_packages()
 )
