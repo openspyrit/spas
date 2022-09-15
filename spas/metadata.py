@@ -240,9 +240,11 @@ class AcquisitionParameters:
         
         self.patterns = self.patterns.strip('[').strip(']').split(', ')
         self.patterns = [int(s) for s in self.patterns if s.isdigit()]
-
-        self.patterns_wp = self.patterns_wp.strip('[').strip(']').split(', ')
-        self.patterns_wp = [int(s) for s in self.patterns_wp if s.isdigit()]
+        try:
+            self.patterns_wp = self.patterns_wp.text.strip('[').strip(']').split(', ')
+            self.patterns_wp = [int(s) for s in self.patterns_wp if s.isdigit()]
+        except:
+            print('patterns_wp has no attribute ''strip''')    
 
         if self.wavelengths:
             self.wavelengths = (
@@ -591,6 +593,7 @@ class DMDParameters:
     display_width: Optional[int] = None
 
     patterns: Optional[int] = None
+    patterns_wp: Optional[int] = None
     unused_memory: Optional[int] = None
     bitplanes: Optional[int] = None
     
