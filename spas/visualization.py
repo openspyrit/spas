@@ -16,7 +16,7 @@ from spas import plot_spec_to_rgb_image as plt_rgb
 from .noise import noiseClass
 
 # Libraries for the IDS CAMERA
-from pyueye import ueye
+#from pyueye import ueye
 import cv2
 import time
 

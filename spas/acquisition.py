@@ -67,7 +67,7 @@ from .metadata import SpectrometerParameters, save_metadata, CAM, save_metadata_
 from .reconstruction_nn import reconstruct_process, plot_recon, ReconstructionParameters
 
 # Librarie for the IDS CAMERA
-from pyueye import ueye, ueye_tools
+#from pyueye import ueye, ueye_tools
 from matplotlib import pyplot as plt
 from PIL import Image
 import ctypes as ct
@@ -75,7 +75,7 @@ import math
 import logging
 import time
 import threading
-from spas.visualization import snapshotVisu
+#from spas.visualization import snapshotVisu
 
 
 
@@ -1312,64 +1312,64 @@ def acquire(ava: Avantes,
 
     return spectral_data
 
-def check_ueye(func, *args, exp=ueye.IS_SUCCESS, raise_exc=True, txt=None):
-    ret = func(*args)
-    if not txt:
-        txt = "{}: Expected {} but ret={}!".format(str(func), exp, ret)
-    if ret != exp:
-        if raise_exc:
-            raise RuntimeError(txt)
-        else:
-            logging.critical(txt)
+# def check_ueye(func, *args, exp=ueye.IS_SUCCESS, raise_exc=True, txt=None):
+#     ret = func(*args)
+#     if not txt:
+#         txt = "{}: Expected {} but ret={}!".format(str(func), exp, ret)
+#     if ret != exp:
+#         if raise_exc:
+#             raise RuntimeError(txt)
+#         else:
+#             logging.critical(txt)
 
 
-def stopCapt_DeallocMem(camPar):
-    # Stop capture and deallocate camera memory if need to change AOI
-    if camPar.camActivated == 1:        
-        nRet = ueye.is_StopLiveVideo(camPar.hCam, ueye.IS_FORCE_VIDEO_STOP)
-        if nRet == ueye.IS_SUCCESS:
-            camPar.camActivated = 0
-            print('video stop successful')
-        else:
-            print('problem to stop the video')
+# def stopCapt_DeallocMem(camPar):
+#     # Stop capture and deallocate camera memory if need to change AOI
+#     if camPar.camActivated == 1:        
+#         nRet = ueye.is_StopLiveVideo(camPar.hCam, ueye.IS_FORCE_VIDEO_STOP)
+#         if nRet == ueye.IS_SUCCESS:
+#             camPar.camActivated = 0
+#             print('video stop successful')
+#         else:
+#             print('problem to stop the video')
             
-    if camPar.Memory == 1:        
-        nRet = ueye.is_FreeImageMem(camPar.hCam, camPar.pcImageMemory, camPar.MemID)
-        if nRet == ueye.IS_SUCCESS:
-            camPar.Memory = 0
-            print('deallocate memory successful')
-        else:
-            print('Problem to deallocate memory of the camera')
+#     if camPar.Memory == 1:        
+#         nRet = ueye.is_FreeImageMem(camPar.hCam, camPar.pcImageMemory, camPar.MemID)
+#         if nRet == ueye.IS_SUCCESS:
+#             camPar.Memory = 0
+#             print('deallocate memory successful')
+#         else:
+#             print('Problem to deallocate memory of the camera')
                 
-    return camPar
+#     return camPar
 
-def stopCapt_DeallocMem_ExitCam(camPar):
-    # Stop capture and deallocate camera memory if need to change AOI
-    if camPar.camActivated == 1:        
-        nRet = ueye.is_StopLiveVideo(camPar.hCam, ueye.IS_FORCE_VIDEO_STOP)
-        if nRet == ueye.IS_SUCCESS:
-            camPar.camActivated = 0
-            print('video stop successful')
-        else:
-            print('problem to stop the video')
+# def stopCapt_DeallocMem_ExitCam(camPar):
+#     # Stop capture and deallocate camera memory if need to change AOI
+#     if camPar.camActivated == 1:        
+#         nRet = ueye.is_StopLiveVideo(camPar.hCam, ueye.IS_FORCE_VIDEO_STOP)
+#         if nRet == ueye.IS_SUCCESS:
+#             camPar.camActivated = 0
+#             print('video stop successful')
+#         else:
+#             print('problem to stop the video')
             
-    if camPar.Memory == 1:        
-        nRet = ueye.is_FreeImageMem(camPar.hCam, camPar.pcImageMemory, camPar.MemID)
-        if nRet == ueye.IS_SUCCESS:
-            camPar.Memory = 0
-            print('deallocate memory successful')
-        else:
-            print('Problem to deallocate memory of the camera')
+#     if camPar.Memory == 1:        
+#         nRet = ueye.is_FreeImageMem(camPar.hCam, camPar.pcImageMemory, camPar.MemID)
+#         if nRet == ueye.IS_SUCCESS:
+#             camPar.Memory = 0
+#             print('deallocate memory successful')
+#         else:
+#             print('Problem to deallocate memory of the camera')
     
-    if camPar.Exit == 2:
-        nRet = ueye.is_ExitCamera(camPar.hCam)
-        if nRet == ueye.IS_SUCCESS:
-            camPar.Exit = 0
-            print('Camera disconnected')
-        else:
-            print('Problem to disconnect camera, need to restart spyder')
+#     if camPar.Exit == 2:
+#         nRet = ueye.is_ExitCamera(camPar.hCam)
+#         if nRet == ueye.IS_SUCCESS:
+#             camPar.Exit = 0
+#             print('Camera disconnected')
+#         else:
+#             print('Problem to disconnect camera, need to restart spyder')
                 
-    return camPar
+#     return camPar
 
 class ImageBuffer:
     pcImageMemory = None

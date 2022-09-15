@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 __author__ = 'Guilherme Beneti Martins'
 
-from .acquisition import init, setup, acquire, disconnect, init_2arms, disconnect_2arms
+from .acquisition import init, setup, acquire, disconnect #, init_2arms, disconnect_2arms
 from .metadata import MetaData, AcquisitionParameters
 from .metadata import DMDParameters, SpectrometerParameters
 from .metadata import read_metadata, save_metadata

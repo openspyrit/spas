@@ -20,7 +20,7 @@ import os
 from msl.equipment.resources.avantes import MeasConfigType
 from dataclasses_json import dataclass_json
 import numpy as np
-import pyueye as ueye
+#import pyueye as ueye
 import ctypes as ct
 import pickle
 
