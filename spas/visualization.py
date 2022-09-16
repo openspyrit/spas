@@ -16,7 +16,11 @@ from spas import plot_spec_to_rgb_image as plt_rgb
 from .noise import noiseClass
 
 # Libraries for the IDS CAMERA
-#from pyueye import ueye
+try:
+    import pyueye as ueye
+except:
+    print('ueye DLL not installed')
+    
 import cv2
 import time
 
