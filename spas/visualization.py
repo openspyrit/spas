@@ -17,10 +17,11 @@ from .noise import noiseClass
 
 # Libraries for the IDS CAMERA
 try:
-    import pyueye as ueye
+    from pyueye import ueye
 except:
     print('ueye DLL not installed')
-    
+# import pyueye as ueye    
+# from pyueye import ueye
 import cv2
 import time
 

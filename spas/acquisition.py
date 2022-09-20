@@ -68,11 +68,11 @@ from .reconstruction_nn import reconstruct_process, plot_recon, ReconstructionPa
 
 # Librarie for the IDS CAMERA
 try:
-    import pyueye as ueye, ueye_tools
+    from pyueye import ueye, ueye_tools
 except:
     print('ueye DLL not installed')
 
-
+# from pyueye import ueye, ueye_tools
 from matplotlib import pyplot as plt
 from PIL import Image
 import ctypes as ct
