@@ -7,7 +7,7 @@ from typing import Tuple, Optional
 import os
 
 from spas import *
-from spas.reconstruction_nn import reconstruct
+#from spas.reconstruction_nn import reconstruct
 import numpy as np
 from matplotlib.colors import ListedColormap
 from matplotlib import pyplot as plt
@@ -405,6 +405,11 @@ def plot_color(F: np.ndarray, wavelengths: np.ndarray, filename: str = None,
             fig.tight_layout()
     
     fig.tight_layout()
+    
+    # save
+    if filename is not None:
+        fig.savefig(filename)
+        
     # plt.show()
 
 ######################### IDS CAM visualisationtion ###########################    

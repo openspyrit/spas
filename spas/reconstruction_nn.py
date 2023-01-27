@@ -15,13 +15,28 @@ from typing import Tuple, Union
 from multiprocessing import Queue
 from pathlib import Path
 
+import math
 import torch
 import numpy as np
 from matplotlib import pyplot as plt
-from spyrit.learning.model_Had_DCAN import compNet, noiCompNet, DenoiCompNet 
-from spyrit.learning.nets import load_net
+
+from spyrit.core.reconstruction import Pinv_Net, DC2_Net
+
+from spyrit.core.training import load_net
+from spyrit.misc.statistics import Cov2Var
+from spyrit.misc.walsh_hadamard import walsh2_matrix
+
+from spyrit.core.Acquisition import Acquisition_Poisson_approx_Gauss
+from spyrit.core.Forward_Operator import Forward_operator_Split_ft_had
+from spyrit.core.Preprocess import Preprocess_Split_diag_poisson
+from spyrit.core.Data_Consistency import Generalized_Orthogonal_Tikhonov, Pinv_orthogonal
+from spyrit.core.neural_network import Unet, Identity
+from spyrit.misc.sampling import Permutation_Matrix 
+
+
 
 from spas.noise import noiseClass
+from spas.metadata import AcquisitionParameters
 
 class netType(IntEnum):
     """Possible model architectures.
@@ -36,135 +51,216 @@ class netType(IntEnum):
 class ReconstructionParameters:
     """Reconstruction parameters for loading a reconstruction model.
     """
-    img_size: int
-    CR: int
-    denoise: bool
-    epochs: int
-    learning_rate: float
-    step_size: int
-    gamma: float
-    batch_size: int
-    regularization: float
-    N0: float
-    sig: float
-
-    arch_name: InitVar[str]
-
-    _net_arch: int = field(init=False)
-
-
-    def __post_init__(self, arch_name):
-        self.arch_name = arch_name
-
-
-    @property
-    def arch_name(self):
-        return netType(self._net_arch).name
-
-
-    @arch_name.setter
-    def arch_name(self, arch_name):
-        self._net_arch = int(netType[arch_name])
+    # Reconstruction network
+    M: int                  # Number of measurements
+    img_size: int           # Image size
+    arch: str               # Main architecture
+    denoi: str              # Image domain denoiser
+    subs: str               # Subsampling scheme
+    
+    # Training
+    data: str               # Training database
+    N0: float               # Intensity (max of ph./pixel)
+    #sig: float
+    
+    # Optimisation (from train2.py)
+    num_epochs: int         # Number of training Epochs
+    learning_rate: float    # Learning Rate
+    step_size: int          # Scheduler Step Size
+    gamma: float            # Scheduler Decrease Rate   
+    batch_size: int         # Size of the training batch
+    regularization: float   # Regularisation Parameter
+    #checkpoint_model: str  # Optional path to checkpoint model
+    #checkpoint_interval: int# Interval between saving model checkpoints
     
 
-def setup_reconstruction(cov_path: str, mean_path: str, H: np.ndarray, 
-    model_root: str, network_params: ReconstructionParameters
-    ) -> Tuple[Union[compNet, noiCompNet, DenoiCompNet], str]:
+def setup_reconstruction(cov_path: str,
+                         model_folder: str,
+                         network_params: ReconstructionParameters
+                         ) -> Tuple[Union[Pinv_Net,DC2_Net], str]:    
     """Loads a neural network for reconstruction.
+
+    Limited to measurements from patterns of size 2**K for reconstruction at 
+    size 2**L, with L > K (e.g., measurements at size 64, reconstructions at 
+    size 128).
 
     Args:
         cov_path (str): 
-            Path to the covariance matrix.
-        mean_path (str): 
-            Path to the mean matrix.
-        H (nd.array): 
-            Hadamard matrix with patterns.
-        model_root (str): 
+            Path to the covariance matrix used for reconstruction.
+        model_folder (str): 
             Folder containing trained models for reconstruction.
         network_params (ReconstructionParameters): 
             Parameters used to load the model.
 
     Returns:
-        Tuple[Union[compNet, noiCompNet, DenoiCompNet], str]:
-            model (compNet, noiCompNet, DenoiCompNet):
+        Tuple[Union[Pinv_Net, DC2_Net], str]:
+            model (Pinv_Net, DC2_Net):
                 Loaded model.
             device (str):
                 Device to which the model was loaded.
     """
 
-    net_type = ['c0mp', 'comp', 'pinv', 'free']
-
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f'Device: {device}')
 
-    Cov_had = np.load(cov_path) / network_params.img_size**2
-    Mean_had = np.load(mean_path) / network_params.img_size
-
-    suffix = '_N_{}_M_{}_epo_{}_lr_{}_sss_{}_sdr_{}_bs_{}_reg_{}'.format(
-           network_params.img_size, network_params.CR, 
-           network_params.epochs, network_params.learning_rate,
-           network_params.step_size, network_params.gamma,
-           network_params.batch_size, network_params.regularization)
-
-    recon_type = ""
-    if network_params.N0 == 0:
-        train_type = ''
-    else:
-        train_type = '_N0_{}_sig_{}'.format(network_params.N0,
-                                            network_params.sig)
-        if network_params.denoise == True:
-            recon_type+="_Denoi"
-
-        # Training parameters
-        arch = network_params.arch_name
-
-        suffix = 'NET_' + arch + train_type + recon_type + suffix
-
-        title = Path(model_root) / suffix
-
-    if network_params.N0 == 0:
-        model = compNet(
-            network_params.img_size, 
-            network_params.CR, 
-            Mean_had, 
-            Cov_had, 
-            network_params._net_arch,
-            H)
+    Cov_rec = np.load(cov_path)    
+    H =  walsh2_matrix(network_params.img_size)
     
-    elif network_params.denoise == False:
-        model = noiCompNet(
-            network_params.img_size, 
-            network_params.CR, 
-            Mean_had, 
-            Cov_had, 
-            network_params._net_arch,
-            network_params.N0,
-            network_params.sig, 
-            H)
+    # Rectangular sampling
+    # N.B.: Only for measurements from patterns of size 2**K reconstructed at 
+    # size 2**L, with L > K (e.g., measurements are at size 64, reconstructions 
+    # at size 128. 
+    Ord = np.ones((network_params.img_size, network_params.img_size))
+    n_sub = math.ceil(network_params.M**0.5)
+    Ord[:,n_sub:] = 0
+    Ord[n_sub:,:] = 0
+        
+    # Init network  
+    Perm_rec = Permutation_Matrix(Ord)
+    Hperm = Perm_rec @ H
+    Pmat = Hperm[:network_params.M,:]
 
-    elif network_params.denoise == True:
-        model = DenoiCompNet(
-            network_params.img_size, 
-            network_params.CR, 
-            Mean_had, 
-            Cov_had, 
-            network_params._net_arch,
-            network_params.N0,
-            network_params.sig, 
-            H,
-            None)
+    # init
+    Forward = Forward_operator_Split_ft_had(Pmat, Perm_rec, 
+                                            network_params.img_size, 
+                                            network_params.img_size)
+    Noise = Acquisition_Poisson_approx_Gauss(network_params.N0, Forward)
+    Prep = Preprocess_Split_diag_poisson(network_params.N0, 
+                                         network_params.M, 
+                                         network_params.img_size**2)
+    
+    Denoi = Unet()
+    Cov_perm = Perm_rec @ Cov_rec @ Perm_rec.T
+    DC = Generalized_Orthogonal_Tikhonov(sigma_prior = Cov_perm, 
+                                         M = network_params.M, 
+                                         N = network_params.img_size**2)
+    model = DC2_Net(Noise, Prep, DC, Denoi)
 
-    torch.cuda.empty_cache()
-
+    # load    
+    net_folder = '{}_{}_{}'.format(
+        network_params.arch, network_params.denoi, 
+        network_params.data)
+    
+    suffix = '_{}_N0_{}_N_{}_M_{}_epo_{}_lr_{}_sss_{}_sdr_{}_bs_{}_reg_{}'.format(
+        network_params.subs, network_params.N0,   
+        network_params.img_size, network_params.M, 
+        network_params.num_epochs, network_params.learning_rate,
+        network_params.step_size, network_params.gamma,
+        network_params.batch_size, network_params.regularization)
+    
+    torch.cuda.empty_cache() # keep this here?
+    title = Path(model_folder) / net_folder / (net_folder + suffix)
     load_net(title, model, device)
     model = model.to(device)
 
     return model, device
 
+def reorder_subsample(meas: np.ndarray,
+                      acqui_param: AcquisitionParameters, 
+                      recon_param: ReconstructionParameters,
+                      ) -> np.ndarray:
+    """Reorder and subsample measurements
 
-def reconstruct(model: Union[compNet, noiCompNet, DenoiCompNet],
-    device: str, spectral_data: np.ndarray, batches : int, 
-    noise_model: noiseClass = None, is_process: bool = False) -> np.ndarray:
+    Args:
+        meas (np.ndarray):
+            Spectral measurements with dimensions (N_wavelength x M_acq), where
+            M_acq is the number of acquired patterns
+        acqui_param (AcquisitionParameters):
+            Parameters used during the acquisition of the spectral measurments
+        recon_param (ReconstructionParameters): 
+            Parameters of the reconstruction.
+
+    Returns:
+        (np.ndarray): 
+            Spectral measurements with dimensions (N_wavelength x M_rec), where
+            M_rec is the number of patterns considered for reconstruction. 
+            Acquisitions can be subsampled a posteriori, leadind to M_rec < M_acq
+
+    """    
+    # Dimensions (N.B: images are assumed to be square)
+    N_acq = acqui_param.pattern_dimension_x
+    N_rec = recon_param.img_size
+    N_wav = meas.shape[0]
+    
+    # Order used for acquisistion
+    Ord_acq = -np.array(acqui_param.patterns)[::2]//2   # pattern order
+    Ord_acq = np.reshape(Ord_acq, (N_acq,N_acq))        # sampling map
+    Perm_acq = Permutation_Matrix(Ord_acq).T
+    
+    
+    # Order used for reconstruction
+    if recon_param.subs == 'rect':
+        Ord_rec = np.ones((N_rec, N_rec))
+        n_sub = math.ceil(recon_param.M**0.5)
+        Ord_rec[:,n_sub:] = 0
+        Ord_rec[n_sub:,:] = 0
+    Perm_rec = Permutation_Matrix(Ord_rec)
+    
+    #
+    meas = meas.T
+    
+    # Subsampled acquisition permutation matrix (and zero filling if necessary)
+    if N_rec > N_acq:
+        
+        # Square subsampling in the "natural" order
+        Ord_sub = np.zeros((N_rec,N_rec))
+        Ord_sub[:N_acq,:N_acq]= -np.arange(-N_acq**2,0).reshape(N_acq,N_acq)
+        Perm_sub = Permutation_Matrix(Ord_sub) 
+        
+        # Natural order measurements (N_acq resolution)
+        Perm_raw = np.zeros((2*N_acq**2,2*N_acq**2))
+        Perm_raw[::2,::2] = Perm_acq.T     
+        Perm_raw[1::2,1::2] = Perm_acq.T
+        meas = Perm_raw @ meas
+        
+        # Zero filling (needed only when reconstruction resolution is higher 
+        # than acquisition res)
+        zero_filled = np.zeros((2*N_rec**2, N_wav))
+        zero_filled[:2*N_acq**2,:] = meas
+        
+        meas = zero_filled
+        
+        Perm_raw = np.zeros((2*N_rec**2,2*N_rec**2))
+        Perm_raw[::2,::2] = Perm_sub.T     
+        Perm_raw[1::2,1::2] = Perm_sub.T
+        
+        meas = Perm_raw @ meas
+        
+    elif N_rec == N_acq:
+        Perm_sub = Perm_acq[:N_rec**2,:].T
+      
+    elif N_rec < N_acq:
+        # Square subsampling in the "natural" order
+        Ord_sub = np.zeros((N_acq,N_acq))
+        Ord_sub[:N_rec,:N_rec]= -np.arange(-N_rec**2,0).reshape(N_rec,N_rec)
+        Perm_sub = Permutation_Matrix(Ord_sub) 
+        Perm_sub = Perm_sub[:N_rec**2,:]
+        Perm_sub = Perm_sub @ Perm_acq.T    
+        
+    #Reorder measurements when reconstruction order is not "natural"  
+    if N_rec <= N_acq:   
+        # Get both positive and negative coefficients permutated
+        Perm = Perm_rec @ Perm_sub
+        Perm_raw = np.zeros((2*N_rec**2,2*N_acq**2))
+        
+    elif N_rec > N_acq:
+        Perm = Perm_rec
+        Perm_raw = np.zeros((2*N_rec**2,2*N_rec**2))
+    
+    Perm_raw[::2,::2] = Perm     
+    Perm_raw[1::2,1::2] = Perm
+    meas = Perm_raw @ meas
+    
+    return meas[:2*recon_param.M,:].T
+        
+        
+def reconstruct(model: Union[Pinv_Net, DC2_Net],
+                device: str, 
+                spectral_data: np.ndarray, 
+                batches : int, 
+                #noise_model: noiseClass = None, 
+                is_process: bool = False
+                ) -> np.ndarray:
     """Reconstructs images from experimental data.
 
     Using a loaded model, reconstructs images in batches. It can be used in
@@ -172,7 +268,7 @@ def reconstruct(model: Union[compNet, noiCompNet, DenoiCompNet],
     the same time.
 
     Args:
-        model (Union[compNet, noiCompNet, DenoiCompNet]): 
+        model (Union[Pinv_Net,DC2_Net]): 
             Pre-loaded model for reconstruction.
         device (str):
             Device to which the model was loaded. Used to make sure the spectral
@@ -185,7 +281,7 @@ def reconstruct(model: Union[compNet, noiCompNet, DenoiCompNet],
             have enough memory to reconstruct all data at a single time. E.g.
             when reconstructing data distributed along many wavelengths, there
             may be too many data.
-        noise_model (noiseClass, optional): 
+        ?? noise_model (noiseClass, optional): 
             Loaded noise model in case the reconstruction should use a denoising
             method. Defaults to None.
         is_process (bool, optional): 
@@ -198,48 +294,57 @@ def reconstruct(model: Union[compNet, noiCompNet, DenoiCompNet],
         spectral dimension x image size x image size.
     """
 
-    # Implemented only the case for Denoi reconstruction
     
     proportion = spectral_data.shape[0]//batches # Amount of wavelengths per batch
     
-    recon = np.zeros((spectral_data.shape[0], 64, 64))
+    img_size = model.Acq.FO.h # image assumed to be square
+    recon = np.zeros((spectral_data.shape[0], img_size, img_size))
 
     start = perf_counter_ns()
 
+    model.PreP.set_expe()
+    
     with torch.no_grad():
         for batch in range(batches):
                 
-            lambda_indeces = range(proportion * batch, proportion * (batch+1))
+            lambda_indices = range(proportion * batch, proportion * (batch+1))
 
             info = (f'batch {batch},'
-                f'reconstructed wavelength range: {lambda_indeces}')
+                f'reconstructed wavelength range: {lambda_indices}')
             
             if is_process:
                 info = '#Recon process:' + info   
 
             print(info)
         
-            C = noise_model.mu[lambda_indeces]
-            s = noise_model.sigma[lambda_indeces]
-            K = noise_model.K[lambda_indeces]
+            # C = noise_model.mu[lambda_indices]
+            # s = noise_model.sigma[lambda_indices]
+            # K = noise_model.K[lambda_indices]
             
-            n = len(C)
+            # n = len(C)
                 
-            C = torch.from_numpy(C).float().to(device).reshape(n,1,1)
-            s = torch.from_numpy(s).float().to(device).reshape(n,1,1)
-            K = torch.from_numpy(K).float().to(device).reshape(n,1,1)
+            # C = torch.from_numpy(C).float().to(device).reshape(n,1,1)
+            # s = torch.from_numpy(s).float().to(device).reshape(n,1,1)
+            # K = torch.from_numpy(K).float().to(device).reshape(n,1,1)
         
-            CR = spectral_data.shape[1]
+            # M = spectral_data.shape[1]
             
-            torch_img = torch.from_numpy(spectral_data[lambda_indeces,:])
-            torch_img = torch_img.float()
-            torch_img = torch.reshape(torch_img, (len(lambda_indeces), 1, CR)) # batches, channels, patterns
-            torch_img = torch_img.to(device)
+            # torch_img = torch.from_numpy(spectral_data[lambda_indices,:])
+            # torch_img = torch_img.float()
+            # torch_img = torch.reshape(torch_img, (len(lambda_indices), 1, M)) # batches, channels, patterns
+            # torch_img = torch_img.to(device)
+            
+            spectral_data_torch = torch.tensor(spectral_data[lambda_indices,:],
+                                                dtype = torch.float,
+                                                device = device)
+            
+            # spectral_data_torch = \
+            #     torch.Tensor(spectral_data[lambda_indices,:]).to(device)
         
-            torch_recon = model.forward_reconstruct_expe(torch_img,
-                len(lambda_indeces), 1, model.n, model.n, C, s, K)
+            recon_torch = model.reconstruct_expe(spectral_data_torch)#,
+                #len(lambda_indices), 1, model.n, model.n, C, s, K)
                 
-            recon[lambda_indeces,:,:] = torch_recon.cpu().detach().numpy().squeeze()
+            recon[lambda_indices,:,:] = recon_torch.cpu().detach().numpy().squeeze()
     
     end = perf_counter_ns()
 
@@ -253,7 +358,7 @@ def reconstruct(model: Union[compNet, noiCompNet, DenoiCompNet],
     return recon
 
 
-def reconstruct_process(model: Union[compNet, noiCompNet, DenoiCompNet],
+def reconstruct_process(model: Union[Pinv_Net, DC2_Net],
     device: str, queue_to_recon: Queue, queue_reconstructed: Queue, 
     batches: int, noise_model: noiseClass, sleep_time: float = 0.3) -> None:
     """Performs reconstruction in real-time.
