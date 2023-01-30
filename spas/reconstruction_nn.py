@@ -29,23 +29,13 @@ from spyrit.misc.walsh_hadamard import walsh2_matrix
 from spyrit.core.Acquisition import Acquisition_Poisson_approx_Gauss
 from spyrit.core.Forward_Operator import Forward_operator_Split_ft_had
 from spyrit.core.Preprocess import Preprocess_Split_diag_poisson
-from spyrit.core.Data_Consistency import Generalized_Orthogonal_Tikhonov, Pinv_orthogonal
-from spyrit.core.neural_network import Unet, Identity
+from spyrit.core.Data_Consistency import Generalized_Orthogonal_Tikhonov #, Pinv_orthogonal
+from spyrit.core.neural_network import Unet #, Identity
 from spyrit.misc.sampling import Permutation_Matrix 
-
 
 
 from spas.noise import noiseClass
 from spas.metadata import AcquisitionParameters
-
-class netType(IntEnum):
-    """Possible model architectures.
-    """
-    c0mp = 0
-    comp = 1
-    pinv = 2
-    free = 3
-
 
 @dataclass
 class ReconstructionParameters:
@@ -148,9 +138,10 @@ def setup_reconstruction(cov_path: str,
         network_params.step_size, network_params.gamma,
         network_params.batch_size, network_params.regularization)
     
-    torch.cuda.empty_cache() # keep this here?
+    torch.cuda.empty_cache() # need to keep this here?
     title = Path(model_folder) / net_folder / (net_folder + suffix)
     load_net(title, model, device)
+    model.eval()                    # Mandantory when batchNorm is used 
     model = model.to(device)
 
     return model, device
@@ -158,6 +149,7 @@ def setup_reconstruction(cov_path: str,
 def reorder_subsample(meas: np.ndarray,
                       acqui_param: AcquisitionParameters, 
                       recon_param: ReconstructionParameters,
+                      recon_cov_path: str = "/path/cov.py",
                       ) -> np.ndarray:
     """Reorder and subsample measurements
 
@@ -166,9 +158,11 @@ def reorder_subsample(meas: np.ndarray,
             Spectral measurements with dimensions (N_wavelength x M_acq), where
             M_acq is the number of acquired patterns
         acqui_param (AcquisitionParameters):
-            Parameters used during the acquisition of the spectral measurments
+            Parameters used during the acquisition of the spectral measurements
         recon_param (ReconstructionParameters): 
             Parameters of the reconstruction.
+        recon_cov_path (str, optional): 
+            path to covariance matrix used for reconstruction
 
     Returns:
         (np.ndarray): 
@@ -194,12 +188,17 @@ def reorder_subsample(meas: np.ndarray,
         n_sub = math.ceil(recon_param.M**0.5)
         Ord_rec[:,n_sub:] = 0
         Ord_rec[n_sub:,:] = 0
+        
+    elif recon_param.subs == 'var':
+        Cov_rec = np.load(recon_cov_path)
+        Ord_rec = Cov2Var(Cov_rec)
+    
     Perm_rec = Permutation_Matrix(Ord_rec)
     
     #
     meas = meas.T
     
-    # Subsampled acquisition permutation matrix (and zero filling if necessary)
+    # Subsample acquisition permutation matrix (fill with zeros if necessary)
     if N_rec > N_acq:
         
         # Square subsampling in the "natural" order
@@ -257,7 +256,7 @@ def reorder_subsample(meas: np.ndarray,
 def reconstruct(model: Union[Pinv_Net, DC2_Net],
                 device: str, 
                 spectral_data: np.ndarray, 
-                batches : int, 
+                batches : int = 1, 
                 #noise_model: noiseClass = None, 
                 is_process: bool = False
                 ) -> np.ndarray:
@@ -274,26 +273,25 @@ def reconstruct(model: Union[Pinv_Net, DC2_Net],
             Device to which the model was loaded. Used to make sure the spectral
             data is loaded to the same device as the model.
         spectral_data (np.ndarray):
-            Spectral data acquired, must have the dimensions
-            (spectral dimension x patterns).
-        batches (int):
+            Spectral data acquired, must have the dimensions (spectral 
+            dimension x patterns).
+        batches (int, optional):
             Number of batches for reconstruction in case the device does not
-            have enough memory to reconstruct all data at a single time. E.g.
-            when reconstructing data distributed along many wavelengths, there
-            may be too many data.
-        ?? noise_model (noiseClass, optional): 
-            Loaded noise model in case the reconstruction should use a denoising
-            method. Defaults to None.
+            have enough memory to reconstruct all spectral channels at once.
+            Defaults to 1 (i.e., all spectral channels reconstructed at once).
         is_process (bool, optional): 
             If True, reconstruction is performed in 'real-time' mode, using
             multiprocessing for reconstruction, thus allowing reconstruction and
             acquisition simultaneously. Defaults to False.
 
     Returns:
-        np.ndarray: Reconstructed images following the dimensions:
-        spectral dimension x image size x image size.
+        np.ndarray: Reconstructed images with dimensions (spectral dimension x 
+        image size x image size).
     """
-
+    
+    # noise_model (noiseClass, optional): 
+    #     Loaded noise model in case the reconstruction should use a denoising
+    #     method. Defaults to None.
     
     proportion = spectral_data.shape[0]//batches # Amount of wavelengths per batch
     
@@ -337,9 +335,6 @@ def reconstruct(model: Union[Pinv_Net, DC2_Net],
             spectral_data_torch = torch.tensor(spectral_data[lambda_indices,:],
                                                 dtype = torch.float,
                                                 device = device)
-            
-            # spectral_data_torch = \
-            #     torch.Tensor(spectral_data[lambda_indices,:]).to(device)
         
             recon_torch = model.reconstruct_expe(spectral_data_torch)#,
                 #len(lambda_indices), 1, model.n, model.n, C, s, K)

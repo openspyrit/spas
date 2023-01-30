@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
 """
+In this example, we consider the reconstruction of the 'Cat_LinearColoredFilter' acquisition that belongs to the SPIHIM collection. The acquisition was done at resolution 64x64 and the reconstrcution is performed at resolution 128x128.
+
+* The raw data can be downloaded [here](https://pilot-warehouse.creatis.insa-lyon.fr/#collection/6140ba6929e3fc10d47dbe3e/folder/622b5ea843258e76eab21740)
+                                                                                                                                                 * The reconstruction model can be downloaded [here](https://pilot-warehouse.creatis.insa-lyon.fr/#collection/6140ba6929e3fc10d47dbe3e/folder/622b5ea843258e76eab21740)
+                                                                                                                                                                                                                                                                                                                                                                                                          * The reconstruction covariance matrix can be downloaded [here](?)
+                                                                                                                                                                                                                                                                                                                                                                                             
 Created on Thu Jan 26 16:49:14 2023
 
 @author: ducros
@@ -50,7 +56,7 @@ meta_path = data_path + '_metadata.json'
 _, acquisition_param, _, _ = read_metadata(meta_path)
 wavelengths = acquisition_param.wavelengths 
 
-# bin raw data
+# bin raw data between 530 and 730 nm
 meas_bin, wavelengths_bin, _ = spectral_binning(meas.T, wavelengths, 530, 730, 4)
 
 #%% Reorder and subsample
@@ -59,7 +65,7 @@ meas_bin_2 = reorder_subsample(meas_bin, acquisition_param, network_param)
 
 #%% Reconstruct
 from spas import reconstruct
-rec = reconstruct(model, device, meas_bin_2, 1)
+rec = reconstruct(model, device, meas_bin_2)
 
 #%% Plot
 from spas import plot_color 
