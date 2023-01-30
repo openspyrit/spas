@@ -1,11 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-In this example, we consider the reconstruction of the 'Cat_LinearColoredFilter' acquisition that belongs to the SPIHIM collection. The acquisition was done at resolution 64x64 and the reconstrcution is performed at resolution 128x128.
+In this example, we consider the reconstruction of the 'Cat_LinearColoredFilter'
+acquisition that belongs to the SPIHIM collection. The acquisition was done at
+resolution 64x64 and the reconstrcution is performed at resolution 128x128.
 
-* The raw data can be downloaded [here](https://pilot-warehouse.creatis.insa-lyon.fr/#collection/6140ba6929e3fc10d47dbe3e/folder/622b5ea843258e76eab21740)
-                                                                                                                                                 * The reconstruction model can be downloaded [here](https://pilot-warehouse.creatis.insa-lyon.fr/#collection/6140ba6929e3fc10d47dbe3e/folder/622b5ea843258e76eab21740)
-                                                                                                                                                                                                                                                                                                                                                                                                          * The reconstruction covariance matrix can be downloaded [here](?)
-                                                                                                                                                                                                                                                                                                                                                                                             
+* The raw data can be downloaded here:
+    https://pilot-warehouse.creatis.insa-lyon.fr/#collection/6140ba6929e3fc10d47dbe3e/folder/622b5ea843258e76eab21740
+                                                                                                                                                 
+* The reconstruction model can be downloaded here:
+    https://pilot-warehouse.creatis.insa-lyon.fr/#collection/6140ba6929e3fc10d47dbe3e/folder/638630794d15dd536f04831e
+
+* The covariance matrix can be downloaded here:
+    https://pilot-warehouse.creatis.insa-lyon.fr/#collection/6140ba6929e3fc10d47dbe3e/folder/63d7f3620386da2747641e1b
+
+    
 Created on Thu Jan 26 16:49:14 2023
 
 @author: ducros

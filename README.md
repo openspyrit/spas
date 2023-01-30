@@ -269,7 +269,8 @@ model_folder = '../model/'
 model, device = setup_reconstruction(cov_path, model_folder, network_param)
 ```
 
-Load noise calibration parameters (provided with the data or computed using tools in `/noise-calibration`). :warning:: Not used anymore in the current implementation of `spas`. 
+Load noise calibration parameters (provided with the data or computed using tools in `/noise-calibration`). :warning: Noise parameters are not used anymore in the current implementation of `spas`.
+ 
 ``` python
 from spas import load_noise
 noise = load_noise('../noise-calibration/fit_model.npz')
