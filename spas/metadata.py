@@ -1020,9 +1020,10 @@ class func_path:
 
         self.data_path = self.subfolder_path + '/' + data_name
         self.had_reco_path = self.data_path + '_had_reco.npz'         
-        self.fig_had_reco_path = self.overview_path + '/' + 'HAD_RECO_' + data_name   
+        self.fig_had_reco_path = self.overview_path + '/' + data_name   
         self.pathIDSsnapshot = Path(self.data_path + '_IDScam_before_acq.npy')
         self.pathIDSsnapshot_overview = self.overview_path + '/' + 'CAM_before_acq_' + data_name + '.png'
-        
+        self.nn_reco_path = self.data_path + '_nn_reco.npz'
+        self.fig_nn_reco_path = self.overview_path + '/' + data_name 
 
   
