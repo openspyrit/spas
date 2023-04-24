@@ -20,18 +20,32 @@ import torch
 import numpy as np
 from matplotlib import pyplot as plt
 
-from spyrit.core.reconstruction import Pinv_Net, DC2_Net
+# from spyrit.core.reconstruction import Pinv_Net, DC2_Net
+from spyrit.core.recon import PinvNet, DCNet    # modified by LMW 30/03/2023
 
-from spyrit.core.training import load_net
+# from spyrit.core.training import load_net
+from spyrit.core.train import load_net    # modified by LMW 30/03/2023
+
 from spyrit.misc.statistics import Cov2Var
 from spyrit.misc.walsh_hadamard import walsh2_matrix
 
-from spyrit.core.Acquisition import Acquisition_Poisson_approx_Gauss
-from spyrit.core.Forward_Operator import Forward_operator_Split_ft_had
-from spyrit.core.Preprocess import Preprocess_Split_diag_poisson
-from spyrit.core.Data_Consistency import Generalized_Orthogonal_Tikhonov #, Pinv_orthogonal
-from spyrit.core.neural_network import Unet #, Identity
-from spyrit.misc.sampling import Permutation_Matrix 
+# from spyrit.core.Acquisition import Acquisition_Poisson_approx_Gauss
+from spyrit.core.noise import Poisson    # modified by LMW 30/03/2023
+
+# from spyrit.core.Forward_Operator import Forward_operator_Split_ft_had
+from spyrit.core.meas import HadamSplit    # modified by LMW 30/03/2023
+
+# from spyrit.core.Preprocess import Preprocess_Split_diag_poisson
+from spyrit.core.prep import SplitPoisson    # modified by LMW 30/03/2023
+# il y a aussi la classe SplitRowPoisson ???
+
+# from spyrit.core.Data_Consistency import Generalized_Orthogonal_Tikhonov #, Pinv_orthogonal
+from spyrit.core.recon import TikhonovMeasurementPriorDiag     # modified by LMW 30/03/2023
+
+# from spyrit.core.neural_network import Unet #, Identity
+from spyrit.core.nnet import Unet    # modified by LMW 30/03/2023
+
+from spyrit.misc.sampling import Permutation_Matrix, reorder
 
 
 from spas.noise import noiseClass
@@ -67,7 +81,7 @@ class ReconstructionParameters:
 def setup_reconstruction(cov_path: str,
                          model_folder: str,
                          network_params: ReconstructionParameters
-                         ) -> Tuple[Union[Pinv_Net,DC2_Net], str]:    
+                         ) -> Tuple[Union[PinvNet,DCNet], str]:    
     """Loads a neural network for reconstruction.
 
     Limited to measurements from patterns of size 2**K for reconstruction at 
@@ -106,45 +120,83 @@ def setup_reconstruction(cov_path: str,
     Ord[n_sub:,:] = 0
         
     # Init network  
-    Perm_rec = Permutation_Matrix(Ord)
-    Hperm = Perm_rec @ H
-    Pmat = Hperm[:network_params.M,:]
+    #Perm_rec = Permutation_Matrix(Ord)
+    #Hperm = Perm_rec @ H
+    #Pmat = Hperm[:network_params.M,:]
 
     # init
-    Forward = Forward_operator_Split_ft_had(Pmat, Perm_rec, 
-                                            network_params.img_size, 
-                                            network_params.img_size)
-    Noise = Acquisition_Poisson_approx_Gauss(network_params.N0, Forward)
-    Prep = Preprocess_Split_diag_poisson(network_params.N0, 
+    # Forward = Forward_operator_Split_ft_had(Pmat, Perm_rec, 
+    #                                         network_params.img_size, 
+    #                                         network_params.img_size)
+    
+    Forward = HadamSplit(network_params.M, 
+                         network_params.img_size, 
+                         Ord)# modified by LMW 30/03/2023
+    
+    # Noise = Acquisition_Poisson_approx_Gauss(network_params.N0, Forward)
+    
+    Noise = Poisson(Forward, network_params.N0)
+    
+    # Prep = Preprocess_Split_diag_poisson(network_params.N0, 
+    #                                      network_params.M, 
+    #                                      network_params.img_size**2)
+    
+    Prep = SplitPoisson(network_params.N0, 
                                          network_params.M, 
                                          network_params.img_size**2)
     
     Denoi = Unet()
-    Cov_perm = Perm_rec @ Cov_rec @ Perm_rec.T
-    DC = Generalized_Orthogonal_Tikhonov(sigma_prior = Cov_perm, 
-                                         M = network_params.M, 
-                                         N = network_params.img_size**2)
-    model = DC2_Net(Noise, Prep, DC, Denoi)
+    # Cov_perm = Perm_rec @ Cov_rec @ Perm_rec.T
+    # DC = Generalized_Orthogonal_Tikhonov(sigma_prior = Cov_perm, 
+    #                                      M = network_params.M, 
+    #                                      N = network_params.img_size**2)
+    
+    
+    
+    # model = DC2_Net(Noise, Prep, DC, Denoi)
+    model = DCNet(Noise, Prep, Cov_rec, Denoi)
 
-    # load    
-    net_folder = '{}_{}_{}'.format(
-        network_params.arch, network_params.denoi, 
-        network_params.data)
+    # # load    
+    # net_folder = '{}_{}_{}'.format(
+    #     network_params.arch, network_params.denoi, 
+    #     network_params.data)
     
-    suffix = '_{}_N0_{}_N_{}_M_{}_epo_{}_lr_{}_sss_{}_sdr_{}_bs_{}_reg_{}'.format(
-        network_params.subs, network_params.N0,   
-        network_params.img_size, network_params.M, 
-        network_params.num_epochs, network_params.learning_rate,
-        network_params.step_size, network_params.gamma,
-        network_params.batch_size, network_params.regularization)
+    # suffix = '_{}_N0_{}_N_{}_M_{}_epo_{}_lr_{}_sss_{}_sdr_{}_bs_{}_reg_{}'.format(
+    #     network_params.subs, network_params.N0,   
+    #     network_params.img_size, network_params.M, 
+    #     network_params.num_epochs, network_params.learning_rate,
+    #     network_params.step_size, network_params.gamma,
+    #     network_params.batch_size, network_params.regularization)
     
-    torch.cuda.empty_cache() # need to keep this here?
-    title = Path(model_folder) / net_folder / (net_folder + suffix)
-    load_net(title, model, device)
-    model.eval()                    # Mandantory when batchNorm is used 
-    model = model.to(device)
+    # torch.cuda.empty_cache() # need to keep this here?
+    # title = Path(model_folder) / net_folder / (net_folder + suffix)
+    # load_net(title, model, device)
+    # model.eval()                    # Mandantory when batchNorm is used 
+    # model = model.to(device)
+    
+    # Load trained DC-Net
+    net_arch = network_params.arch
+    net_denoi = network_params.denoi
+    net_data = network_params.data
+    if (network_params.img_size == 128) and (network_params.M == 4096):
+        net_order   = 'rect'
+    else:
+        net_order   = 'var'
+    
+    bs = 256
+    # net_suffix  = f'N0_{network_params.N0}_N_{network_params.img_size}_M_{network_params.M}_epo_30_lr_0.001_sss_10_sdr_0.5_bs_{bs}_reg_1e-07_light'
+    net_suffix  = f'N0_{network_params.N0}_N_{network_params.img_size}_M_{network_params.M}_epo_30_lr_0.001_sss_10_sdr_0.5_bs_{bs}_reg_1e-07_light'
+    
+    net_folder= f'{net_arch}_{net_denoi}_{net_data}/'
+    
+    net_title = f'{net_arch}_{net_denoi}_{net_data}_{net_order}_{net_suffix}'
+    # title = './model_v2/' + net_folder + net_title
+    title = 'C:/openspyrit/models/' + net_folder + net_title
+    load_net(title, model, device, False)
+    model.eval()                    # Mandantory when batchNorm is used  
 
     return model, device
+
 
 def reorder_subsample(meas: np.ndarray,
                       acqui_param: AcquisitionParameters, 
@@ -152,7 +204,6 @@ def reorder_subsample(meas: np.ndarray,
                       recon_cov_path: str = "/path/cov.py",
                       ) -> np.ndarray:
     """Reorder and subsample measurements
-
     Args:
         meas (np.ndarray):
             Spectral measurements with dimensions (N_wavelength x M_acq), where
@@ -163,13 +214,11 @@ def reorder_subsample(meas: np.ndarray,
             Parameters of the reconstruction.
         recon_cov_path (str, optional): 
             path to covariance matrix used for reconstruction
-
     Returns:
         (np.ndarray): 
             Spectral measurements with dimensions (N_wavelength x M_rec), where
             M_rec is the number of patterns considered for reconstruction. 
             Acquisitions can be subsampled a posteriori, leadind to M_rec < M_acq
-
     """    
     # Dimensions (N.B: images are assumed to be square)
     N_acq = acqui_param.pattern_dimension_x
@@ -253,7 +302,7 @@ def reorder_subsample(meas: np.ndarray,
     return meas[:2*recon_param.M,:].T
         
         
-def reconstruct(model: Union[Pinv_Net, DC2_Net],
+def reconstruct(model: Union[PinvNet, DCNet],
                 device: str, 
                 spectral_data: np.ndarray, 
                 batches : int = 1, 
@@ -295,13 +344,18 @@ def reconstruct(model: Union[Pinv_Net, DC2_Net],
     
     proportion = spectral_data.shape[0]//batches # Amount of wavelengths per batch
     
-    img_size = model.Acq.FO.h # image assumed to be square
+    # img_size = model.Acq.FO.h # image assumed to be square
+    # img_size = 128 # Modified by LMW 30/03/2023
+    img_size = model.Acq.meas_op.h
+    
     recon = np.zeros((spectral_data.shape[0], img_size, img_size))
 
     start = perf_counter_ns()
 
-    model.PreP.set_expe()
-    
+    # model.PreP.set_expe()
+    model.prep.set_expe() # Modified by LMW 30/03/2023
+    model.to(device) # Modified by LMW 30/03/2023                  
+            
     with torch.no_grad():
         for batch in range(batches):
                 
@@ -353,7 +407,7 @@ def reconstruct(model: Union[Pinv_Net, DC2_Net],
     return recon
 
 
-def reconstruct_process(model: Union[Pinv_Net, DC2_Net],
+def reconstruct_process(model: Union[PinvNet, DCNet],
     device: str, queue_to_recon: Queue, queue_reconstructed: Queue, 
     batches: int, noise_model: noiseClass, sleep_time: float = 0.3) -> None:
     """Performs reconstruction in real-time.
