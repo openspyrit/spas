@@ -20,33 +20,15 @@ import torch
 import numpy as np
 from matplotlib import pyplot as plt
 
-# from spyrit.core.reconstruction import Pinv_Net, DC2_Net
-from spyrit.core.recon import PinvNet, DCNet    # modified by LMW 30/03/2023
-
-# from spyrit.core.training import load_net
-from spyrit.core.train import load_net    # modified by LMW 30/03/2023
-
+from spyrit.core.train import load_net   
+from spyrit.core.noise import Poisson   
+from spyrit.core.meas import HadamSplit   
+from spyrit.core.prep import SplitPoisson   
+from spyrit.core.recon import PinvNet, DCNet, TikhonovMeasurementPriorDiag    
+from spyrit.core.nnet import Unet   
+from spyrit.misc.sampling import Permutation_Matrix, reorder
 from spyrit.misc.statistics import Cov2Var
 from spyrit.misc.walsh_hadamard import walsh2_matrix
-
-# from spyrit.core.Acquisition import Acquisition_Poisson_approx_Gauss
-from spyrit.core.noise import Poisson    # modified by LMW 30/03/2023
-
-# from spyrit.core.Forward_Operator import Forward_operator_Split_ft_had
-from spyrit.core.meas import HadamSplit    # modified by LMW 30/03/2023
-
-# from spyrit.core.Preprocess import Preprocess_Split_diag_poisson
-from spyrit.core.prep import SplitPoisson    # modified by LMW 30/03/2023
-# il y a aussi la classe SplitRowPoisson ???
-
-# from spyrit.core.Data_Consistency import Generalized_Orthogonal_Tikhonov #, Pinv_orthogonal
-from spyrit.core.recon import TikhonovMeasurementPriorDiag     # modified by LMW 30/03/2023
-
-# from spyrit.core.neural_network import Unet #, Identity
-from spyrit.core.nnet import Unet    # modified by LMW 30/03/2023
-
-from spyrit.misc.sampling import Permutation_Matrix, reorder
-
 
 from spas.noise import noiseClass
 from spas.metadata import AcquisitionParameters
@@ -119,60 +101,17 @@ def setup_reconstruction(cov_path: str,
     Ord[:,n_sub:] = 0
     Ord[n_sub:,:] = 0
         
-    # Init network  
-    #Perm_rec = Permutation_Matrix(Ord)
-    #Hperm = Perm_rec @ H
-    #Pmat = Hperm[:network_params.M,:]
-
-    # init
-    # Forward = Forward_operator_Split_ft_had(Pmat, Perm_rec, 
-    #                                         network_params.img_size, 
-    #                                         network_params.img_size)
-    
+    # Init network     
     Forward = HadamSplit(network_params.M, 
                          network_params.img_size, 
-                         Ord)# modified by LMW 30/03/2023
-    
-    # Noise = Acquisition_Poisson_approx_Gauss(network_params.N0, Forward)
-    
+                         Ord)
     Noise = Poisson(Forward, network_params.N0)
-    
-    # Prep = Preprocess_Split_diag_poisson(network_params.N0, 
-    #                                      network_params.M, 
-    #                                      network_params.img_size**2)
-    
     Prep = SplitPoisson(network_params.N0, 
-                                         network_params.M, 
-                                         network_params.img_size**2)
-    
+                        network_params.M, 
+                        network_params.img_size**2)
     Denoi = Unet()
-    # Cov_perm = Perm_rec @ Cov_rec @ Perm_rec.T
-    # DC = Generalized_Orthogonal_Tikhonov(sigma_prior = Cov_perm, 
-    #                                      M = network_params.M, 
-    #                                      N = network_params.img_size**2)
-    
-    
-    
-    # model = DC2_Net(Noise, Prep, DC, Denoi)
     model = DCNet(Noise, Prep, Cov_rec, Denoi)
 
-    # # load    
-    # net_folder = '{}_{}_{}'.format(
-    #     network_params.arch, network_params.denoi, 
-    #     network_params.data)
-    
-    # suffix = '_{}_N0_{}_N_{}_M_{}_epo_{}_lr_{}_sss_{}_sdr_{}_bs_{}_reg_{}'.format(
-    #     network_params.subs, network_params.N0,   
-    #     network_params.img_size, network_params.M, 
-    #     network_params.num_epochs, network_params.learning_rate,
-    #     network_params.step_size, network_params.gamma,
-    #     network_params.batch_size, network_params.regularization)
-    
-    # torch.cuda.empty_cache() # need to keep this here?
-    # title = Path(model_folder) / net_folder / (net_folder + suffix)
-    # load_net(title, model, device)
-    # model.eval()                    # Mandantory when batchNorm is used 
-    # model = model.to(device)
     
     # Load trained DC-Net
     net_arch = network_params.arch
@@ -184,13 +123,11 @@ def setup_reconstruction(cov_path: str,
         net_order   = 'var'
     
     bs = 256
-    # net_suffix  = f'N0_{network_params.N0}_N_{network_params.img_size}_M_{network_params.M}_epo_30_lr_0.001_sss_10_sdr_0.5_bs_{bs}_reg_1e-07_light'
     net_suffix  = f'N0_{network_params.N0}_N_{network_params.img_size}_M_{network_params.M}_epo_30_lr_0.001_sss_10_sdr_0.5_bs_{bs}_reg_1e-07_light'
     
     net_folder= f'{net_arch}_{net_denoi}_{net_data}/'
     
     net_title = f'{net_arch}_{net_denoi}_{net_data}_{net_order}_{net_suffix}'
-    # title = './model_v2/' + net_folder + net_title
     title = 'C:/openspyrit/models/' + net_folder + net_title
     load_net(title, model, device, False)
     model.eval()                    # Mandantory when batchNorm is used  
@@ -230,7 +167,6 @@ def reorder_subsample(meas: np.ndarray,
     Ord_acq = np.reshape(Ord_acq, (N_acq,N_acq))        # sampling map
     Perm_acq = Permutation_Matrix(Ord_acq).T
     
-    
     # Order used for reconstruction
     if recon_param.subs == 'rect':
         Ord_rec = np.ones((N_rec, N_rec))
@@ -244,61 +180,10 @@ def reorder_subsample(meas: np.ndarray,
     
     Perm_rec = Permutation_Matrix(Ord_rec)
     
-    #
+    # reorder 
     meas = meas.T
-    
-    # Subsample acquisition permutation matrix (fill with zeros if necessary)
-    if N_rec > N_acq:
+    meas = reorder(meas, Perm_acq, Perm_rec)
         
-        # Square subsampling in the "natural" order
-        Ord_sub = np.zeros((N_rec,N_rec))
-        Ord_sub[:N_acq,:N_acq]= -np.arange(-N_acq**2,0).reshape(N_acq,N_acq)
-        Perm_sub = Permutation_Matrix(Ord_sub) 
-        
-        # Natural order measurements (N_acq resolution)
-        Perm_raw = np.zeros((2*N_acq**2,2*N_acq**2))
-        Perm_raw[::2,::2] = Perm_acq.T     
-        Perm_raw[1::2,1::2] = Perm_acq.T
-        meas = Perm_raw @ meas
-        
-        # Zero filling (needed only when reconstruction resolution is higher 
-        # than acquisition res)
-        zero_filled = np.zeros((2*N_rec**2, N_wav))
-        zero_filled[:2*N_acq**2,:] = meas
-        
-        meas = zero_filled
-        
-        Perm_raw = np.zeros((2*N_rec**2,2*N_rec**2))
-        Perm_raw[::2,::2] = Perm_sub.T     
-        Perm_raw[1::2,1::2] = Perm_sub.T
-        
-        meas = Perm_raw @ meas
-        
-    elif N_rec == N_acq:
-        Perm_sub = Perm_acq[:N_rec**2,:].T
-      
-    elif N_rec < N_acq:
-        # Square subsampling in the "natural" order
-        Ord_sub = np.zeros((N_acq,N_acq))
-        Ord_sub[:N_rec,:N_rec]= -np.arange(-N_rec**2,0).reshape(N_rec,N_rec)
-        Perm_sub = Permutation_Matrix(Ord_sub) 
-        Perm_sub = Perm_sub[:N_rec**2,:]
-        Perm_sub = Perm_sub @ Perm_acq.T    
-        
-    #Reorder measurements when reconstruction order is not "natural"  
-    if N_rec <= N_acq:   
-        # Get both positive and negative coefficients permutated
-        Perm = Perm_rec @ Perm_sub
-        Perm_raw = np.zeros((2*N_rec**2,2*N_acq**2))
-        
-    elif N_rec > N_acq:
-        Perm = Perm_rec
-        Perm_raw = np.zeros((2*N_rec**2,2*N_rec**2))
-    
-    Perm_raw[::2,::2] = Perm     
-    Perm_raw[1::2,1::2] = Perm
-    meas = Perm_raw @ meas
-    
     return meas[:2*recon_param.M,:].T
         
         
@@ -343,18 +228,13 @@ def reconstruct(model: Union[PinvNet, DCNet],
     #     method. Defaults to None.
     
     proportion = spectral_data.shape[0]//batches # Amount of wavelengths per batch
-    
-    # img_size = model.Acq.FO.h # image assumed to be square
-    # img_size = 128 # Modified by LMW 30/03/2023
     img_size = model.Acq.meas_op.h
-    
     recon = np.zeros((spectral_data.shape[0], img_size, img_size))
-
     start = perf_counter_ns()
 
     # model.PreP.set_expe()
-    model.prep.set_expe() # Modified by LMW 30/03/2023
-    model.to(device) # Modified by LMW 30/03/2023                  
+    model.prep.set_expe()
+    model.to(device)                  
             
     with torch.no_grad():
         for batch in range(batches):
