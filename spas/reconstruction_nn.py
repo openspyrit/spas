@@ -9,44 +9,24 @@ reconstructions and plots using multiprocessing features.
 """
 
 from dataclasses import InitVar, dataclass, field
-from enum import IntEnum
 from time import perf_counter_ns, sleep
 from typing import Tuple, Union
 from multiprocessing import Queue
-from pathlib import Path
-
 import math
 import torch
 import numpy as np
 from matplotlib import pyplot as plt
 
-# from spyrit.core.reconstruction import Pinv_Net, DC2_Net
-from spyrit.core.recon import PinvNet, DCNet    # modified by LMW 30/03/2023
-
-# from spyrit.core.training import load_net
-from spyrit.core.train import load_net    # modified by LMW 30/03/2023
-
+from spyrit.core.recon import PinvNet, DCNet
+from spyrit.core.train import load_net 
 from spyrit.misc.statistics import Cov2Var
 from spyrit.misc.walsh_hadamard import walsh2_matrix
-
-# from spyrit.core.Acquisition import Acquisition_Poisson_approx_Gauss
-from spyrit.core.noise import Poisson    # modified by LMW 30/03/2023
-
-# from spyrit.core.Forward_Operator import Forward_operator_Split_ft_had
-from spyrit.core.meas import HadamSplit    # modified by LMW 30/03/2023
-
-# from spyrit.core.Preprocess import Preprocess_Split_diag_poisson
-from spyrit.core.prep import SplitPoisson    # modified by LMW 30/03/2023
-# il y a aussi la classe SplitRowPoisson ???
-
-# from spyrit.core.Data_Consistency import Generalized_Orthogonal_Tikhonov #, Pinv_orthogonal
-from spyrit.core.recon import TikhonovMeasurementPriorDiag     # modified by LMW 30/03/2023
-
-# from spyrit.core.neural_network import Unet #, Identity
-from spyrit.core.nnet import Unet    # modified by LMW 30/03/2023
-
+from spyrit.core.noise import Poisson
+from spyrit.core.meas import HadamSplit   
+from spyrit.core.prep import SplitPoisson  
+from spyrit.core.recon import TikhonovMeasurementPriorDiag
+from spyrit.core.nnet import Unet
 from spyrit.misc.sampling import Permutation_Matrix, reorder
-
 
 from spas.noise import noiseClass
 from spas.metadata import AcquisitionParameters
@@ -184,7 +164,7 @@ def setup_reconstruction(cov_path: str,
         net_order   = 'var'
     
     bs = 256
-    # net_suffix  = f'N0_{network_params.N0}_N_{network_params.img_size}_M_{network_params.M}_epo_30_lr_0.001_sss_10_sdr_0.5_bs_{bs}_reg_1e-07_light'
+    # net_suffix  = f'N0_{network_params.N0}_N_{network_params.img_size}_M_{network_params.M}_epo_30_lr_0.001_sss_10_sdr_0.5_bs_{bs}_reg_1e-07'
     net_suffix  = f'N0_{network_params.N0}_N_{network_params.img_size}_M_{network_params.M}_epo_30_lr_0.001_sss_10_sdr_0.5_bs_{bs}_reg_1e-07_light'
     
     net_folder= f'{net_arch}_{net_denoi}_{net_data}/'
@@ -345,7 +325,6 @@ def reconstruct(model: Union[PinvNet, DCNet],
     proportion = spectral_data.shape[0]//batches # Amount of wavelengths per batch
     
     # img_size = model.Acq.FO.h # image assumed to be square
-    # img_size = 128 # Modified by LMW 30/03/2023
     img_size = model.Acq.meas_op.h
     
     recon = np.zeros((spectral_data.shape[0], img_size, img_size))

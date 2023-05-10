@@ -52,16 +52,23 @@ from typing import NamedTuple, Tuple, List, Optional
 from collections import namedtuple
 from pathlib import Path
 from multiprocessing import Process, Queue
-import shutil
-    
+import shutil    
 import numpy as np
 from PIL import Image
-from msl.equipment import EquipmentRecord, ConnectionRecord, Backend
-from msl.equipment.resources.avantes import MeasureCallback, Avantes
-from ALP4 import ALP4, ALP_FIRSTFRAME, ALP_LASTFRAME
-from ALP4 import ALP_AVAIL_MEMORY, ALP_DEV_DYN_SYNCH_OUT1_GATE, tAlpDynSynchOutGate
-from tqdm import tqdm
 
+try:
+    from ALP4 import ALP4, ALP_FIRSTFRAME, ALP_LASTFRAME
+    from ALP4 import ALP_AVAIL_MEMORY, ALP_DEV_DYN_SYNCH_OUT1_GATE, tAlpDynSynchOutGate
+except:
+    class ALP4:
+        pass
+try:
+    from msl.equipment import EquipmentRecord, ConnectionRecord, Backend
+    from msl.equipment.resources.avantes import MeasureCallback, Avantes
+except:
+    pass
+    
+from tqdm import tqdm
 from .metadata import DMDParameters, MetaData, AcquisitionParameters
 from .metadata import SpectrometerParameters, save_metadata, CAM, save_metadata_2arms
 from .reconstruction_nn import reconstruct_process, plot_recon, ReconstructionParameters
@@ -638,6 +645,16 @@ def _setup_timings(DMD: ALP4, DMD_params: DMDParameters, picture_time: int,
                   triggerInDelay=trigger_in_delay)
 
     DMD_params.update_sequence_parameters(add_illumination_time, DMD=DMD)
+    
+    
+# class mytAlpDynSynchOutGate(ct.Structure):
+#     # For ControlType ALP_DEV_DYN_TRIG_OUT[1..3]_GATE of function AlpDevControlEx
+#     # Configure compiler to not insert padding bytes! (e.g. #pragma pack)
+#     _pack_ = 1
+#     _fields_ = [("Period", ct.c_ubyte),  # Period=1..16 enables output; 0: tri-state
+#                 ("Polarity", ct.c_ubyte),  # 0: active pulse is low, 1: high
+#                 ("Gate", ct.c_ubyte * 16),
+#                 ("byref", ct.c_ubyte * 18)] 
 
 def setup(spectrometer: Avantes,
           DMD: ALP4,
