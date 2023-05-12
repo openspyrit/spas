@@ -8,20 +8,33 @@ Utility functions to recreate objects from JSON files, save them to JSON and to
 improve readability.
 """
 
-import json
-import ALP4
+import json  
 from datetime import datetime
 from enum import IntEnum
 from dataclasses import dataclass, InitVar, field
 from typing import Optional, Union, List, Tuple, Optional
 from pathlib import Path
 import os
-
-from msl.equipment.resources.avantes import MeasConfigType
 from dataclasses_json import dataclass_json
 import numpy as np
 import ctypes as ct
 import pickle
+##### DLL for the DMD
+try:
+    import ALP4
+except: # in the cas the DLL of the DMD is not installed
+    class ALP4:
+        pass
+    setattr(ALP4, 'ALP4',  None)
+    print('DLL of the DMD not installed')
+##### DLL for the spectrometer Avantes 
+try:
+    from msl.equipment.resources.avantes import MeasConfigType
+except: # in the cas the DLL of the spectrometer is not installed
+    class MeasConfigType:
+        pass
+    MeasConfigType =  None
+    print('DLL of the spectrometer not installed !!!')
 
 
 class DMDTypes(IntEnum):

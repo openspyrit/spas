@@ -9,12 +9,9 @@ reconstructions and plots using multiprocessing features.
 """
 
 from dataclasses import InitVar, dataclass, field
-from enum import IntEnum
 from time import perf_counter_ns, sleep
 from typing import Tuple, Union
 from multiprocessing import Queue
-from pathlib import Path
-
 import math
 import torch
 import numpy as np

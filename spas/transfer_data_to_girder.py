@@ -139,10 +139,16 @@ def transfer_data_2arms(metadata, acquisition_parameters, spectrometer_params, D
                             setup_version, data_folder_name, data_name, upload_metadata):
 
     #unwrap structure into camPar
-    camPar.AOI_X = camPar.rectAOI.s32X.value
-    camPar.AOI_Y = camPar.rectAOI.s32Y.value
-    camPar.AOI_Width = camPar.rectAOI.s32Width.value
-    camPar.AOI_Height = camPar.rectAOI.s32Height.value
+    try:
+        camPar.AOI_X = camPar.rectAOI.s32X.value
+        camPar.AOI_Y = camPar.rectAOI.s32Y.value
+        camPar.AOI_Width = camPar.rectAOI.s32Width.value
+        camPar.AOI_Height = camPar.rectAOI.s32Height.value
+    except:
+        camPar['AOI_X'] = camPar['rectAOI'].s32X.value
+        camPar['AOI_Y'] = camPar['rectAOI'].s32Y.value
+        camPar['AOI_Width'] = camPar['rectAOI'].s32Width.value
+        camPar['AOI_Height'] = camPar['rectAOI'].s32Height.value
     #%%########################## Girder info #################################    
     url = 'https://pilot-warehouse.creatis.insa-lyon.fr/api/v1'
     collectionId = '6140ba6929e3fc10d47dbe3e'# collection_name = 'spc'    
