@@ -1,26 +1,18 @@
-# Single-Pixel Acquisition Software (SPAS) - Python version
+# Single-Pixel Acquisition Software (SPAS)
 
-A python toolbox for acquisition of images based on the single-pixel framework.
-It has been tested using a Digital Light Processor [DLP7000](https://www.vialux.de/en/hi-speed-v-modules.html) from ViALUX GmbH and a Spectrometer [AvaSpec-ULS2048CL-EVO](https://www.avantes.com/products/spectrometers/starline/avaspec-uls2048cl-evo/) from Avantes, but may as well work for similar equipment with a few minor changes.
+SPAS is python package designed for single-pixel acquisition.
 
-## Installation (Windows only)
+SPAS has been tested for controlling a [DLP7000](https://www.vialux.de/en/hi-speed-v-modules.html) Spatial Light Modulator and an [AvaSpec-ULS2048CL-EVO](https://www.avantes.com/products/spectrometers/starline/avaspec-uls2048cl-evo/) spectrometer. It should work as well for for similar equipment with a few changes.
 
-1.  Create a new environment (tested under conda)
+SPAS is a companion package to the [SPyRiT](https://github.com/openspyrit/spyrit) package.
 
-```powershell
-conda create --name my_spas_env
-conda activate my_spas_env
-conda install -c anaconda pip 
-```
 
-2. Install the [SPyRiT](https://github.com/openspyrit/spyrit) package (tested with version 1.0.0). Typically
+# Installation
+The SPAS package can be installed on Linux, MacOs and Windows. However, it will be fully functional on Windows only due to DLL dependencies required for harware control.
 
-```powershell
-pip install requests torch==1.8.0+cpu torchvision==0.9.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
-pip install spyrit==1.0.0
-```
+We recommend using a virtual environment.
 
-2. Clone the SPAS repository
+* Clone the SPAS repository
 
 ```powershell
 git clone git@github.com:openspyrit/spas.git
@@ -33,16 +25,15 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-3. Add DLLs 
+* Add DLLs (optional, for instrumentation control only)
 
-The following dynamic-link libraries (DLLs) are required
+    The following dynamic-link libraries (DLLs) were required to control our instrumentation
 
-* `avaspecx64.dll` provided by your Avantes distributor
-* `alpV42.dll` available [here](https://www.vialux.de/en/hi-speed-download.html) by installing the entire ALP4 library
+    * `avaspecx64.dll` provided by your Avantes distributor
+    * `alpV42.dll` available [here](https://www.vialux.de/en/hi-speed-download.html) by installing the entire ALP4 library
 
-They should be placed inside the  `lib` folder
 
-4. The typical directory structure is
+* The DLLs should be placed inside the  `lib` folder. The typical directory structure is
 
 ```
 ├───lib
@@ -62,6 +53,23 @@ They should be placed inside the  `lib` folder
 │   ├───Cov_64x64.npy
 ```
 
+# API Documentation
+https://spas.readthedocs.io/
+
+# Contributors (alphabetical order)
+* Thomas Baudier
+* Nicolas Ducros - [Website](https://www.creatis.insa-lyon.fr/~ducros/WebPage/index.html)
+* Laurent Mahieu Williame
+
+# How to cite?
+When using SPAS in scientific publications, please cite the following paper:
+
+* G. Beneti-Martin, L Mahieu-Williame, T Baudier, N Ducros, "OpenSpyrit: an Ecosystem for Reproducible Single-Pixel Hyperspectral Imaging," Optics Express, Vol. 31, No. 10, (2023). https://doi.org/10.1364/OE.483937.
+
+# License
+This project is licensed under the LGPL-3.0 license - see the [LICENSE.md](LICENSE.md) file for details
+
+# Getting started
 ## Preparation (just once)
 ### 1. Creating Walsh-Hadamard patterns
 
