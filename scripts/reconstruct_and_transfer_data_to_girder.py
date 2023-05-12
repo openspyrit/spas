@@ -187,8 +187,6 @@ for data_folder_name in data_folder_name_list:
                 cov_path = 'C:/openspyrit/stat/ILSVRC2012_v10102019/Cov_8_128x128.npy'
                 model_folder = 'C:/openspyrit/models/'
                 model, device = setup_reconstruction(cov_path, model_folder, network_param)
-                # meas = reorder_subsample(spectral_data.T, acquisition_parameters, network_param) # Reorder and subsample
-                # reco = reconstruct(model, device, meas) # Reconstruction
                 plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, network_param, all_path)
                 print('elapsed time = ' + str(round(time.time()-t0)) + ' s')            
             #%% check if data exist in the Pilot warehosue

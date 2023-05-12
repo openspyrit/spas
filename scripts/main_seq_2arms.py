@@ -20,10 +20,10 @@ import time
 spectrometer, DMD, DMD_initial_memory, camPar = init_2arms()
 #%% Define the AOI 
 # Warning, not all values are allowed for Width and Height (max: 2076x3088 | ex: 768x544)
-camPar.rectAOI.s32X.value      = 0 #0#1100#  // X
-camPar.rectAOI.s32Y.value      = 0#0#800#765#   // Y
-camPar.rectAOI.s32Width.value  = 1544 #3000#3088#3088#  768       // Width must be multiple of 8
-camPar.rectAOI.s32Height.value = 1730#2000## 1038# 544 # 2076   // Height   
+camPar.rectAOI.s32X.value      = 1100#0 #0#  // X
+camPar.rectAOI.s32Y.value      = 765#0#0#800#   // Y
+camPar.rectAOI.s32Width.value  = 768# 1544 #3000#3088#3088#         // Width must be multiple of 8
+camPar.rectAOI.s32Height.value = 544 #1730#2000## 1038#  2076   // Height   
 
 camPar = captureVid(camPar)
 #%% Set Camera Parameters 
@@ -34,7 +34,7 @@ camPar = setup_cam(camPar,
     Gain         = 0,     # Gain boundary : [0 100]
     gain_boost   = 'OFF', # set "ON" to activate gain boost, "OFF" to deactivate
     nGamma       = 1,     # Gamma boundary : [1 - 2.2]
-    ExposureTime = 1,# Exposure Time (ms) boudary : [0.013 - 56.221] 
+    ExposureTime = 0.04,# Exposure Time (ms) boudary : [0.013 - 56.221] 
     black_level  = 5)     # Black Level boundary : [0 255]
 
 snapshotVisu(camPar)
@@ -42,14 +42,14 @@ snapshotVisu(camPar)
 displayVid(camPar)
 #%% Setup acquisition and send pattern to the DMD
 setup_version            = 'setup_v1.3.1'
-Np                       = 32       # Number of pixels in one dimension of the image (image: NpxNp)
+Np                       = 64       # Number of pixels in one dimension of the image (image: NpxNp)
 zoom                     = 1       # Numerical zoom applied in the DMD
-ti                       = 2        # Integration time of the spectrometer   
-scan_mode                = 'Walsh_inv' #'Raster_inv' #'Walsh'  #'Raster' #
-data_folder_name         = '2023-05-03_diffraction_unlimited'
+ti                       = 1        # Integration time of the spectrometer   
+scan_mode                = 'Walsh'  #'Raster' #'Walsh_inv' #'Raster_inv' #
+data_folder_name         = '2023-05-12_test_ALP4'
 data_name                = 'cat_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
 
-camPar.acq_mode          = 'video'   #'snapshot'#
+camPar.acq_mode          = 'snapshot'#'video'   #
 camPar.vidFormat         = 'avi'     #'bin'#
 camPar.insert_patterns   = 0         # 0: no insertion / 1: insert white patterns for the camera
 camPar.gate_period       = 1        # a multiple of the integration time of the spectro, between [2 - 16] (2: insert one white pattern between each pattern)
@@ -63,10 +63,10 @@ metadata = MetaData(
     pattern_prefix       = scan_mode + '_' + str(Np) + 'x' + str(Np),
 
     experiment_name = data_name,
-    light_source    = 'Zeiss KL2500 white lamp',#'White LED light',#'LED Laser 385nm + optical fiber 600µm, P = 30 mW',#'the sun',#'IKEA lamp 10W LED1734G10',#or BlueLaser 50 mW',#' (74) + 'Bioblock power: II',#'HgAr multilines Source (HG-1 Oceanoptics)',#'Nothing',#
+    light_source    = 'White LED light',#'Zeiss KL2500 white lamp',#'LED Laser 385nm + optical fiber 600µm, P = 30 mW',#'the sun',#'IKEA lamp 10W LED1734G10',#or BlueLaser 50 mW',#' (74) + 'Bioblock power: II',#'HgAr multilines Source (HG-1 Oceanoptics)',#'Nothing',#
     object          = 'Cat',#two little tubes containing PpIX at 634 and 620 state',#'Apple',#',#'USAF',#'Nothing''color checker'
-    filter          = 'BandPass filter 560nm Dl=10nm',#'HighPass_500nm + LowPass_750nm',# + optical density = 0.1', #'Nothing',#'Diffuser + HighPass_500nm + LowPass_750nm',##'Microsope objective x40',#'' linear colored filter + OD#0',#'Nothing',#
-    description     = 'numerical pinhole')
+    filter          = 'None', #'BandPass filter 560nm Dl=10nm',#'HighPass_500nm + LowPass_750nm',# + optical density = 0.1', #'Nothing',#'Diffuser + HighPass_500nm + LowPass_750nm',##'Microsope objective x40',#'' linear colored filter + OD#0',#'Nothing',#
+    description     = 'test after changing metadata.py and acquisition.py to be used on Linux and MacOs plateform. We would like to be sure that SPAS for Windows is ok')
     
 acquisition_parameters = AcquisitionParameters(
     pattern_compression = 1.0,

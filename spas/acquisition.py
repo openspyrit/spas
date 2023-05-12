@@ -53,15 +53,18 @@ from collections import namedtuple
 from pathlib import Path
 from multiprocessing import Process, Queue
 import shutil    
+
 import numpy as np
 from PIL import Image
-
+##### DLL for the DMD
 try:
     from ALP4 import ALP4, ALP_FIRSTFRAME, ALP_LASTFRAME
     from ALP4 import ALP_AVAIL_MEMORY, ALP_DEV_DYN_SYNCH_OUT1_GATE, tAlpDynSynchOutGate
+    # print('ALP4 is ok in Acquisition file')
 except:
     class ALP4:
         pass
+##### DLL for the spectrometer Avantes 
 try:
     from msl.equipment import EquipmentRecord, ConnectionRecord, Backend
     from msl.equipment.resources.avantes import MeasureCallback, Avantes
@@ -69,11 +72,11 @@ except:
     pass
     
 from tqdm import tqdm
-from .metadata import DMDParameters, MetaData, AcquisitionParameters
-from .metadata import SpectrometerParameters, save_metadata, CAM, save_metadata_2arms
-from .reconstruction_nn import reconstruct_process, plot_recon, ReconstructionParameters
+from spas.metadata import DMDParameters, MetaData, AcquisitionParameters
+from spas.metadata import SpectrometerParameters, save_metadata, CAM, save_metadata_2arms
+from spas.reconstruction_nn import reconstruct_process, plot_recon, ReconstructionParameters
 
-# Librarie for the IDS CAMERA
+# DLL for the IDS CAMERA
 try:
     from pyueye import ueye, ueye_tools
 except:
@@ -128,7 +131,7 @@ def _init_DMD() -> Tuple[ALP4, int]:
     # Initializing DMD
 
     dll_path = Path(__file__).parent.parent.joinpath('lib/alpV42').__str__()
-
+    
     DMD = ALP4(version='4.2',libDir=dll_path)
     DMD.Initialize(DeviceNum=None)
 

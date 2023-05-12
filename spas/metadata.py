@@ -21,7 +21,7 @@ import ctypes as ct
 import pickle
 ##### DLL for the DMD
 try:
-    from ALP4 import ALP4
+    import ALP4
 except: # in the cas the DLL of the DMD is not installed
     class ALP4:
         pass
