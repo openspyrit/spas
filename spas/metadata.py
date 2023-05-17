@@ -8,20 +8,33 @@ Utility functions to recreate objects from JSON files, save them to JSON and to
 improve readability.
 """
 
-import json
-import ALP4
+import json  
 from datetime import datetime
 from enum import IntEnum
 from dataclasses import dataclass, InitVar, field
 from typing import Optional, Union, List, Tuple, Optional
 from pathlib import Path
 import os
-
-from msl.equipment.resources.avantes import MeasConfigType
 from dataclasses_json import dataclass_json
 import numpy as np
 import ctypes as ct
 import pickle
+##### DLL for the DMD
+try:
+    import ALP4
+except: # in the cas the DLL of the DMD is not installed
+    class ALP4:
+        pass
+    setattr(ALP4, 'ALP4',  None)
+    print('DLL of the DMD not installed')
+##### DLL for the spectrometer Avantes 
+try:
+    from msl.equipment.resources.avantes import MeasConfigType
+except: # in the cas the DLL of the spectrometer is not installed
+    class MeasConfigType:
+        pass
+    MeasConfigType =  None
+    print('DLL of the spectrometer not installed !!!')
 
 
 class DMDTypes(IntEnum):
@@ -1020,9 +1033,10 @@ class func_path:
 
         self.data_path = self.subfolder_path + '/' + data_name
         self.had_reco_path = self.data_path + '_had_reco.npz'         
-        self.fig_had_reco_path = self.overview_path + '/' + 'HAD_RECO_' + data_name   
+        self.fig_had_reco_path = self.overview_path + '/' + data_name   
         self.pathIDSsnapshot = Path(self.data_path + '_IDScam_before_acq.npy')
         self.pathIDSsnapshot_overview = self.overview_path + '/' + 'CAM_before_acq_' + data_name + '.png'
-        
+        self.nn_reco_path = self.data_path + '_nn_reco.npz'
+        self.fig_nn_reco_path = self.overview_path + '/' + data_name 
 
   

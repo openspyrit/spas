@@ -1,26 +1,18 @@
-# Single-Pixel Acquisition Software (SPAS) - Python version
+# Single-Pixel Acquisition Software (SPAS)
 
-A python toolbox for acquisition of images based on the single-pixel framework.
-It has been tested using a Digital Light Processor [DLP7000](https://www.vialux.de/en/hi-speed-v-modules.html) from ViALUX GmbH and a Spectrometer [AvaSpec-ULS2048CL-EVO](https://www.avantes.com/products/spectrometers/starline/avaspec-uls2048cl-evo/) from Avantes, but may as well work for similar equipment with a few minor changes.
+SPAS is python package designed for single-pixel acquisition.
 
-## Installation (Windows only)
+SPAS has been tested for controlling a [DLP7000](https://www.vialux.de/en/hi-speed-v-modules.html) Spatial Light Modulator and an [AvaSpec-ULS2048CL-EVO](https://www.avantes.com/products/spectrometers/starline/avaspec-uls2048cl-evo/) spectrometer. It should work as well for for similar equipment with a few changes.
 
-1.  Create a new environment (tested under conda)
+SPAS is a companion package to the [SPyRiT](https://github.com/openspyrit/spyrit) package.
 
-```powershell
-conda create --name my_spas_env
-conda activate my_spas_env
-conda install -c anaconda pip 
-```
 
-2. Install the [SPyRiT](https://github.com/openspyrit/spyrit) package (tested with version 1.0.0). Typically
+# Installation
+The SPAS package can be installed on Linux, MacOs and Windows. However, it will be fully functional on Windows only due to DLL dependencies required for harware control.
 
-```powershell
-pip install requests torch==1.8.0+cpu torchvision==0.9.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
-pip install spyrit==1.0.0
-```
+We recommend using a virtual environment.
 
-2. Clone the SPAS repository
+* Clone the SPAS repository
 
 ```powershell
 git clone git@github.com:openspyrit/spas.git
@@ -33,16 +25,15 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-3. Add DLLs 
+* Add DLLs (optional, for instrumentation control only)
 
-The following dynamic-link libraries (DLLs) are required
+    The following dynamic-link libraries (DLLs) were required to control our instrumentation
 
-* `avaspecx64.dll` provided by your Avantes distributor
-* `alpV42.dll` available [here](https://www.vialux.de/en/hi-speed-download.html) by installing the entire ALP4 library
+    * `avaspecx64.dll` provided by your Avantes distributor
+    * `alpV42.dll` available [here](https://www.vialux.de/en/hi-speed-download.html) by installing the entire ALP4 library
 
-They should be placed inside the  `lib` folder
 
-4. The typical directory structure is
+* The DLLs should be placed inside the  `lib` folder. The typical directory structure is
 
 ```
 ├───lib
@@ -62,6 +53,23 @@ They should be placed inside the  `lib` folder
 │   ├───Cov_64x64.npy
 ```
 
+# API Documentation
+https://spas.readthedocs.io/
+
+# Contributors (alphabetical order)
+* Thomas Baudier
+* Nicolas Ducros - [Website](https://www.creatis.insa-lyon.fr/~ducros/WebPage/index.html)
+* Laurent Mahieu Williame
+
+# How to cite?
+When using SPAS in scientific publications, please cite the following paper:
+
+* G. Beneti-Martin, L Mahieu-Williame, T Baudier, N Ducros, "OpenSpyrit: an Ecosystem for Reproducible Single-Pixel Hyperspectral Imaging," Optics Express, Vol. 31, No. 10, (2023). https://doi.org/10.1364/OE.483937.
+
+# License
+This project is licensed under the LGPL-3.0 license - see the [LICENSE.md](LICENSE.md) file for details
+
+# Getting started
 ## Preparation (just once)
 ### 1. Creating Walsh-Hadamard patterns
 
@@ -195,7 +203,7 @@ from spas import plot_color
 plot_color(rec_bin, wavelengths_bin)
 ```
 
-* Measurements are saved in the disk (fully sampled)
+* Measurements are saved on the disk (fully sampled)
 
 Reconstruct the measurements saved as `../meas/my_first_measurement`.
 
@@ -220,7 +228,7 @@ rec = reconstruction_hadamard(acquisition_metadata.patterns, 'walsh', H, meas)
 ```
 ## Reconstruction with a Neural Network
 
-* Measurements are on the disk (fully-sampled here, works too with `pattern_compression=.25`) 
+* We consider an existing acquisition that was saved on the disk in the `../meas/` folder 
 
 Read the data:
 ``` python
@@ -235,51 +243,68 @@ from spas import read_metadata, reconstruction_hadamard
 _, acquisition_parameters, _, _ = read_metadata('../meas/my_first_measurement' + '_metadata.json')
 ```
 
-* We have access to a trained network:
+* We consider that we have access to a trained network and the covariance matrix associated to it. 
 
-An example network can be downloaded [here](https://www.creatis.insa-lyon.fr/~ducros/spyritexamples/2021_ISTE/NET_c0mp_N0_50.0_sig_0.0_Denoi_N_64_M_1024_epo_40_lr_0.001_sss_20_sdr_0.2_bs_256_reg_1e-07.pth) , which you can save in `./models/`. It allows to reconstruction images from only 1024 hadamard coefficients (i.e., 2048 raw measurements):
+An example network can be downloaded [here](https://pilot-warehouse.creatis.insa-lyon.fr/#collection/6140ba6929e3fc10d47dbe3e/folder/622b5ea843258e76eab21740). It allows the reconstruction of a 128 x 128 image from only 4096 Hadamard coefficients (i.e., 8192 raw measurements) that correspond to a full acquisition at a 64 x 64  resolution. Its associated covariance matrix can be downloaded [here](https://pilot-warehouse.creatis.insa-lyon.fr/#collection/6140ba6929e3fc10d47dbe3e/folder/63d7f3620386da2747641e1b).
 
 ``` python
 from spas import ReconstructionParameters, setup_reconstruction
-network_params = ReconstructionParameters(
-    img_size=64,
-    CR=1024,
-    denoise=True,
-    epochs=40,
-    learning_rate=1e-3,
-    step_size=20,
-    gamma=0.2,
-    batch_size=256,
-    regularization=1e-7,
-    N0=50.0,
-    sig=0.0,
-    arch_name='c0mp',)
-        
-cov_path = '../stats/Cov_64x64.npy'
-mean_path = '../stats/Average_64x64.npy'
-model_root = '../models/'
 
-import spyrit.misc.walsh_hadamard as wh
-H = wh.walsh2_matrix(64)/64        
-model, device = setup_reconstruction(cov_path, mean_path, H, model_root, network_params)
+network_param = ReconstructionParameters(
+    # Reconstruction network    
+    M = 64*64,          # Number of measurements
+    img_size = 128,     # Image size
+    arch = 'dc-net',    # Main architecture
+    denoi = 'unet',     # Image domain denoiser
+    subs = 'rect',      # Subsampling scheme
+    
+    # Training
+    data = 'imagenet',  # Training database
+    N0 = 10,            # Intensity (max of ph./pixel)
+    
+    # Optimisation (from train2.py)
+    num_epochs = 30,       # Number of training epochs
+    learning_rate = 0.001, # Learning Rate
+    step_size = 10,        # Scheduler Step Size
+    gamma = 0.5,           # Scheduler Decrease Rate   
+    batch_size = 256,      # Size of the training batch
+    regularization = 1e-7 # Regularisation Parameter
+    )
+        
+cov_path = '../stat/Cov_8_128x128.npy'
+model_folder = '../model/'
+      
+model, device = setup_reconstruction(cov_path, model_folder, network_param)
 ```
 
-Load noise calibration parameters (provided with the data or computed using tools in `/noise-calibration`)
+Load noise calibration parameters (provided with the data or computed using tools in `/noise-calibration`). :warning: Noise parameters are not used anymore in the current implementation of `spas`.
+ 
 ``` python
 from spas import load_noise
 noise = load_noise('../noise-calibration/fit_model.npz')
 ```
 
-Bin before reconstruction and plot
+Bin the spectral measurements (here, 4 bins between 530 nm and 730 nm)
 
 ``` python
 from spas import spectral_binning
-meas_bin, wavelengths_bin, _, noise_bin = spectral_binning(meas.T, acquisition_parameters.wavelengths, 530, 730, 8, noise)
+meas_bin, wavelengths_bin, _ = spectral_binning(meas.T, wavelengths, 530, 730, 4)
 ```
 
-Reconstruction and plot
+Reorder and subsample the spectral measurements
 ``` python
-from spas import reconstruct, plot_color
-rec = reconstruct(model, device, meas_bin[0:8192//4,:], 1, noise_bin)           
+from spas.reconstruction_nn import reorder_subsample
+meas_bin_2 = reorder_subsample(meas_bin, acquisition_param, network_param) 
+```
+
+Reconstruct the spectral images
+``` python
+from spas import reconstruct
+rec = reconstruct(model, device, meas_bin_2)
+```
+
+Plot the spectral images
+``` python
+from spas import plot_color           
 plot_color(rec, wavelengths_bin)
 ```

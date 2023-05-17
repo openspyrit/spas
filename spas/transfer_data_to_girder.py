@@ -11,7 +11,7 @@ import shutil
 # from singlepixel import read_metadata
 
 def transfer_data(metadata, acquisition_parameters, spectrometer_params, DMD_params, 
-                            setup_version, data_folder_name, data_name):
+                            setup_version, data_folder_name, data_name, upload_metadata):
 
     #%%########################## Girder info #################################    
     url = 'https://pilot-warehouse.creatis.insa-lyon.fr/api/v1'
@@ -58,69 +58,75 @@ def transfer_data(metadata, acquisition_parameters, spectrometer_params, DMD_par
                                        
     #%%####################### prepare metadata dict ############################
     #metadata, acquisition_parameters, spectrometer_params, DMD_params = read_metadata(data_path + '/' + data_name +'_metadata.json')
-    experiment_dict = metadata.__dict__
-    acq_par_dict = acquisition_parameters.__dict__
-    spectrometer_dict = spectrometer_params.__dict__
-    DMD_params_dict = DMD_params.__dict__
-    
-    experiment_dict2 = {}
-    for key in experiment_dict.keys():
-        new_key = 'a)_EXP_' + key
-        experiment_dict2[new_key] = experiment_dict[key]
+    if upload_metadata == 1:
+        experiment_dict = metadata.__dict__
+        acq_par_dict = acquisition_parameters.__dict__
+        spectrometer_dict = spectrometer_params.__dict__
+        DMD_params_dict = DMD_params.__dict__
         
-    acq_par_dict2 = {}
-    for key in acq_par_dict.keys():
-        new_key = 'b)_ACQ_' + key
-        #if not (key == 'patterns' or key == 'measurement_time' or key == 'timestamps' or key == 'wavelengths'):
-        acq_par_dict2[new_key] = acq_par_dict[key]   
-            #print(key + '= ' + str(acq_par_dict[key]))
+        experiment_dict2 = {}
+        for key in experiment_dict.keys():
+            new_key = 'a)_EXP_' + key
+            experiment_dict2[new_key] = experiment_dict[key]
+            
+        acq_par_dict2 = {}
+        for key in acq_par_dict.keys():
+            new_key = 'b)_ACQ_' + key
+            #if not (key == 'patterns' or key == 'measurement_time' or key == 'timestamps' or key == 'wavelengths'):
+            acq_par_dict2[new_key] = acq_par_dict[key]   
+                #print(key + '= ' + str(acq_par_dict[key]))
+        
+        spectrometer_dict2 = {}
+        for key in spectrometer_dict.keys():
+            new_key = 'c)_SPECTRO_' + key
+            spectrometer_dict2[new_key] = spectrometer_dict[key]
+        
+        DMD_params_dict2 = {}
+        for key in DMD_params_dict.keys():
+            new_key = 'd)_DMD_' + key
+            DMD_params_dict2[new_key] = DMD_params_dict[key]
+               
+        dict = {}
+        dict.update(experiment_dict2)
+        dict.update(acq_par_dict2)
+        dict.update(spectrometer_dict2)
+        dict.update(DMD_params_dict2)
     
-    spectrometer_dict2 = {}
-    for key in spectrometer_dict.keys():
-        new_key = 'c)_SPECTRO_' + key
-        spectrometer_dict2[new_key] = spectrometer_dict[key]
-    
-    DMD_params_dict2 = {}
-    for key in DMD_params_dict.keys():
-        new_key = 'd)_DMD_' + key
-        DMD_params_dict2[new_key] = DMD_params_dict[key]
-           
-    dict = {}
-    dict.update(experiment_dict2)
-    dict.update(acq_par_dict2)
-    dict.update(spectrometer_dict2)
-    dict.update(DMD_params_dict2)
-
-    del dict['a)_EXP_output_directory']
-    del dict['a)_EXP_pattern_order_source']
-    del dict['a)_EXP_pattern_source']
-    del dict['a)_EXP_class_description']
-    del dict['b)_ACQ_class_description']
-    del dict['b)_ACQ_patterns']
-    del dict['b)_ACQ_measurement_time']
-    del dict['b)_ACQ_timestamps']
-    del dict['b)_ACQ_wavelengths']
-    del dict['c)_SPECTRO_initial_available_pixels']
-    del dict['c)_SPECTRO_store_to_ram'] 
-    del dict['c)_SPECTRO_class_description']
-    del dict['c)_SPECTRO_detector'] #SENS_HAMS11639
-    del dict['c)_SPECTRO_firmware_version'] #001.011.000.000
-    del dict['c)_SPECTRO_fpga_version'] #014.000.012.000
-    del dict['c)_SPECTRO_dll_version'] #9.10.3.0
-    del dict['d)_DMD_apps_fpga_temperature']
-    del dict['d)_DMD_class_description']
-    del dict['d)_DMD_ddc_fpga_temperature']
-    del dict['d)_DMD_device_number']         
-    del dict['d)_DMD_id']
-    del dict['d)_DMD_initial_memory']         
-    del dict['d)_DMD_pcb_temperature'] 
-    del dict['d)_DMD_bitplanes']  
-    del dict['d)_DMD_type'] 
-    del dict['d)_DMD_usb_connection']    
-    del dict['d)_DMD_ALP_version']
-      
-    #%%################### begin metadata transfer ############################
-    gc.addMetadataToFolder(data_folder_id, dict)     
+        del dict['a)_EXP_output_directory']
+        del dict['a)_EXP_pattern_order_source']
+        del dict['a)_EXP_pattern_source']
+        del dict['a)_EXP_class_description']
+        del dict['b)_ACQ_class_description']
+        del dict['b)_ACQ_patterns']
+        try:
+            del dict['b)_ACQ_patterns_sub']
+        except:
+            print('b)_ACQ_patterns_sub metadata does not exist')
+        del dict['b)_ACQ_patterns_wp']
+        del dict['b)_ACQ_measurement_time']
+        del dict['b)_ACQ_timestamps']
+        del dict['b)_ACQ_wavelengths']
+        del dict['c)_SPECTRO_initial_available_pixels']
+        del dict['c)_SPECTRO_store_to_ram'] 
+        del dict['c)_SPECTRO_class_description']
+        del dict['c)_SPECTRO_detector'] #SENS_HAMS11639
+        del dict['c)_SPECTRO_firmware_version'] #001.011.000.000
+        del dict['c)_SPECTRO_fpga_version'] #014.000.012.000
+        del dict['c)_SPECTRO_dll_version'] #9.10.3.0
+        del dict['d)_DMD_apps_fpga_temperature']
+        del dict['d)_DMD_class_description']
+        del dict['d)_DMD_ddc_fpga_temperature']
+        del dict['d)_DMD_device_number']         
+        del dict['d)_DMD_id']
+        del dict['d)_DMD_initial_memory']         
+        del dict['d)_DMD_pcb_temperature'] 
+        del dict['d)_DMD_bitplanes']  
+        del dict['d)_DMD_type'] 
+        del dict['d)_DMD_usb_connection']    
+        del dict['d)_DMD_ALP_version']
+          
+        #%%################### begin metadata transfer ############################
+        gc.addMetadataToFolder(data_folder_id, dict)     
     
     #%%##################### erase temp folder ################################
     if len(os.listdir('../temp')) != 0:      
@@ -130,13 +136,19 @@ def transfer_data(metadata, acquisition_parameters, spectrometer_params, DMD_par
 
 
 def transfer_data_2arms(metadata, acquisition_parameters, spectrometer_params, DMD_params, camPar,
-                            setup_version, data_folder_name, data_name):
+                            setup_version, data_folder_name, data_name, upload_metadata):
 
     #unwrap structure into camPar
-    camPar.AOI_X = camPar.rectAOI.s32X.value
-    camPar.AOI_Y = camPar.rectAOI.s32Y.value
-    camPar.AOI_Width = camPar.rectAOI.s32Width.value
-    camPar.AOI_Height = camPar.rectAOI.s32Height.value
+    try:
+        camPar.AOI_X = camPar.rectAOI.s32X.value
+        camPar.AOI_Y = camPar.rectAOI.s32Y.value
+        camPar.AOI_Width = camPar.rectAOI.s32Width.value
+        camPar.AOI_Height = camPar.rectAOI.s32Height.value
+    except:
+        camPar['AOI_X'] = camPar['rectAOI'].s32X.value
+        camPar['AOI_Y'] = camPar['rectAOI'].s32Y.value
+        camPar['AOI_Width'] = camPar['rectAOI'].s32Width.value
+        camPar['AOI_Height'] = camPar['rectAOI'].s32Height.value
     #%%########################## Girder info #################################    
     url = 'https://pilot-warehouse.creatis.insa-lyon.fr/api/v1'
     collectionId = '6140ba6929e3fc10d47dbe3e'# collection_name = 'spc'    
@@ -175,103 +187,104 @@ def transfer_data_2arms(metadata, acquisition_parameters, spectrometer_params, D
                             #print('data_folder_id = ' + data_folder_id)                   
     #%%####################### prepare metadata dict ############################
     #metadata, acquisition_parameters, spectrometer_params, DMD_params = read_metadata(data_path + '/' + data_name +'_metadata.json')
-    experiment_dict = metadata.__dict__
-    acq_par_dict = acquisition_parameters.__dict__
-    spectrometer_dict = spectrometer_params.__dict__
-    DMD_params_dict = DMD_params.__dict__
-    CAM_params_dict = camPar.__dict__
-    
-    experiment_dict2 = {}
-    for key in experiment_dict.keys():
-        new_key = 'a)_EXP_' + key
-        experiment_dict2[new_key] = experiment_dict[key]
+    if upload_metadata == 1:
+        experiment_dict = metadata.__dict__
+        acq_par_dict = acquisition_parameters.__dict__
+        spectrometer_dict = spectrometer_params.__dict__
+        DMD_params_dict = DMD_params.__dict__
+        CAM_params_dict = camPar.__dict__
         
-    acq_par_dict2 = {}
-    for key in acq_par_dict.keys():
-        new_key = 'b)_ACQ_' + key
-        #if not (key == 'patterns' or key == 'measurement_time' or key == 'timestamps' or key == 'wavelengths'):
-        acq_par_dict2[new_key] = acq_par_dict[key]   
-            #print(key + '= ' + str(acq_par_dict[key]))
-    
-    spectrometer_dict2 = {}
-    for key in spectrometer_dict.keys():
-        new_key = 'c)_SPECTRO_' + key
-        spectrometer_dict2[new_key] = spectrometer_dict[key]
-    
-    DMD_params_dict2 = {}
-    for key in DMD_params_dict.keys():
-        new_key = 'd)_DMD_' + key
-        DMD_params_dict2[new_key] = DMD_params_dict[key]
-           
-    CAM_params_dict2 = {}
-    for key in CAM_params_dict.keys():
-        if key == 'bandwidth':
-            new_key = 'e)_CAM_' + key + ' (MB/s)'
-        elif key == 'pixelClock':
-            new_key = 'e)_CAM_' + key + ' (MHz)' 
-        elif key == 'exposureTime':
-            new_key = 'e)_CAM_' + key + ' (ms)'    
-        else:
-            new_key = 'e)_CAM_' + key
-        CAM_params_dict2[new_key] = CAM_params_dict[key]
+        experiment_dict2 = {}
+        for key in experiment_dict.keys():
+            new_key = 'a)_EXP_' + key
+            experiment_dict2[new_key] = experiment_dict[key]
+            
+        acq_par_dict2 = {}
+        for key in acq_par_dict.keys():
+            new_key = 'b)_ACQ_' + key
+            #if not (key == 'patterns' or key == 'measurement_time' or key == 'timestamps' or key == 'wavelengths'):
+            acq_par_dict2[new_key] = acq_par_dict[key]   
+                #print(key + '= ' + str(acq_par_dict[key]))
         
+        spectrometer_dict2 = {}
+        for key in spectrometer_dict.keys():
+            new_key = 'c)_SPECTRO_' + key
+            spectrometer_dict2[new_key] = spectrometer_dict[key]
         
-    dict = {}
-    dict.update(experiment_dict2)
-    dict.update(acq_par_dict2)
-    dict.update(spectrometer_dict2)
-    dict.update(DMD_params_dict2)
-    dict.update(CAM_params_dict2)
-    
-    del dict['a)_EXP_output_directory']
-    del dict['a)_EXP_pattern_order_source']
-    del dict['a)_EXP_pattern_source']
-    del dict['a)_EXP_class_description']
-    del dict['b)_ACQ_class_description']
-    del dict['b)_ACQ_patterns']
-    del dict['b)_ACQ_patterns_wp']
-    del dict['b)_ACQ_measurement_time']
-    del dict['b)_ACQ_timestamps']
-    del dict['b)_ACQ_wavelengths']
-    del dict['c)_SPECTRO_initial_available_pixels']
-    del dict['c)_SPECTRO_store_to_ram'] 
-    del dict['c)_SPECTRO_class_description']
-    del dict['c)_SPECTRO_detector']#SENS_HAMS11639
-    del dict['c)_SPECTRO_firmware_version']#001.011.000.000
-    del dict['c)_SPECTRO_fpga_version']#014.000.012.000
-    del dict['c)_SPECTRO_dll_version']#9.10.3.0
-    del dict['d)_DMD_apps_fpga_temperature']
-    del dict['d)_DMD_class_description']
-    del dict['d)_DMD_ddc_fpga_temperature']
-    del dict['d)_DMD_device_number']         
-    del dict['d)_DMD_id']
-    del dict['d)_DMD_initial_memory']         
-    del dict['d)_DMD_pcb_temperature'] 
-    del dict['d)_DMD_bitplanes']  
-    del dict['d)_DMD_type'] 
-    del dict['d)_DMD_usb_connection']    
-    del dict['d)_DMD_ALP_version']  
-    del dict['e)_CAM_hCam']
-    del dict['e)_CAM_sInfo']
-    del dict['e)_CAM_cInfo']
-    del dict['e)_CAM_nBitsPerPixel']
-    del dict['e)_CAM_m_nColorMode']
-    del dict['e)_CAM_bytes_per_pixel']
-    del dict['e)_CAM_rectAOI']
-    del dict['e)_CAM_pcImageMemory']
-    del dict['e)_CAM_MemID']
-    del dict['e)_CAM_pitch']
-    del dict['e)_CAM_camActivated']
-    del dict['e)_CAM_Exit']
-    del dict['e)_CAM_Memory']    
-    del dict['e)_CAM_avi']
-    del dict['e)_CAM_punFileID']
-    del dict['e)_CAM_timeout']
-    del dict['e)_CAM_time_array']
-    del dict['e)_CAM_black_pattern_num']
-    
-    #%%################### begin metadata transfer ############################
-    gc.addMetadataToFolder(data_folder_id, dict)     
+        DMD_params_dict2 = {}
+        for key in DMD_params_dict.keys():
+            new_key = 'd)_DMD_' + key
+            DMD_params_dict2[new_key] = DMD_params_dict[key]
+               
+        CAM_params_dict2 = {}
+        for key in CAM_params_dict.keys():
+            if key == 'bandwidth':
+                new_key = 'e)_CAM_' + key + ' (MB/s)'
+            elif key == 'pixelClock':
+                new_key = 'e)_CAM_' + key + ' (MHz)' 
+            elif key == 'exposureTime':
+                new_key = 'e)_CAM_' + key + ' (ms)'    
+            else:
+                new_key = 'e)_CAM_' + key
+            CAM_params_dict2[new_key] = CAM_params_dict[key]
+            
+            
+        dict = {}
+        dict.update(experiment_dict2)
+        dict.update(acq_par_dict2)
+        dict.update(spectrometer_dict2)
+        dict.update(DMD_params_dict2)
+        dict.update(CAM_params_dict2)
+        
+        del dict['a)_EXP_output_directory']
+        del dict['a)_EXP_pattern_order_source']
+        del dict['a)_EXP_pattern_source']
+        del dict['a)_EXP_class_description']
+        del dict['b)_ACQ_class_description']
+        del dict['b)_ACQ_patterns']
+        del dict['b)_ACQ_patterns_wp']
+        del dict['b)_ACQ_measurement_time']
+        del dict['b)_ACQ_timestamps']
+        del dict['b)_ACQ_wavelengths']
+        del dict['c)_SPECTRO_initial_available_pixels']
+        del dict['c)_SPECTRO_store_to_ram'] 
+        del dict['c)_SPECTRO_class_description']
+        del dict['c)_SPECTRO_detector']#SENS_HAMS11639
+        del dict['c)_SPECTRO_firmware_version']#001.011.000.000
+        del dict['c)_SPECTRO_fpga_version']#014.000.012.000
+        del dict['c)_SPECTRO_dll_version']#9.10.3.0
+        del dict['d)_DMD_apps_fpga_temperature']
+        del dict['d)_DMD_class_description']
+        del dict['d)_DMD_ddc_fpga_temperature']
+        del dict['d)_DMD_device_number']         
+        del dict['d)_DMD_id']
+        del dict['d)_DMD_initial_memory']         
+        del dict['d)_DMD_pcb_temperature'] 
+        del dict['d)_DMD_bitplanes']  
+        del dict['d)_DMD_type'] 
+        del dict['d)_DMD_usb_connection']    
+        del dict['d)_DMD_ALP_version']  
+        del dict['e)_CAM_hCam']
+        del dict['e)_CAM_sInfo']
+        del dict['e)_CAM_cInfo']
+        del dict['e)_CAM_nBitsPerPixel']
+        del dict['e)_CAM_m_nColorMode']
+        del dict['e)_CAM_bytes_per_pixel']
+        del dict['e)_CAM_rectAOI']
+        del dict['e)_CAM_pcImageMemory']
+        del dict['e)_CAM_MemID']
+        del dict['e)_CAM_pitch']
+        del dict['e)_CAM_camActivated']
+        del dict['e)_CAM_Exit']
+        del dict['e)_CAM_Memory']    
+        del dict['e)_CAM_avi']
+        del dict['e)_CAM_punFileID']
+        del dict['e)_CAM_timeout']
+        del dict['e)_CAM_time_array']
+        del dict['e)_CAM_black_pattern_num']
+        
+        #%%################### begin metadata transfer ############################
+        gc.addMetadataToFolder(data_folder_id, dict)     
     #%%##################### erase temp folder ################################
     if len(os.listdir('../temp')) != 0:      
         list_TempFolder = os.listdir('../temp')
