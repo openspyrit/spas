@@ -103,10 +103,14 @@ def setup_reconstruction(cov_path: str,
                          network_params.img_size, 
                          Ord)
     Noise = Poisson(Forward, network_params.N0)
-    Prep = SplitPoisson(network_params.N0, 
-                        network_params.M, 
-                        network_params.img_size**2)
-    Denoi = Unet()
+    Prep = SplitPoisson(network_params.N0, Forward)
+    
+    
+    if network_params.denoi is None:
+        Denoi = torch.nn.Identity()
+    else:
+        Denoi = Unet()
+        
     model = DCNet(Noise, Prep, Cov_rec, Denoi)
 
     
@@ -126,7 +130,10 @@ def setup_reconstruction(cov_path: str,
     
     net_title = f'{net_arch}_{net_denoi}_{net_data}_{net_order}_{net_suffix}'
     title = 'C:/openspyrit/models/' + net_folder + net_title
-    load_net(title, model, device, False)
+    
+    if network_params.denoi is not None:
+        load_net(title, model, device, False)
+    
     model.eval()                    # Mandantory when batchNorm is used  
 
     return model, device
