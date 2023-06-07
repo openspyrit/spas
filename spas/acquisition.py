@@ -2059,7 +2059,7 @@ def _init_CAM():
                  pixelClock = ueye.uint(),
                  bandwidth = float(),
                  Memory = bool(),
-                 Exit = bool(),
+                 Exit = int(),
                  vidFormat = str(),
                  gate_period = int(),
                  trigger_mode = str(),
