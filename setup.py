@@ -30,6 +30,7 @@ setup(
         'spyrit',
         'wincertstore',
         'pyueye',
+        'tensorboard',
         'girder-client'
     ],
     packages=find_packages()
