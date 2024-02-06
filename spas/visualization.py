@@ -475,15 +475,16 @@ def displayVid(camPar):
             break
 
 
-def plot_reco_without_NN(acquisition_parameters, GT, Q, all_path):
+def plot_reco_without_NN(acquisition_parameters, GT, all_path):
     
     had_reco_path = all_path.had_reco_path
     fig_had_reco_path = all_path.fig_had_reco_path
     
+    GT = np.rot90(GT, 2)
+    
     if not os.path.exists(had_reco_path):
         np.savez_compressed(had_reco_path, GT)
-    
-    GT = np.rot90(GT, 2)
+        
     size_x = GT.shape[0]
     size_y = GT.shape[1]
         
@@ -494,19 +495,19 @@ def plot_reco_without_NN(acquisition_parameters, GT, Q, all_path):
     F_bin_1px_rot = np.rot90(F_bin_1px, axes=(1,2))
     F_bin_1px_flip = F_bin_1px_rot[:,::-1,:]
     ############### spatial view, wavelength bin #############
-    #plt.figure()
+    # plt.figure()
     plot_color(F_bin_flip, wavelengths_bin)
     plt.savefig(fig_had_reco_path + '_BIN_IMAGE_had_reco.png')
     plt.show()
 
     ############### spatial view, one wavelength #############
-    #plt.figure()
+    # plt.figure()
     plot_color(F_bin_1px_flip, wavelengths_bin)
     plt.savefig(fig_had_reco_path + '_SLICE_IMAGE_had_reco.png')
     plt.show()
 
     ############### spatial view, wavelength sum #############
-    #plt.figure()
+    # plt.figure()
     plt.imshow(np.mean(GT[:,:,100:-100], axis=2))#[:,:,193:877] #(540-625 nm)
     plt.title('Sum of all wavelengths')
     plt.savefig(fig_had_reco_path + '_GRAY_IMAGE_had_reco.png')
@@ -537,9 +538,9 @@ def plot_reco_without_NN(acquisition_parameters, GT, Q, all_path):
     plt.show()
 
 
-def plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, network_param, all_path):
+def plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, network_param, all_path, cov_path):
 
-    reorder_spectral_data = reorder_subsample(spectral_data.T, acquisition_parameters, network_param)
+    reorder_spectral_data = reorder_subsample(spectral_data.T, acquisition_parameters, network_param, cov_path)
     reco = reconstruct(model, device, reorder_spectral_data) # Reconstruction
     reco = reco.T
     reco = np.rot90(reco, 3, axes=(0,1))
@@ -550,33 +551,33 @@ def plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, netw
     if not os.path.exists(nn_reco_path):
         np.savez_compressed(nn_reco_path, reco)
 
-    ############### spatial view, one wavelength #############
-    meas_bin_1w, wavelengths_bin, _ = spectral_slicing(reorder_spectral_data, acquisition_parameters.wavelengths, 530, 730, 8)
-    rec = reconstruct(model, device, meas_bin_1w) # Reconstruction
-    rec = np.rot90(rec, 2, axes=(1,2))
-
-    #plt.figure()
-    plot_color(rec, wavelengths_bin)
-    plt.savefig(fig_nn_reco_path + '_SLICE_IMAGE_nn_reco.png')
-    plt.show()
-    
     ############### spatial view, wavelength bin #############
     meas_bin, wavelengths_bin, _ = spectral_binning(reorder_spectral_data, acquisition_parameters.wavelengths, 530, 730, 8)
     rec = reconstruct(model, device, meas_bin)
     rec = np.rot90(rec, 2, axes=(1,2))
     
-    #plt.figure()
+    # plt.figure()
     plot_color(rec, wavelengths_bin)
     plt.savefig(fig_nn_reco_path + '_BIN_IMAGE_nn_reco.png')
-    plt.show()    
+    plt.show() 
     
+    ############### spatial view, one wavelength #############
+    meas_bin_1w, wavelengths_bin, _ = spectral_slicing(reorder_spectral_data, acquisition_parameters.wavelengths, 530, 730, 8)
+    rec = reconstruct(model, device, meas_bin_1w) # Reconstruction
+    rec = np.rot90(rec, 2, axes=(1,2))
+    
+    # plt.figure()
+    plot_color(rec, wavelengths_bin)
+    plt.savefig(fig_nn_reco_path + '_SLICE_IMAGE_nn_reco.png')
+    plt.show()
+        
     ############### spatial view, wavelength sum #############
     sum_wave = np.zeros((1, reorder_spectral_data.shape[1]))
     moy = np.sum(reorder_spectral_data, axis=0)
     sum_wave[0, :] = moy
     rec_sum = reconstruct(model, device, sum_wave)
     rec_sum = rec_sum[0, :, :]
-    rec_sum = np.rot90(rec_sum, 2)  
+    rec_sum = np.rot90(rec_sum, 2) 
                  
     # plt.figure()
     plt.imshow(rec_sum)#[:,:,193:877] #(540-625 nm)

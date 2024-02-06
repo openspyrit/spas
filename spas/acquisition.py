@@ -53,6 +53,7 @@ from collections import namedtuple
 from pathlib import Path
 from multiprocessing import Process, Queue
 import shutil    
+import math
 
 import numpy as np
 from PIL import Image
@@ -1311,7 +1312,7 @@ def acquire(ava: Avantes,
     print('Spectra acquired: {}'.format(
         acquisition_params.acquired_spectra))
     if acquisition_params.saturation_detected is True:
-        print('Saturation detected!')
+        print('!!!!!!!!!! Saturation detected in the spectro !!!!!!!!!!')
     print('Mean callback acquisition time: {} ms'.format(
         acquisition_params.mean_callback_acquisition_time_ms))
     print('Total callback acquisition time: {} s'.format(
@@ -2256,283 +2257,229 @@ def setup_cam(camPar, pixelClock, fps, Gain, gain_boost, nGamma, ExposureTime, b
     returns:
         CAM: a structure containing the parameters of the IDS camera
     """
-     # It is necessary to execute twice this code to take account the parameter modification
-    ############################### Set Pixel Clock ###############################
-    ### Get range of pixel clock, result : range = [118 474] MHz (Inc = 0)
-    getpixelclock = ueye.UINT(0)
-    newpixelclock = ueye.UINT(0)
-    newpixelclock.value = pixelClock
-    PixelClockRange = (ueye.int * 3)()
-
-    # Get pixel clock range
-    nRet = ueye.is_PixelClock(camPar.hCam, ueye.IS_PIXELCLOCK_CMD_GET_RANGE, PixelClockRange, ueye.sizeof(PixelClockRange))
-    if nRet == ueye.IS_SUCCESS:
-        nPixelClockMin = PixelClockRange[0]
-        nPixelClockMax = PixelClockRange[1]
-        nPixelClockInc = PixelClockRange[2]
-
-    # Set pixel clock
-    check_ueye(ueye.is_PixelClock, camPar.hCam, ueye.PIXELCLOCK_CMD.IS_PIXELCLOCK_CMD_SET, newpixelclock,
-               ueye.sizeof(newpixelclock))
-    # Get current pixel clock
-    check_ueye(ueye.is_PixelClock, camPar.hCam, ueye.PIXELCLOCK_CMD.IS_PIXELCLOCK_CMD_GET, getpixelclock,
-               ueye.sizeof(getpixelclock))
+    # It is necessary to execute twice this code to take account the parameter modification
+    for i in range(2): 
+        ############################### Set Pixel Clock ###############################
+        ### Get range of pixel clock, result : range = [118 474] MHz (Inc = 0)
+        getpixelclock = ueye.UINT(0)
+        newpixelclock = ueye.UINT(0)
+        newpixelclock.value = pixelClock
+        PixelClockRange = (ueye.int * 3)()
     
-    camPar.pixelClock = getpixelclock.value
+        # Get pixel clock range
+        nRet = ueye.is_PixelClock(camPar.hCam, ueye.IS_PIXELCLOCK_CMD_GET_RANGE, PixelClockRange, ueye.sizeof(PixelClockRange))
+        if nRet == ueye.IS_SUCCESS:
+            nPixelClockMin = PixelClockRange[0]
+            nPixelClockMax = PixelClockRange[1]
+            nPixelClockInc = PixelClockRange[2]
     
-    print('            pixel clock = ' + str(getpixelclock) + ' MHz')
-    if getpixelclock == 118:
-        print('Pixel clcok blocked to 118 MHz, it is necessary to unplug the camera if not desired')
-    # get the bandwidth (in MByte/s)
-    camPar.bandwidth = ueye.is_GetUsedBandwidth(camPar.hCam)
-    
-    print('              Bandwidth = ' + str(camPar.bandwidth) + ' MB/s')
-    ############################### Set FrameRate #################################
-    ### Read current FrameRate
-    dblFPS_init = ueye.c_double()
-    nRet = ueye.is_GetFramesPerSecond(camPar.hCam, dblFPS_init)
-    if nRet != ueye.IS_SUCCESS:
-        print("FrameRate getting ERROR")
-    else:
-        dblFPS_eff = dblFPS_init
-        print('            current FPS = '+str(round(dblFPS_init.value*100)/100) + ' fps')
-
-        ### Set new FrameRate
-        # if fps > 17.771:    # maximum value depends of the AOI size, pixel clock etc....
-        #     fps = 17.771
-        #     print('FPS exceed upper limit <= 17.771')
-        if fps < 1:
-            fps = 1
-            print('FPS exceed lower limit >= 1')
-            
-        dblFPS = ueye.c_double(fps)  
-        if (dblFPS.value < dblFPS_init.value-0.01) | (dblFPS.value > dblFPS_init.value+0.01):
-            newFPS = ueye.c_double()
-            nRet = ueye.is_SetFrameRate(camPar.hCam, dblFPS, newFPS)
-            time.sleep(1)
-            if nRet != ueye.IS_SUCCESS:
-                print("FrameRate setting ERROR")
-            else:
-                print('                new FPS = '+str(round(newFPS.value*100)/100) + ' fps')
-                ### Read again the effective FPS / depend of the image size, 17.7 fps is not possible with the entire image size (ie 2076x3088)
-                dblFPS_eff = ueye.c_double() 
-                nRet = ueye.is_GetFramesPerSecond(camPar.hCam, dblFPS_eff)
-                if nRet != ueye.IS_SUCCESS:
-                    print("FrameRate getting ERROR")
-                else:                
-                    print('          effective FPS = '+str(round(dblFPS_eff.value*100)/100) + ' fps')
-    ############################### Set GAIN ######################################
-    #### Read maximum value of the Gain depending of the sensor type
-    # gain_max_c = ueye.c_int(100)
-    # gain_max_code = ueye.is_SetHWGainFactor(camPar.hCam, ueye.IS_INQUIRE_MASTER_GAIN_FACTOR, gain_max_c)
-    # if nRet == ueye.IS_SUCCESS:
-    #     print('current GAIN = '+str(gain_max_code))
-    # else:
-    #     print('Error to get GAIN')
-
-    #### Maximum gain is depending of the sensor. Convertion gain code to gain to limit values from 0 to 100
-    # gain_code = gain * slope + b
-    gain_max_code = 1450
-    gain_min_code = 100
-    gain_max = 100
-    gain_min = 0
-    slope = (gain_max_code-gain_min_code)/(gain_max-gain_min)
-    b = gain_min_code
-    #### Read gain setting
-    current_gain_code = ueye.c_int()
-    current_gain_code = ueye.is_SetHWGainFactor(camPar.hCam, ueye.IS_GET_MASTER_GAIN_FACTOR, current_gain_code)
-    current_gain = round((current_gain_code-b)/slope) 
-    
-    print('           current GAIN = '+str(current_gain))    
-    gain_eff = current_gain
-    
-    ### Set new gain value
-    gain = ueye.c_int(Gain)
-    if gain.value != current_gain:
-        if gain.value < 0:
-            gain = ueye.c_int(0)
-            print('Gain exceed lower limit >= 0')
-        elif gain.value > 100:
-            gain = ueye.c_int(100)
-            print('Gain exceed upper limit <= 100')
-        gain_code = ueye.c_int(round(slope*gain.value+b))
+        # Set pixel clock
+        check_ueye(ueye.is_PixelClock, camPar.hCam, ueye.PIXELCLOCK_CMD.IS_PIXELCLOCK_CMD_SET, newpixelclock,
+                   ueye.sizeof(newpixelclock))
+        # Get current pixel clock
+        check_ueye(ueye.is_PixelClock, camPar.hCam, ueye.PIXELCLOCK_CMD.IS_PIXELCLOCK_CMD_GET, getpixelclock,
+                   ueye.sizeof(getpixelclock))
         
-        ueye.is_SetHWGainFactor(camPar.hCam, ueye.IS_SET_MASTER_GAIN_FACTOR, gain_code)
-        new_gain = round((gain_code-b)/slope)
-        
-        print('               new GAIN = '+str(new_gain))
-        gain_eff = new_gain
-    ############################### Set GAIN Boost ################################
-    ### Read current state of the gain boost
-    current_gain_boost_bool = ueye.is_SetGainBoost(camPar.hCam, ueye.IS_GET_GAINBOOST)
-    if nRet != ueye.IS_SUCCESS:
-        print("Gain boost ERROR")   
-    if current_gain_boost_bool == 0:
-        current_gain_boost = 'OFF'
-    elif current_gain_boost_bool == 1:
-        current_gain_boost = 'ON'
-    
-    print('current Gain boost mode = ' + current_gain_boost)
-
-    ### Set the state of the gain boost
-    if gain_boost != current_gain_boost: 
-        if gain_boost == 'OFF':
-            nRet = ueye.is_SetGainBoost (camPar.hCam, ueye.IS_SET_GAINBOOST_OFF)                
-            print('         new Gain Boost : OFF')
-            
-        elif gain_boost == 'ON':
-            nRet = ueye.is_SetGainBoost (camPar.hCam, ueye.IS_SET_GAINBOOST_ON)                
-            print('         new Gain Boost : ON')
+        camPar.pixelClock = getpixelclock.value
+        if i == 1:
+            print('            pixel clock = ' + str(getpixelclock) + ' MHz')
+        if getpixelclock == 118:
+            if i == 1:
+                print('Pixel clcok blocked to 118 MHz, it is necessary to unplug the camera if not desired')
+        # get the bandwidth (in MByte/s)
+        camPar.bandwidth = ueye.is_GetUsedBandwidth(camPar.hCam)
+        if i == 1:
+            print('              Bandwidth = ' + str(camPar.bandwidth) + ' MB/s')
+        ############################### Set FrameRate #################################
+        ### Read current FrameRate
+        dblFPS_init = ueye.c_double()
+        nRet = ueye.is_GetFramesPerSecond(camPar.hCam, dblFPS_init)
+        if nRet != ueye.IS_SUCCESS:
+            print("FrameRate getting ERROR")
+        else:
+            dblFPS_eff = dblFPS_init
+            if i == 1:
+                print('            current FPS = '+str(round(dblFPS_init.value*100)/100) + ' fps')
+            if fps < 1:
+                fps = 1
+                if i == 1:
+                    print('FPS exceed lower limit >= 1')
                 
-        if nRet != ueye.IS_SUCCESS:
-            print("Gain boost setting ERROR")          
-    ############################### Set Gamma #####################################
-    ### Check boundary of Gamma
-    if nGamma > 2.2:
-        nGamma = 2.2
-        print('Gamma exceed upper limit <= 2.2')
-    elif nGamma < 1:
-        nGamma = 1
-        print('Gamma exceed lower limit >= 1')
-    ### Read current Gamma    
-    c_nGamma_init = ueye.c_void_p() 
-    sizeOfnGamma = ueye.c_uint(4)    
-    nRet = ueye.is_Gamma(camPar.hCam, ueye.IS_GAMMA_CMD_GET, c_nGamma_init, sizeOfnGamma)
-    if nRet != ueye.IS_SUCCESS:
-        print("Gamma getting ERROR") 
-    else:
-        print('          current Gamma = ' + str(c_nGamma_init.value/100))
-    ### Set Gamma
-        c_nGamma = ueye.c_void_p(round(nGamma*100)) # need to multiply by 100 [100 - 220]
-        if c_nGamma_init.value != c_nGamma.value:
-            nRet = ueye.is_Gamma(camPar.hCam, ueye.IS_GAMMA_CMD_SET, c_nGamma, sizeOfnGamma)
-            if nRet != ueye.IS_SUCCESS:
-                print("Gamma setting ERROR") 
-            else:
-                print('              new Gamma = '+str(c_nGamma.value/100))
-    ############################### Set Exposure time #############################
-    ### Read current Exposure Time
-    getExposure = ueye.c_double()
-    sizeOfpParam = ueye.c_uint(8)   
-    nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_GET_EXPOSURE, getExposure, sizeOfpParam)
-    if nRet == ueye.IS_SUCCESS:
-        getExposure.value = round(getExposure.value*1000)/1000
+            dblFPS = ueye.c_double(fps)  
+            if (dblFPS.value < dblFPS_init.value-0.01) | (dblFPS.value > dblFPS_init.value+0.01):
+                newFPS = ueye.c_double()
+                nRet = ueye.is_SetFrameRate(camPar.hCam, dblFPS, newFPS)
+                time.sleep(1)
+                if nRet != ueye.IS_SUCCESS:
+                    print("FrameRate setting ERROR")
+                else:
+                    if i == 1:
+                        print('                new FPS = '+str(round(newFPS.value*100)/100) + ' fps')
+                    ### Read again the effective FPS / depend of the image size, 17.7 fps is not possible with the entire image size (ie 2076x3088)
+                    dblFPS_eff = ueye.c_double() 
+                    nRet = ueye.is_GetFramesPerSecond(camPar.hCam, dblFPS_eff)
+                    if nRet != ueye.IS_SUCCESS:
+                        print("FrameRate getting ERROR")
+                    else:       
+                        if i == 1:
+                            print('          effective FPS = '+str(round(dblFPS_eff.value*100)/100) + ' fps')
+        ############################### Set GAIN ######################################
+        #### Maximum gain is depending of the sensor. Convertion gain code to gain to limit values from 0 to 100
+        # gain_code = gain * slope + b
+        gain_max_code = 1450
+        gain_min_code = 100
+        gain_max = 100
+        gain_min = 0
+        slope = (gain_max_code-gain_min_code)/(gain_max-gain_min)
+        b = gain_min_code
+        #### Read gain setting
+        current_gain_code = ueye.c_int()
+        current_gain_code = ueye.is_SetHWGainFactor(camPar.hCam, ueye.IS_GET_MASTER_GAIN_FACTOR, current_gain_code)
+        current_gain = round((current_gain_code-b)/slope) 
         
-        print('  current Exposure Time = ' + str(getExposure.value) + ' ms')
-    ### Get minimum Exposure Time
-    minExposure = ueye.c_double()
-    nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_GET_EXPOSURE_RANGE_MIN, minExposure, sizeOfpParam)
-    # if nRet == ueye.IS_SUCCESS:
-        # print('MIN Exposure Time = ' + str(minExposure.value))
-    ### Get maximum Exposure Time
-    maxExposure = ueye.c_double()
-    nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_GET_EXPOSURE_RANGE_MAX, maxExposure, sizeOfpParam)
-    # if nRet == ueye.IS_SUCCESS:
-        # print('MAX Exposure Time = ' + str(maxExposure.value))
-    ### Get increment Exposure Time
-    incExposure = ueye.c_double()
-    nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_GET_EXPOSURE_RANGE_INC, incExposure, sizeOfpParam)
-    # if nRet == ueye.IS_SUCCESS:
-        # print('INC Exposure Time = ' + str(incExposure.value))
-    ### Set new Exposure Time
-    setExposure = ueye.c_double(ExposureTime)
-    if setExposure.value > maxExposure.value:
-       setExposure.value = maxExposure.value 
-       print('Exposure Time exceed upper limit <= ' + str(maxExposure.value))
-    elif setExposure.value < minExposure.value:
-       setExposure.value = minExposure.value
-       print('Exposure Time exceed lower limit >= ' + str(minExposure.value))
-
-    if (setExposure.value < getExposure.value-incExposure.value/2) | (setExposure.value > getExposure.value+incExposure.value/2):   
-        nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_SET_EXPOSURE, setExposure, sizeOfpParam)
-        if nRet != ueye.IS_SUCCESS:
-            print("Exposure Time ERROR")
-        else:
-            print('      new Exposure Time = ' + str(round(setExposure.value*1000)/1000) + ' ms')
-    ############################### Set Black Level ###############################
-    # nMode = ueye.IS_AUTO_BLACKLEVEL_OFF
-    # nRet = ueye.is_Blacklevel(camPar.hCam, ueye.IS_BLACKLEVEL_CMD_GET_MODE, nMode
-
-    current_black_level_c = ueye.c_uint()      
-    sizeOfBlack_level = ueye.c_uint(4)
-    #nRet = ueye.is_Blacklevel(camPar.hCam, ueye.IS_BLACKLEVEL_CMD_GET_OFFSET_DEFAULT, current_black_level_c, sizeOfBlack_level)
-
-    ### Read current Black Level
-    nRet = ueye.is_Blacklevel(camPar.hCam, ueye.IS_BLACKLEVEL_CMD_GET_OFFSET, current_black_level_c, sizeOfBlack_level)
-    if nRet != ueye.IS_SUCCESS:
-        print("Black Level getting ERROR")
-    else:
-        print('    current Black Level = ' + str(current_black_level_c.value))
+        if i == 1:
+            print('           current GAIN = '+str(current_gain))    
+        gain_eff = current_gain
         
-    ### Set Black Level 
-    if black_level > 255:
-        black_level = 255
-        print('Black Level exceed upper limit <= 255')
-    if black_level < 0:
-        black_level = 0
-        print('Black Level exceed lower limit >= 0')
-        
-    black_level_c = ueye.c_uint(black_level)
-    if black_level != current_black_level_c.value  :            
-        nRet = ueye.is_Blacklevel(camPar.hCam, ueye.IS_BLACKLEVEL_CMD_SET_OFFSET, black_level_c, sizeOfBlack_level)
-        if nRet != ueye.IS_SUCCESS:
-            print("Black Level setting ERROR")
-        else:
-            print('        new Black Level = ' + str(black_level_c.value))
+        ### Set new gain value
+        gain = ueye.c_int(Gain)
+        if gain.value != current_gain:
+            if gain.value < 0:
+                gain = ueye.c_int(0)
+                if i == 1:
+                    print('Gain exceed lower limit >= 0')
+            elif gain.value > 100:
+                gain = ueye.c_int(100)
+                if i == 1:
+                    print('Gain exceed upper limit <= 100')
+            gain_code = ueye.c_int(round(slope*gain.value+b))
             
-
-    # pParam = ueye.c_void_p()
-    # nRet = ueye.is_DeviceFeature(camPar.hCam, ueye.IS_DEVICE_FEATURE_CMD_GET_SHUTTER_MODE, pParam, ueye.sizeof(pParam))
-    # print('nRet = ' + str(nRet))
-    # print('shutter mode : ' + str(pParam.value))
+            ueye.is_SetHWGainFactor(camPar.hCam, ueye.IS_SET_MASTER_GAIN_FACTOR, gain_code)
+            new_gain = round((gain_code-b)/slope)
+            
+            if i == 1:
+                print('               new GAIN = '+str(new_gain))
+            gain_eff = new_gain
+        ############################### Set GAIN Boost ################################
+        ### Read current state of the gain boost
+        current_gain_boost_bool = ueye.is_SetGainBoost(camPar.hCam, ueye.IS_GET_GAINBOOST)
+        if nRet != ueye.IS_SUCCESS:
+            print("Gain boost ERROR")   
+        if current_gain_boost_bool == 0:
+            current_gain_boost = 'OFF'
+        elif current_gain_boost_bool == 1:
+            current_gain_boost = 'ON'
+        
+        if i == 1:
+            print('current Gain boost mode = ' + current_gain_boost)
     
-    # nShutterMode = ueye.c_uint(ueye.IS_DEVICE_FEATURE_CAP_SHUTTER_MODE_ROLLING)
-    # nRet = ueye.is_DeviceFeature(camPar.hCam, ueye.IS_DEVICE_FEATURE_CMD_SET_SHUTTER_MODE, nShutterMode, 
-    #                         ueye.sizeof(nShutterMode))
-    # print('shutter mode = ' + str(nShutterMode.value) + ' / enable : ' + str(nRet))
+        ### Set the state of the gain boost
+        if gain_boost != current_gain_boost: 
+            if gain_boost == 'OFF':
+                nRet = ueye.is_SetGainBoost (camPar.hCam, ueye.IS_SET_GAINBOOST_OFF)                
+                print('         new Gain Boost : OFF')
+                
+            elif gain_boost == 'ON':
+                nRet = ueye.is_SetGainBoost (camPar.hCam, ueye.IS_SET_GAINBOOST_ON)                
+                print('         new Gain Boost : ON')
+                    
+            if nRet != ueye.IS_SUCCESS:
+                print("Gain boost setting ERROR")          
+        ############################### Set Gamma #####################################
+        ### Check boundary of Gamma
+        if nGamma > 2.2:
+            nGamma = 2.2
+            if i == 1:
+                print('Gamma exceed upper limit <= 2.2')
+        elif nGamma < 1:
+            nGamma = 1
+            if i == 1:
+                print('Gamma exceed lower limit >= 1')
+        ### Read current Gamma    
+        c_nGamma_init = ueye.c_void_p() 
+        sizeOfnGamma = ueye.c_uint(4)    
+        nRet = ueye.is_Gamma(camPar.hCam, ueye.IS_GAMMA_CMD_GET, c_nGamma_init, sizeOfnGamma)
+        if nRet != ueye.IS_SUCCESS:
+            print("Gamma getting ERROR") 
+        else:
+            if i == 1:
+                print('          current Gamma = ' + str(c_nGamma_init.value/100))
+        ### Set Gamma
+            c_nGamma = ueye.c_void_p(round(nGamma*100)) # need to multiply by 100 [100 - 220]
+            if c_nGamma_init.value != c_nGamma.value:
+                nRet = ueye.is_Gamma(camPar.hCam, ueye.IS_GAMMA_CMD_SET, c_nGamma, sizeOfnGamma)
+                if nRet != ueye.IS_SUCCESS:
+                    print("Gamma setting ERROR") 
+                else:
+                    if i == 1:
+                        print('              new Gamma = '+str(c_nGamma.value/100))
+        ############################### Set Exposure time #############################
+        ### Read current Exposure Time
+        getExposure = ueye.c_double()
+        sizeOfpParam = ueye.c_uint(8)   
+        nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_GET_EXPOSURE, getExposure, sizeOfpParam)
+        if nRet == ueye.IS_SUCCESS:
+            getExposure.value = round(getExposure.value*1000)/1000
+            
+            if i == 1:
+                print('  current Exposure Time = ' + str(getExposure.value) + ' ms')
+        ### Get minimum Exposure Time
+        minExposure = ueye.c_double()
+        nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_GET_EXPOSURE_RANGE_MIN, minExposure, sizeOfpParam)
+        ### Get maximum Exposure Time
+        maxExposure = ueye.c_double()
+        nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_GET_EXPOSURE_RANGE_MAX, maxExposure, sizeOfpParam)
+        ### Get increment Exposure Time
+        incExposure = ueye.c_double()
+        nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_GET_EXPOSURE_RANGE_INC, incExposure, sizeOfpParam)
+        ### Set new Exposure Time
+        setExposure = ueye.c_double(ExposureTime)
+        if setExposure.value > maxExposure.value:
+           setExposure.value = maxExposure.value 
+           if i == 1:
+               print('Exposure Time exceed upper limit <= ' + str(maxExposure.value))
+        elif setExposure.value < minExposure.value:
+           setExposure.value = minExposure.value
+           if i == 1:
+               print('Exposure Time exceed lower limit >= ' + str(minExposure.value))
     
-    # nShutterMode = ueye.c_uint(ueye.IS_DEVICE_FEATURE_CAP_SHUTTER_MODE_ROLLING_GLOBAL_START)
-    # nRet = ueye.is_DeviceFeature(camPar.hCam, ueye.IS_DEVICE_FEATURE_CMD_SET_SHUTTER_MODE, nShutterMode, 
-    #                         ueye.sizeof(nShutterMode))
-    # print('shutter mode = ' + str(nShutterMode.value) + ' / enable : ' + str(nRet))
-    
-    # # Read the global flash params
-    # flashParams = ueye.IO_FLASH_PARAMS()
-    # nRet = ueye.is_IO(camPar.hCam, ueye.IS_IO_CMD_FLASH_GET_PARAMS, flashParams, ueye.sizeof(flashParams))
-    # if (nRet == ueye.IS_SUCCESS):
-    #     nDelay   = flashParams.s32Delay
-    #     print('nDelay = ' + str(nDelay.value))
-    #     nDuration = flashParams.u32Duration
-    #     print('nDuration = ' + str(nDuration.value))
-
-    # nRet = ueye.is_IO(camPar.hCam, ueye.IS_IO_CMD_FLASH_GET_PARAMS_MIN, flashParams, ueye.sizeof(flashParams))    
-    # print('nDelay_min = ' + str(flashParams.s32Delay.value))
-    # print('nDuration_min = ' + str(flashParams.u32Duration.value))
-
-    # flashParams.s32Delay.value = 0
-    # flashParams.u32Duration.value = 40 
-    # # Apply the global flash params and set the flash params to these values
-    # nRet = ueye.is_IO(camPar.hCam, ueye.IS_IO_CMD_FLASH_SET_PARAMS, flashParams, ueye.sizeof(flashParams))
-    # print('nDelay = ' + str(flashParams.s32Delay.value))
-    # print('nDuration = ' + str(flashParams.u32Duration.value))
-    
-    # nRet = ueye.is_IO(camPar.hCam, ueye.IS_IO_CMD_FLASH_GET_PARAMS,
-    #                 flashParams, ueye.sizeof(flashParams))
-    # if (nRet == ueye.IS_SUCCESS):
-    #     nDelay   = flashParams.s32Delay
-    #     print('nDelay = ' + str(nDelay.value))
-    #     nDuration = flashParams.u32Duration
-    #     print('nDuration = ' + str(nDuration.value))
-    
-    # nShutterMode = ueye.c_uint(ueye.IS_DEVICE_FEATURE_CAP_SHUTTER_MODE_GLOBAL)
-    # nRet = ueye.is_DeviceFeature(camPar.hCam, ueye.IS_DEVICE_FEATURE_CMD_SET_SHUTTER_MODE, nShutterMode, 
-    #                         ueye.sizeof(nShutterMode))
-    # print('shutter mode = ' + str(nShutterMode.value) + ' / enable : ' + str(nRet))
-    
-    # nShutterMode = ueye.c_uint(ueye.IS_DEVICE_FEATURE_CAP_SHUTTER_MODE_GLOBAL_ALTERNATIVE_TIMING)
-    # nRet = ueye.is_DeviceFeature(camPar.hCam, ueye.IS_DEVICE_FEATURE_CMD_SET_SHUTTER_MODE, nShutterMode, 
-    #                         ueye.sizeof(nShutterMode))
-    # print('shutter mode = ' + str(nShutterMode.value) + ' / enable : ' + str(nRet))
+        if (setExposure.value < getExposure.value-incExposure.value/2) | (setExposure.value > getExposure.value+incExposure.value/2):   
+            nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_SET_EXPOSURE, setExposure, sizeOfpParam)
+            if nRet != ueye.IS_SUCCESS:
+                print("Exposure Time ERROR")
+            else:
+                if i == 1:
+                    print('      new Exposure Time = ' + str(round(setExposure.value*1000)/1000) + ' ms')
+        ############################### Set Black Level ###############################
+        current_black_level_c = ueye.c_uint()      
+        sizeOfBlack_level = ueye.c_uint(4)    
+        ### Read current Black Level
+        nRet = ueye.is_Blacklevel(camPar.hCam, ueye.IS_BLACKLEVEL_CMD_GET_OFFSET, current_black_level_c, sizeOfBlack_level)
+        if nRet != ueye.IS_SUCCESS:
+            print("Black Level getting ERROR")
+        else:
+            if i == 1:
+                print('    current Black Level = ' + str(current_black_level_c.value))
+            
+        ### Set Black Level 
+        if black_level > 255:
+            black_level = 255
+            if i == 1:
+                print('Black Level exceed upper limit <= 255')
+        if black_level < 0:
+            black_level = 0
+            if i == 1:
+                print('Black Level exceed lower limit >= 0')
+            
+        black_level_c = ueye.c_uint(black_level)
+        if black_level != current_black_level_c.value  :            
+            nRet = ueye.is_Blacklevel(camPar.hCam, ueye.IS_BLACKLEVEL_CMD_SET_OFFSET, black_level_c, sizeOfBlack_level)
+            if nRet != ueye.IS_SUCCESS:
+                print("Black Level setting ERROR")
+            else:
+                if i == 1:
+                    print('        new Black Level = ' + str(black_level_c.value))
+            
     
     camPar.fps = round(dblFPS_eff.value*100)/100
     camPar.gain = gain_eff
@@ -2559,7 +2506,8 @@ def snapshot(camPar, pathIDSsnapshot, pathIDSsnapshot_overview):
     with pathIDSsnapshot.open('ab') as f: #(pathname, mode='w', encoding='utf-8') as f: #('ab') as f:
         np.save(f,frame)
     
-    im = Image.fromarray(frame)
+    maxi = np.amax(frame)
+    im = Image.fromarray(frame*math.floor(255/maxi))
     im.save(pathIDSsnapshot_overview)
     
     maxi = np.amax(frame)

@@ -14,6 +14,12 @@ def xyz_from_xy(x, y):
     """Return the vector (x, y, 1-x-y)."""
     return np.array((x, y, 1-x-y))
 
+def linear_srgb_to_rgb(rgb):
+    nonlinearity = np.vectorize(lambda x: 12.92*x if x < 0.0031308 else 1.055*(x**(1.0/2.4))-0.055)
+    
+    return nonlinearity(rgb)
+
+
 class ColourSystem:
     """A class representing a colour system.
 
@@ -26,6 +32,9 @@ class ColourSystem:
 
     # The CIE colour matching function for 380 - 780 nm in 5 nm intervals
     cmf = np.loadtxt(Path(__file__).parent.joinpath('cie-cmf.txt'), usecols=(1,2,3))
+    # cmf_path = 'C:/openspyrit/spas/spas/cie-cmf.txt'
+    # cmf_all = np.loadtxt(cmf_path)
+    # cmf = cmf_all[:, 1:]
 
     def __init__(self, red, green, blue, white):
         """Initialise the ColourSystem object.
@@ -73,6 +82,15 @@ class ColourSystem:
             return self.rgb_to_hex(rgb)
         return rgb
 
+    def xyz_to_rgb2(xyz):
+        M = np.array([[0.418456, -0.158657, -0.082833], [-0.091167, 0.252426, 0.015707], [0.000921, -0.002550, 0.178595]])
+
+        rgb = np.dot(M, xyz)
+        if not np.all(rgb==0):
+            # Normalize the rgb vector
+            rgb /= np.max(rgb)
+        
+        return rgb
 
     def rgb_to_hex(self, rgb):
         """Convert from fractional rgb values to HTML-style hex string."""
@@ -100,7 +118,11 @@ class ColourSystem:
         """Convert a spectrum to an rgb value."""
 
         xyz = self.spec_to_xyz(spec)
-        return self.xyz_to_rgb(xyz, out_fmt)
+        rgb = self.xyz_to_rgb(xyz, out_fmt)
+        srgb = linear_srgb_to_rgb(rgb)
+        return srgb
+    
+        # return ColourSystem.xyz_to_rgb2(xyz)
     
 
 illuminant_D65 = xyz_from_xy(0.3127, 0.3291)
