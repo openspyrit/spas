@@ -339,6 +339,8 @@ class AcquisitionParameters:
             Length of reconstructed image that defines pattern length.
         pattern_dimension_y (int):
             Width of reconstructed image that defines pattern width.
+        zoom (int):
+            numerical zoom of the patterns
         pattern_amount (int, optional):
             Quantity of patterns sent to DMD for an acquisition. This value is
             calculated by an external function. Default in None.
@@ -388,6 +390,7 @@ class AcquisitionParameters:
     pattern_compression: float
     pattern_dimension_x: int
     pattern_dimension_y: int
+    zoom: int
 
     pattern_amount: Optional[int] = None
     acquired_spectra: Optional[int] = None
