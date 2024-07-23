@@ -341,6 +341,10 @@ class AcquisitionParameters:
             Width of reconstructed image that defines pattern width.
         zoom (int):
             numerical zoom of the patterns
+        xw_offset (int):
+            offset of the pattern in the DMD for zoom > 1 in the width (x) direction
+        yh_offset (int):
+            offset of the pattern in the DMD for zoom > 1 in the heihgt (y) direction    
         pattern_amount (int, optional):
             Quantity of patterns sent to DMD for an acquisition. This value is
             calculated by an external function. Default in None.
@@ -391,7 +395,9 @@ class AcquisitionParameters:
     pattern_dimension_x: int
     pattern_dimension_y: int
     zoom: int
-
+    xw_offset: int
+    yh_offset: int
+    
     pattern_amount: Optional[int] = None
     acquired_spectra: Optional[int] = None
 
@@ -1029,15 +1035,22 @@ def save_metadata_2arms(metadata: MetaData,
 @dataclass_json
 @dataclass
 class func_path:
-    def __init__(self, data_folder_name, data_name):
+    def __init__(self, data_folder_name, data_name):        
         if not os.path.exists('../data/' + data_folder_name):
             os.makedirs('../data/' + data_folder_name)
+            aborted = False
+        else:
+            res = input('Acquisition already exists, overwrite it ?[y/n]')
+            if res == 'n':
+                aborted = True
 
+        self.aborted = aborted
         self.subfolder_path = '../data/' + data_folder_name + '/' + data_name    
         self.overview_path = self.subfolder_path + '/overview'
         if not os.path.exists(self.overview_path):
             os.makedirs(self.overview_path)
 
+        self.data_name = data_name
         self.data_path = self.subfolder_path + '/' + data_name
         self.had_reco_path = self.data_path + '_had_reco.npz'         
         self.fig_had_reco_path = self.overview_path + '/' + data_name   

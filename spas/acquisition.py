@@ -402,6 +402,8 @@ def _sequence_limits(DMD: ALP4, pattern_compression: int,
 
 
 def _update_sequence(DMD: ALP4,
+                     DMD_params: DMDParameters,
+                     acquisition_params: AcquisitionParameters,
                      pattern_source: str,
                      pattern_prefix: str,
                      pattern_order: List[int],
@@ -411,6 +413,13 @@ def _update_sequence(DMD: ALP4,
     Args:
         DMD (ALP4):
             Connected DMD object.
+        DMD_params (DMDParameters):
+            DMD metadata object to be updated with pattern related data and with
+            memory available after patterns are sent to DMD.
+        acquisition_params (AcquisitionParameters):
+            Acquisition related metadata object. User must partially fill up
+            with pattern_compression, pattern_dimension_x, pattern_dimension_y,
+            zoom, x and y offest of patterns displayed on the DMD.
         pattern_source (str):
             Pattern source folder.
         pattern_preffix (str):
@@ -425,21 +434,44 @@ def _update_sequence(DMD: ALP4,
 
     seqId = DMD.SeqAlloc(nbImg=len(pattern_order), 
                              bitDepth=bitplanes)
+    
+    zoom = acquisition_params.zoom
+    x_offset = acquisition_params.xw_offset
+    y_offset = acquisition_params.yh_offset
+           
+    dmd_height = DMD_params.display_height
+    dmd_width = DMD_params.display_width
+    
+    # if zoom == 1:
+    #     x_offset = int((dmd_width - dmd_height)/2)
+    #     y_offset = int(0)
+
+    # mask_path = 'D:/hspc/scripts/image/2squares.npy'#'D:/hspc/scripts/image/star.npy'
+    # mask = np.load(mask_path)    
 
     print(f'Pattern order size: {len(pattern_order)}')   
     t = perf_counter_ns()
     
     # T1 = []
     # T2 = []
-    
+    first_pass = True
     for index,pattern_name in enumerate(tqdm(pattern_order, unit=' patterns')):
         # t0 = time.time()
-        
+
         # read png patterns
         path = path_base.joinpath(f'{pattern_prefix}_{pattern_name}.png')
-        image = Image.open(path)        
-        # Converting image to nparray and transforming it to a 1D vector (ravel)
-        patterns = np.array(image,dtype=np.uint8).ravel()
+        image = Image.open(path)                    
+        patterns = np.zeros((dmd_height, dmd_width), dtype=np.uint8)
+        im = np.array(image, dtype=np.uint8)
+        # im[0:384,:] = 0
+        
+        if first_pass == True:
+            len_im = im.shape[0]
+            first_pass = False
+                    
+        patterns[y_offset:y_offset+len_im, x_offset:x_offset+len_im] = im
+        # patterns = patterns * mask
+        patterns = patterns.ravel()
         
         # # read numpy patterns
         # path = path_base.joinpath(f'{pattern_prefix}_{pattern_name}.npy')
@@ -509,7 +541,8 @@ def _setup_patterns(DMD: ALP4, metadata: MetaData, DMD_params: DMDParameters,
             memory available after patterns are sent to DMD.
         acquisition_params (AcquisitionParameters):
             Acquisition related metadata object. User must partially fill up
-            with pattern_compression, pattern_dimension_x, pattern_dimension_y.
+            with pattern_compression, pattern_dimension_x, pattern_dimension_y,
+            zoom, x and y offest of patterns displayed on the DMD.
         loop (bool):
             is to projet in loop, one or few patterns continously (see AlpProjStartCont
             in the doc for more detail). Default is False
@@ -546,7 +579,7 @@ def _setup_patterns(DMD: ALP4, metadata: MetaData, DMD_params: DMDParameters,
         if (DMD.Seqs):
             DMD.FreeSeq()
 
-        _update_sequence(DMD, metadata.pattern_source, metadata.pattern_prefix, 
+        _update_sequence(DMD, DMD_params, acquisition_params, metadata.pattern_source, metadata.pattern_prefix, 
                          pattern_order, bitplanes)
         print(f'DMD available memory after sequence allocation: '
         f'{DMD.DevInquire(ALP_AVAIL_MEMORY)}')
@@ -586,7 +619,8 @@ def _setup_patterns_2arms(DMD: ALP4, metadata: MetaData, DMD_params: DMDParamete
             memory available after patterns are sent to DMD.
         acquisition_params (AcquisitionParameters):
             Acquisition related metadata object. User must partially fill up
-            with pattern_compression, pattern_dimension_x, pattern_dimension_y.
+            with pattern_compression, pattern_dimension_x, pattern_dimension_y,
+            zoom, x and y offest of patterns displayed on the DMD.
     """
 
     file = np.load(Path(metadata.pattern_order_source))
@@ -655,7 +689,7 @@ def _setup_patterns_2arms(DMD: ALP4, metadata: MetaData, DMD_params: DMDParamete
         if (DMD.Seqs):
             DMD.FreeSeq()
 
-        _update_sequence(DMD, metadata.pattern_source, metadata.pattern_prefix, 
+        _update_sequence(DMD, DMD_params, acquisition_params, metadata.pattern_source, metadata.pattern_prefix, 
                          pattern_order, bitplanes)
         print(f'DMD available memory after sequence allocation: '
         f'{DMD.DevInquire(ALP_AVAIL_MEMORY)}')
@@ -806,7 +840,7 @@ def setup(spectrometer: Avantes,
             DMD_params (DMDParameters):
                 DMD metadata object with DMD configurations.
     """
-    
+
     if loop == False:
         path = Path(metadata.output_directory)
         if not path.exists():
@@ -843,14 +877,45 @@ def setup(spectrometer: Avantes,
     _setup_patterns(DMD=DMD, metadata=metadata, DMD_params=DMD_params, 
                     acquisition_params=acquisition_params, loop=loop,
                     pattern_to_display=pattern_to_display)
+    
     _setup_timings(DMD, DMD_params, picture_time, illumination_time, 
                    DMD_output_synch_pulse_delay, synch_pulse_width, 
                    DMD_trigger_in_delay, add_illumination_time)
 
     return spectrometer_params, DMD_params
 
-
-
+def change_patterns(DMD: ALP4, 
+                    acquisition_params: AcquisitionParameters, 
+                    zoom: int = 1, 
+                    xw_offset: int = 0, 
+                    yh_offset: int = 0,
+                    force_change: bool = False
+                    ):
+    """
+    change patterns in case where the zoom or (x,y) offset change
+    
+    DMD (ALP4):
+        Connected DMD.
+    acquisition_params (AcquisitionParameters):
+        Acquisition related metadata object. User must partially fill up
+        with pattern_compression, pattern_dimension_x, pattern_dimension_y,
+        zoom, x and y offest of patterns displayed on the DMD.    
+    zoom (int):
+        digital zoom. Deafult is x1. 
+    xw_offset (int):
+        offset int he width direction of the patterns for zoom > 1. 
+        Default is 0. 
+    yh_offset (int):
+        offset int he height direction of the patterns for zoom > 1. 
+        Default is 0.
+    force_change (bool):
+        to force the changement of the pattern sequence. Default is False.
+    """
+    
+    if acquisition_params.zoom != zoom or acquisition_params.xw_offset != xw_offset or acquisition_params.yh_offset != yh_offset or force_change == True:
+        if (DMD.Seqs):
+            DMD.FreeSeq()
+    
 def setup_2arms(spectrometer: Avantes,
           DMD: ALP4,
           camPar: CAM,
@@ -864,7 +929,7 @@ def setup_2arms(spectrometer: Avantes,
           DMD_output_synch_pulse_delay: int = 0, 
           add_illumination_time: int = 356,
           dark_phase_time: int = 44,
-          DMD_trigger_in_delay: int = 0,
+          DMD_trigger_in_delay: int = 0          
           ) -> Tuple[SpectrometerParameters, DMDParameters]:
     """Setup everything needed to start an acquisition.
 
@@ -883,7 +948,8 @@ def setup_2arms(spectrometer: Avantes,
             outputs. Must be created and filled up by the user.
         acquisition_params (AcquisitionParameters):
             Acquisition related metadata object. User must partially fill up
-            with pattern_compression, pattern_dimension_x, pattern_dimension_y.
+            with pattern_compression, pattern_dimension_x, pattern_dimension_y,
+            zoom, x and y offest of patterns displayed on the DMD.
         start_pixel (int):
             Initial pixel data received from spectrometer. Default is 0.
         stop_pixel (int, optional):
@@ -911,6 +977,7 @@ def setup_2arms(spectrometer: Avantes,
         DMD_trigger_in_delay (int):
             Time in microseconds between the incoming trigger edge and the start
             of the pattern display on DMD (slave mode). Default is 0 us.
+    
     Raises:
         ValueError: Sum of dark phase and additional illumination time is lower
         than 400 us.
@@ -927,7 +994,7 @@ def setup_2arms(spectrometer: Avantes,
     path = Path(metadata.output_directory)
     if not path.exists():
         path.mkdir()
-
+    
     if dark_phase_time + add_illumination_time < 350:
         raise ValueError(f'Sum of dark phase and additional illumination time '
                          f'is {dark_phase_time + add_illumination_time}.'
@@ -937,7 +1004,7 @@ def setup_2arms(spectrometer: Avantes,
         warnings.warn(f'Sum of dark phase and additional illumination time '
                       f'is {dark_phase_time + add_illumination_time}.'
                       f' It is recomended to choose at least 400 µs.')
-
+    
     synch_pulse_width, illumination_time, picture_time = _calculate_timings(
         integration_time, 
         integration_delay, 
@@ -978,7 +1045,7 @@ def setup_2arms(spectrometer: Avantes,
     acquisition_params.wavelengths = np.asarray(wavelenghts, dtype=np.float32)
 
     DMD_params = _setup_DMD(DMD, add_illumination_time, DMD_initial_memory)
-
+    
     _setup_patterns_2arms(DMD=DMD, metadata=metadata, DMD_params=DMD_params, 
                     acquisition_params=acquisition_params, camPar=camPar)
 
@@ -987,6 +1054,7 @@ def setup_2arms(spectrometer: Avantes,
                    DMD_trigger_in_delay, add_illumination_time)
 
     return spectrometer_params, DMD_params, camPar
+
  
 def _calculate_elapsed_time(start_measurement_time: int, 
                           measurement_time: np.ndarray,
@@ -1234,7 +1302,7 @@ def _acquire_raw(ava: Avantes,
         printed = False
         while(True):
             try:                
-                sleep(0.1)
+                # sleep(0.01)
 
                 timestamp, spectrum = ava.get_data()
                 spectral_data_1 = (np.ctypeslib.as_array(spectrum[0:pixel_amount]))
@@ -1487,7 +1555,9 @@ def setup_tuneSpectro(spectrometer,
                       DMD_initial_memory,
                       pattern_to_display, 
                       ti : float = 1, 
-                      zoom : int = 1):
+                      zoom : int = 1,
+                      xw_offset: int = 128,
+                      yh_offset: int = 0):
     """ Setup the hadrware to tune the spectrometer in live. The goal is to find 
     the integration time of the spectrometer, noise is around 700 counts, 
     saturation is equak to 2**16=65535
@@ -1549,7 +1619,9 @@ def setup_tuneSpectro(spectrometer,
         pattern_compression = 1,
         pattern_dimension_x = 1,
         pattern_dimension_y = 1,
-        zoom                = zoom                )
+        zoom                = zoom,
+        xw_offset           = xw_offset,
+        yh_offset           = yh_offset            )
     
     acquisition_parameters.pattern_amount = 1
         
@@ -1601,7 +1673,7 @@ def displaySpectro(ava: Avantes,
             reconstruction.
     """
     
-    loop = True # is to projet continuously a unique pattern to tune the spectrometer
+    loop = True # is to project continuously a unique pattern to tune the spectrometer
     
     pixel_amount = (spectrometer_params.stop_pixel - 
                     spectrometer_params.start_pixel + 1)
@@ -2827,6 +2899,8 @@ def snapshot(camPar, pathIDSsnapshot, pathIDSsnapshot_overview):
         np.save(f,frame)
     
     maxi = np.amax(frame)
+    if maxi == 0:
+        maxi = 1
     im = Image.fromarray(frame*math.floor(255/maxi))
     im.save(pathIDSsnapshot_overview)
     

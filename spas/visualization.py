@@ -14,6 +14,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from spas.plot_spec_to_rgb_image import plot_spec_to_rgb_image
 from spas.noise import noiseClass
 from spas.reconstruction_nn import reorder_subsample, reconstruct
+from spas.metadata import DMDParameters, read_metadata
 
 # Libraries for the IDS CAMERA
 try:
@@ -449,7 +450,12 @@ def displayVid(camPar):
     t2 = 1/camPar.fps
     t_wait = max(t1, t2)
     print('Press "q" on the new window to exit')
-    window_name = "window_live_openCV"
+    window_name = "Camera of the Spatial Arm"
+    # start_point = (0, int(camPar.rectAOI.s32Width.value/2))
+    # end_point = (int(camPar.rectAOI.s32Height.value), int(camPar.rectAOI.s32Width.value/2))
+    # color = (255, 0, 0)
+    # thickness = 3
+    first_passage = False
     while 1:
         time.sleep(t_wait) # Sleep for 1 seconds
         ii = ii + 1
@@ -459,15 +465,30 @@ def displayVid(camPar):
 
         # ...reshape it in an numpy array...
         frame = np.reshape(array,(camPar.rectAOI.s32Height.value, camPar.rectAOI.s32Width.value, camPar.bytes_per_pixel))
+        
+        if first_passage == False:
+            maxi = np.max(frame)
+            fac = round(225/maxi)
+            if fac == 0:
+                fac = 1
+            elif fac > 255:
+                fac = 255
+            print('maxi = ' + str(maxi))
+            first_passage = True
 
         if ii%100 == 0:
-            print('frame max = ' + str(np.amax(frame)))
-            print('frame min = ' + str(np.amin(frame)))
+            print('frame max = ' + str(np.amax(frame*fac)))
+            print('frame min = ' + str(np.amin(frame*fac)))
+            print('fac = ' + str(fac))
             print("--- enlapse time :" + str(round((time.time() - start_time)*1000)/100) + 'ms')
             start_time = time.time()
         
         #...and finally display it
-        cv2.imshow(window_name, frame)
+        cv2.imshow(window_name, frame*fac)
+        
+        # if cv2.waitKey(1) & 0xFF == ord('p'):
+        #     plt.figure()
+        #     plt.plot(frame[:, int(camPar.rectAOI.s32Height.value/2)])
 
         # Press q if you want to end the loop
         if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -610,4 +631,178 @@ def plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, netw
     plt.xlabel(r'$\lambda$ (nm)')
     plt.savefig(fig_nn_reco_path + '_SPECTRA_PLOT_nn_reco.png')
     plt.show()
+    
+def extract_ROI_coord(DMD_params, acquisition_parameters, all_path, data_folder_name: str, data_name: str, GT: np.ndarray, ti: float):
+    
+    """Extract the coordinates of the ROI drawing in the hadamard reconstruction matrix.
+
+    Display the sum of the hypercube between the initial and final wavelengths. Draw a ROI
+    to evaluate its coordinates
+    
+    Args:
+        DMD_params (DMDParameters):
+            DMD metadata object to be updated with pattern related data and with
+            memory available after patterns are sent to DMD.
+        acquisition_parameters :
+            Class containing acquisition specifications and timing results.
+        all_path :
+            function that store all the paths
+        data_folder_name (str):
+            the general folder name of the data to be load if acquisition is not the last one.
+        data_name (str):
+            the folder name of the data to be load if acquisition is not the last one.
+        GT (np.ndarray): 
+            the hadamard reconstruction
+        ti (float):
+            integration time of the sepctrometer
+            
+    Returns:
+        No return, just display the coordinate to be inserted in the "SETUP" section
+    """
+    
+    if data_name != all_path.data_name and data_name != '':
+        print('Warning, you read an old acquisition')
+        print('')
+        # read GT from old acquisition
+        old_data_path = '../data/' + data_folder_name + '/' + data_name + '/' + data_name + '_had_reco.npz'
+        file_had_reco = np.load(old_data_path)  
+        GT = file_had_reco['arr_0']
+        
+        # read metadata
+        old_metadata_path = '../data/' + data_folder_name + '/' + data_name + '/' + data_name + '_metadata.json'
+        metadata, acquisition_parameters, spectrometer_parameters, DMD_parameters = read_metadata(old_metadata_path)
+        ti = spectrometer_parameters.integration_time_ms
+    else:
+        GT = np.rot90(GT, 2) 
+  
+    # Find the indices that fit the spectral range  
+    wavelengths = acquisition_parameters.wavelengths
+    init_lambda      = 550
+    final_lambda     = 600
+    init_lambda_index = min(range(len(wavelengths)), key=lambda i: abs(wavelengths[i]-init_lambda))
+    final_lambda_index = min(range(len(wavelengths)), key=lambda i: abs(wavelengths[i]-final_lambda))
+    
+    # Convert hypercube into en RGB image to read by the "selectROI" function
+    GT_sum = np.sum(GT[:,:,init_lambda_index:final_lambda_index], axis=2)
+    GT_sum_pos = GT_sum - np.min(GT_sum)
+    GT_sum_8bit = np.array(GT_sum_pos/np.amax(GT_sum_pos)*255, dtype=np.uint8)
+    colored_img = np.stack((GT_sum_8bit,)*3, axis=-1)
+
+    Np = GT.shape[0]
+    # resize image for the "selectROI" function
+    HD = DMD_params.display_height#768 => The DMD height
+    WD = DMD_params.display_width#1024 => The DMD width
+    
+    #current zoom and offset of the displayed image
+    zoom_cu = acquisition_parameters.zoom
+    xw_offset_cu = acquisition_parameters.xw_offset
+    yh_offset_cu = acquisition_parameters.yh_offset
+    if zoom_cu == 1:
+        xw_offset_cu = (WD - HD)/2
+        yh_offset_cu = 0
+    
+    # Draw the ROI
+    print('Draw a ROI in the image by holding the left mouse button')
+    print('Press "ENTER" when done')
+    x, y, w, h = cv2.selectROI(cv2.resize(colored_img, (HD, HD)))
+    cv2.destroyAllWindows()
+    
+    # rescale displayed image in the case of current zoom
+    
+
+    # Available digital zoom    
+    zoom_tab = [1, 2, 3, 4, 6, 12, 24, 48, 96, 192, 384, 768]
+    x = x / zoom_cu
+    y = y / zoom_cu
+    w = w / zoom_cu
+    h = h / zoom_cu
+    
+    # calculate the center of the ROI
+    Cx = x + w / 2
+    Cy = y + h / 2
+    
+    # calculate the center of the ROI in the rotated image
+    Crx = HD / zoom_cu - Cx
+    Cry = HD / zoom_cu - Cy
+    
+    # calculate the new width and height of the ROI in function of the available zoom
+    max_side = max(w,h) # find the maximum size of the drawn ROI
+    fac = HD / max_side
+    
+    # find index of the zoom_tab for the current zoom
+    inc_cu = zoom_tab.index(zoom_cu)
+    
+    # Define the two nearest zoom of the drawn ROI
+    inc = inc_cu
+    for zoom in zoom_tab:
+        if fac < zoom:
+            break
+        inc = inc + 1
+        
+    zoom_range = np.array([zoom_tab[inc-1], zoom_tab[inc]], dtype=float)
+    
+    w_roi = HD/zoom_range
+    
+    # calculate the difference of the drawn ROI and the final ROI (due to the available zoom)
+    diff_size = (w_roi - max_side)/float(max_side) * 100
+    
+    # calculate x, y at the top left of the ROI
+    x_roi = Crx - w_roi/2
+    y_roi = Cry - w_roi/2
+    
+    # because the DMD is a rectangle and the pattern is square
+    xw_offset = x_roi + xw_offset_cu
+    yh_offset = y_roi + yh_offset_cu
+    
+    # calculate new integration time and acquisition time
+    new_ti = ti*zoom_range**2
+    
+    # display result
+    for inc in range(len(zoom_range)):
+        # if xw_offset[inc] < 0:
+        #     xw_offset[inc] = 0
+        # elif xw_offset[inc] > (WD + HD)/2 - w_roi[inc]:
+        #     xw_offset[inc] = (WD + HD)/2 - w_roi[inc]
+            
+        # if yh_offset[inc] < 0:
+        #     yh_offset[inc] = 0
+        # elif yh_offset[inc] > HD - w_roi[inc]:
+        #     yh_offset[inc] = HD - w_roi[inc]
+        
+        # if zoom_range[inc] == 1:
+        #     xw_offset[inc] = 0
+        #     yh_offset[inc] = 0
+            
+        print('------------------------------------')
+        print('Zoom = x' + str(int(zoom_range[inc])))
+        print('This lead to a change of the drawn ROI by = ' + str(diff_size[inc]) + ' %')
+        
+        print('xw_offset = ' + str(int(xw_offset[inc])))
+        print('yh_offset = ' + str(int(yh_offset[inc])))
+        print('Suggested new ti = ' + str(new_ti[inc]) + (' ms'))
+        print('Leading to a total acq time : ' + str(int(acquisition_parameters.pattern_amount*(new_ti[inc]+0.356)/1000 // 60)) + ' min ' + 
+              str(round(acquisition_parameters.pattern_amount*new_ti[inc]/1000 % 60)) + ' s')
+        print('------------------------------------')
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
