@@ -53,8 +53,8 @@ displaySpectro(ava = spectrometer, DMD = DMD, metadata = metadata, spectrometer_
 #%% Setup acquisition and send pattern to the DMD
 setup_version            = 'setup_v1.3.1'
 collection_access        = 'public' #'private'#
-Np                       = 64       # Number of pixels in one dimension of the image (image: NpxNp)
-ti                       = 1       # Integration time of the spectrometer   
+Np                       = 8       # Number of pixels in one dimension of the image (image: NpxNp)
+ti                       = 100       # Integration time of the spectrometer   
 zoom                     = 1        # Numerical zoom applied in the DMD
 xw_offset                = 128 #Np*(zoom-1)/(2*zoom),
 yh_offset                = 0 #Np*(zoom-1)/(2*zoom))
@@ -62,7 +62,7 @@ pattern_compression      = 1
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
 source                   = 'white_LED'#'Thorlabs_White_halogen_lamp'#'White_Zeiss_KL-2500-LCD_lamp'#No-light'#Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#'Bioblock power: II',#'HgAr multilines Source (HG-1 Oceanoptics)'
 object_name              = 'test'#'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
-data_folder_name         = '2024-07-23_test_Mask'#'Patient-69_exvivo_LGG_BU'
+data_folder_name         = '2024-08-26_test'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
 
 camPar.acq_mode          = 'snapshot'#'video'   # 
