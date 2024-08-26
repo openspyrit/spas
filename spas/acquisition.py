@@ -441,6 +441,7 @@ def _update_sequence(DMD: ALP4,
            
     dmd_height = DMD_params.display_height
     dmd_width = DMD_params.display_width
+    len_im = int(dmd_height / zoom)
     
     # if zoom == 1:
     #     x_offset = int((dmd_width - dmd_height)/2)
@@ -464,10 +465,10 @@ def _update_sequence(DMD: ALP4,
         patterns = np.zeros((dmd_height, dmd_width), dtype=np.uint8)
         im = np.array(image, dtype=np.uint8)
         # im[0:384,:] = 0
-        
-        if first_pass == True:
-            len_im = im.shape[0]
-            first_pass = False
+        # im[:,0:384] = 0
+        # if first_pass == True:
+        #     len_im = im.shape[0]
+        #     first_pass = False
                     
         patterns[y_offset:y_offset+len_im, x_offset:x_offset+len_im] = im
         # patterns = patterns * mask

@@ -1043,6 +1043,8 @@ class func_path:
             res = input('Acquisition already exists, overwrite it ?[y/n]')
             if res == 'n':
                 aborted = True
+            else:
+                aborted = False
 
         self.aborted = aborted
         self.subfolder_path = '../data/' + data_folder_name + '/' + data_name    
