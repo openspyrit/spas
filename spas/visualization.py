@@ -23,7 +23,6 @@ except:
     print('ueye DLL not installed')
 # import pyueye as ueye    
 # from pyueye import ueye
-import cv2
 import time
 
 def spectral_binning(F: np.ndarray, wavelengths: np.ndarray, lambda_min: int, 
@@ -484,6 +483,7 @@ def displayVid(camPar):
             start_time = time.time()
         
         #...and finally display it
+        import cv2
         cv2.imshow(window_name, frame*fac)
         
         # if cv2.waitKey(1) & 0xFF == ord('p'):
@@ -659,7 +659,9 @@ def extract_ROI_coord(DMD_params, acquisition_parameters, all_path, data_folder_
     Returns:
         No return, just display the coordinate to be inserted in the "SETUP" section
     """
-    
+
+    import cv2    
+
     if data_name != all_path.data_name and data_name != '':
         print('Warning, you read an old acquisition')
         print('')
