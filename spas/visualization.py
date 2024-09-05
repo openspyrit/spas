@@ -22,7 +22,11 @@ except:
     print('ueye DLL not installed')
 # import pyueye as ueye    
 # from pyueye import ueye
-import cv2
+try:
+    import cv2
+except:
+    print('opencv not installed')
+# import cv2
 import time
 
 def spectral_binning(F: np.ndarray, wavelengths: np.ndarray, lambda_min: int, 
