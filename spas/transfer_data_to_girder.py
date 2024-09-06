@@ -136,7 +136,7 @@ def transfer_data(metadata, acquisition_parameters, spectrometer_params, DMD_par
 
 
 def transfer_data_2arms(metadata, acquisition_parameters, spectrometer_params, DMD_params, camPar,
-                            setup_version, data_folder_name, data_name, upload_metadata):
+                            setup_version, data_folder_name, data_name, collection_access, upload_metadata):
 
     #unwrap structure into camPar
     try:
@@ -145,19 +145,31 @@ def transfer_data_2arms(metadata, acquisition_parameters, spectrometer_params, D
         camPar.AOI_Width = camPar.rectAOI.s32Width.value
         camPar.AOI_Height = camPar.rectAOI.s32Height.value
     except:
-        camPar['AOI_X'] = camPar['rectAOI'].s32X.value
-        camPar['AOI_Y'] = camPar['rectAOI'].s32Y.value
-        camPar['AOI_Width'] = camPar['rectAOI'].s32Width.value
-        camPar['AOI_Height'] = camPar['rectAOI'].s32Height.value
+        try:
+            camPar['AOI_X'] = camPar['rectAOI'].s32X.value
+            camPar['AOI_Y'] = camPar['rectAOI'].s32Y.value
+            camPar['AOI_Width'] = camPar['rectAOI'].s32Width.value
+            camPar['AOI_Height'] = camPar['rectAOI'].s32Height.value
+        except:
+            camPar.AOI_X = camPar.rectAOI['s32X']
+            camPar.AOI_Y = camPar.rectAOI['s32Y']
+            camPar.AOI_Width = camPar.rectAOI['s32Width']
+            camPar.AOI_Height = camPar.rectAOI['s32Height']
     #%%########################## Girder info #################################    
     url = 'https://pilot-warehouse.creatis.insa-lyon.fr/api/v1'
-    collectionId = '6140ba6929e3fc10d47dbe3e'# collection_name = 'spc'    
+    if collection_access == 'private':
+        parent_data_folder = 'private_data'
+    else:
+        parent_data_folder = 'data'  
+        
+    collectionId = '6140ba6929e3fc10d47dbe3e'
     txt_file = open('C:/private/no_name.txt', 'r', encoding='utf8')
     apiKey = txt_file.read()
     txt_file.close()
     #%%############################## path ####################################
     data_path = '../data/' + data_folder_name + '/' + data_name  # here, data_name is the subfolder
-    temp_path = '../temp/data/' + setup_version + '/' + data_folder_name + '/' + data_name
+    # data_path = '../' + parent_data_folder + '/' + data_folder_name + '/' + data_name
+    temp_path = '../temp/' + parent_data_folder + '/' + setup_version + '/' + data_folder_name + '/' + data_name
     #%%######################## erase temp folder #############################
     if len(os.listdir('../temp')) != 0:      
         list_TempFolder = os.listdir('../temp')
@@ -169,9 +181,13 @@ def transfer_data_2arms(metadata, acquisition_parameters, spectrometer_params, D
     gc = girder_client.GirderClient(apiUrl=url)  # Generate the warehouse client
     gc.authenticate(apiKey=apiKey)  # Authentication to the warehouse
     #%%##################### begin data transfer ##############################
-    gc.upload('../temp/data/', collectionId, 'collection', reuseExisting=True)
+    gc.upload('../temp/' + parent_data_folder + '/', collectionId, 'collection', reuseExisting=True)
     #%%############## find data folder id to uplaod metada ####################
-    girder_data_folder_id = '6149c3ce29e3fc10d47dbffb'
+    if collection_access == 'private':
+        girder_data_folder_id = '6509b645f5c5008d1c980f6c'
+    else:
+        girder_data_folder_id = '6149c3ce29e3fc10d47dbffb'
+        
     version_list = gc.listFolder(girder_data_folder_id, 'folder')
     for version_folder in version_list:
         if version_folder['name'] == setup_version:  
@@ -236,6 +252,8 @@ def transfer_data_2arms(metadata, acquisition_parameters, spectrometer_params, D
         dict.update(DMD_params_dict2)
         dict.update(CAM_params_dict2)
         
+        del dict['a)_EXP_date']
+        del dict['a)_EXP_time']
         del dict['a)_EXP_output_directory']
         del dict['a)_EXP_pattern_order_source']
         del dict['a)_EXP_pattern_source']

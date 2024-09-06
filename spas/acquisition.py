@@ -53,12 +53,13 @@ from collections import namedtuple
 from pathlib import Path
 from multiprocessing import Process, Queue
 import shutil    
+import math
 
 import numpy as np
 from PIL import Image
 ##### DLL for the DMD
 try:
-    from ALP4 import ALP4, ALP_FIRSTFRAME, ALP_LASTFRAME
+    from ALP4 import ALP4, ALP_FIRSTFRAME, ALP_LASTFRAME, ALP_BITNUM
     from ALP4 import ALP_AVAIL_MEMORY, ALP_DEV_DYN_SYNCH_OUT1_GATE, tAlpDynSynchOutGate
     # print('ALP4 is ok in Acquisition file')
 except:
@@ -82,14 +83,15 @@ try:
 except:
     print('ueye DLL not installed')
 
-# from pyueye import ueye, ueye_tools
 from matplotlib import pyplot as plt
+from IPython import get_ipython
 from PIL import Image
 import ctypes as ct
 import math
 import logging
 import time
 import threading
+from plotter import Plotter
 #from spas.visualization import snapshotVisu
 
 
@@ -131,8 +133,9 @@ def _init_DMD() -> Tuple[ALP4, int]:
     # Initializing DMD
 
     dll_path = Path(__file__).parent.parent.joinpath('lib/alpV42').__str__()
-    
     DMD = ALP4(version='4.2',libDir=dll_path)
+    # dll_path = Path(__file__).parent.parent.joinpath('lib/alpV43').__str__()
+    # DMD = ALP4(version='4.3',libDir=dll_path)
     DMD.Initialize(DeviceNum=None)
 
     #print(f'DMD initial available memory: {DMD.DevInquire(ALP_AVAIL_MEMORY)}')
@@ -384,6 +387,7 @@ def _sequence_limits(DMD: ALP4, pattern_compression: int,
     """
 
     # Choosing beggining of the sequence
+    # DMD.SeqControl(ALP_BITNUM, 1)
     DMD.SeqControl(ALP_FIRSTFRAME, 0)
 
     # Choosing the end of the sequence
@@ -398,6 +402,8 @@ def _sequence_limits(DMD: ALP4, pattern_compression: int,
 
 
 def _update_sequence(DMD: ALP4,
+                     DMD_params: DMDParameters,
+                     acquisition_params: AcquisitionParameters,
                      pattern_source: str,
                      pattern_prefix: str,
                      pattern_order: List[int],
@@ -407,6 +413,13 @@ def _update_sequence(DMD: ALP4,
     Args:
         DMD (ALP4):
             Connected DMD object.
+        DMD_params (DMDParameters):
+            DMD metadata object to be updated with pattern related data and with
+            memory available after patterns are sent to DMD.
+        acquisition_params (AcquisitionParameters):
+            Acquisition related metadata object. User must partially fill up
+            with pattern_compression, pattern_dimension_x, pattern_dimension_y,
+            zoom, x and y offest of patterns displayed on the DMD.
         pattern_source (str):
             Pattern source folder.
         pattern_preffix (str):
@@ -421,27 +434,94 @@ def _update_sequence(DMD: ALP4,
 
     seqId = DMD.SeqAlloc(nbImg=len(pattern_order), 
                              bitDepth=bitplanes)
+    
+    zoom = acquisition_params.zoom
+    x_offset = acquisition_params.xw_offset
+    y_offset = acquisition_params.yh_offset
+           
+    dmd_height = DMD_params.display_height
+    dmd_width = DMD_params.display_width
+    len_im = int(dmd_height / zoom)
+    
+    # if zoom == 1:
+    #     x_offset = int((dmd_width - dmd_height)/2)
+    #     y_offset = int(0)
+
+    # mask_path = 'D:/hspc/scripts/image/2squares.npy'#'D:/hspc/scripts/image/star.npy'
+    # mask = np.load(mask_path)    
 
     print(f'Pattern order size: {len(pattern_order)}')   
     t = perf_counter_ns()
+    
+    # T1 = []
+    # T2 = []
+    first_pass = True
     for index,pattern_name in enumerate(tqdm(pattern_order, unit=' patterns')):
+        # t0 = time.time()
+
+        # read png patterns
         path = path_base.joinpath(f'{pattern_prefix}_{pattern_name}.png')
-        image = Image.open(path)
+        image = Image.open(path)                    
+        patterns = np.zeros((dmd_height, dmd_width), dtype=np.uint8)
+        im = np.array(image, dtype=np.uint8)
+        # im[0:384,:] = 0
+        # im[:,0:384] = 0
+        # if first_pass == True:
+        #     len_im = im.shape[0]
+        #     first_pass = False
+                    
+        patterns[y_offset:y_offset+len_im, x_offset:x_offset+len_im] = im
+        # patterns = patterns * mask
+        patterns = patterns.ravel()
         
-        # Converting image to nparray and transforming it to a 1D vector (ravel)
-        patterns = np.array(image,dtype=np.uint8).ravel()
+        # # read numpy patterns
+        # path = path_base.joinpath(f'{pattern_prefix}_{pattern_name}.npy')
+        # patterns = np.load(path)
+        
+        # t1 = time.time()        
+        # T1.append(t1 - t0)
+        
+        # # read C binary patterns
+        # path = path_base.joinpath(f'{pattern_prefix}_{pattern_name}')
+        # with open(path, 'rb') as f:
+        #     byte_data = f.read()    
+            
+        # ArrayFour = ct.c_void_p 
+        # patterns = ArrayFour.from_buffer_copy(byte_data)
+        
+        # if index == 0:
+        #     print('patterns = ' + str(patterns))
+        
+        # for patterns in png or numpy array
         DMD.SeqPut(
             imgData=patterns.copy(),
             PicOffset=index, 
             PicLoad=1)
-
+        
+        # t2 = time.time()
+        # T2.append(t2-t1)
+        
+        # # for patterns in C format
+        # DMD.SeqPut(
+        #     imgData=patterns,
+        #     PicOffset=index, 
+        #     PicLoad=1,
+        #     dataFormat = 'C')
+        
+        
+    # print('\nT1_mean = ' + str(np.mean(T1)))
+    # print('\nT1_sum = ' + str(np.sum(T1)))
+    # print('\nT2_mean = ' + str(np.mean(T2)))
+    # print('\nT2_sum = ' + str(np.sum(T2)))
+    
     print(f'\nTime for sending all patterns: '
           f'{(perf_counter_ns() - t)/1e+9} s')
 
 
 def _setup_patterns(DMD: ALP4, metadata: MetaData, DMD_params: DMDParameters, 
                    acquisition_params: AcquisitionParameters,
-                   cov_path: str = None) -> None:
+                   cov_path: str = None, pattern_to_display: str = 'white', 
+                   loop: bool = False) -> None:
     """Read and send patterns to DMD.
 
     Reads patterns from a file and sends a percentage of them to the DMD,
@@ -462,18 +542,33 @@ def _setup_patterns(DMD: ALP4, metadata: MetaData, DMD_params: DMDParameters,
             memory available after patterns are sent to DMD.
         acquisition_params (AcquisitionParameters):
             Acquisition related metadata object. User must partially fill up
-            with pattern_compression, pattern_dimension_x, pattern_dimension_y.
+            with pattern_compression, pattern_dimension_x, pattern_dimension_y,
+            zoom, x and y offest of patterns displayed on the DMD.
+        loop (bool):
+            is to projet in loop, one or few patterns continously (see AlpProjStartCont
+            in the doc for more detail). Default is False
     """
-
+    
     file = np.load(Path(metadata.pattern_order_source))
     pattern_order = file['pattern_order']               
     pos_neg = file['pos_neg']
-
+    
+    if loop == True:
+        pos_neg = False
+        if pattern_to_display == 'white':
+            pattern_order = np.array(pattern_order[0:1], dtype=np.int16)
+        elif pattern_to_display == 'black':
+            pattern_order = np.array(pattern_order[1:2], dtype=np.int16)
+        elif pattern_to_display == 'gray':
+            index = int(np.where(pattern_order == 1953)[0])
+            print(index)
+            pattern_order = np.array(pattern_order[index:index+1], dtype=np.int16)
+        
     bitplanes = 1
     DMD_params.bitplanes = bitplanes
 
     if (DMD_params.initial_memory - DMD.DevInquire(ALP_AVAIL_MEMORY) == 
-        len(pattern_order)):
+        len(pattern_order)) and loop == False:
         print('Reusing patterns from previous acquisition')
         acquisition_params.pattern_amount = _sequence_limits(
             DMD, 
@@ -485,7 +580,7 @@ def _setup_patterns(DMD: ALP4, metadata: MetaData, DMD_params: DMDParameters,
         if (DMD.Seqs):
             DMD.FreeSeq()
 
-        _update_sequence(DMD, metadata.pattern_source, metadata.pattern_prefix, 
+        _update_sequence(DMD, DMD_params, acquisition_params, metadata.pattern_source, metadata.pattern_prefix, 
                          pattern_order, bitplanes)
         print(f'DMD available memory after sequence allocation: '
         f'{DMD.DevInquire(ALP_AVAIL_MEMORY)}')
@@ -494,7 +589,7 @@ def _setup_patterns(DMD: ALP4, metadata: MetaData, DMD_params: DMDParameters,
             acquisition_params.pattern_compression, 
             len(pattern_order),
             pos_neg=pos_neg)        
-
+        
     acquisition_params.patterns = (
         pattern_order[0:acquisition_params.pattern_amount])
     
@@ -525,7 +620,8 @@ def _setup_patterns_2arms(DMD: ALP4, metadata: MetaData, DMD_params: DMDParamete
             memory available after patterns are sent to DMD.
         acquisition_params (AcquisitionParameters):
             Acquisition related metadata object. User must partially fill up
-            with pattern_compression, pattern_dimension_x, pattern_dimension_y.
+            with pattern_compression, pattern_dimension_x, pattern_dimension_y,
+            zoom, x and y offest of patterns displayed on the DMD.
     """
 
     file = np.load(Path(metadata.pattern_order_source))
@@ -534,10 +630,16 @@ def _setup_patterns_2arms(DMD: ALP4, metadata: MetaData, DMD_params: DMDParamete
     
     # copy the black pattern image (png) to the number = -1
     black_pattern_dest_path = Path( metadata.pattern_source + '/' + metadata.pattern_prefix + '_' + '-1.png' )
+    # black_pattern_dest_path = Path( metadata.pattern_source + '/' + metadata.pattern_prefix + '_' + '-1.npy' )
+    # black_pattern_dest_path = Path( metadata.pattern_source + '/' + metadata.pattern_prefix + '_' + '-1' )
                                   
     if black_pattern_dest_path.is_file() == False:
         black_pattern_orig_path = Path( metadata.pattern_source + '/' + metadata.pattern_prefix + '_' + 
                                       str(camPar.black_pattern_num) + '.png' )
+        # black_pattern_orig_path = Path( metadata.pattern_source + '/' + metadata.pattern_prefix + '_' + 
+        #                               str(camPar.black_pattern_num) + '.npy' )
+        # black_pattern_orig_path = Path( metadata.pattern_source + '/' + metadata.pattern_prefix + '_' + 
+        #                               str(camPar.black_pattern_num))
         shutil.copyfile(black_pattern_orig_path, black_pattern_dest_path)                              
         
         
@@ -547,7 +649,7 @@ def _setup_patterns_2arms(DMD: ALP4, metadata: MetaData, DMD_params: DMDParamete
         while True:
             try:
                 pattern_order[inc]  # except error from the end of array to stop the loop
-                if (inc % 16) == 0:
+                if (inc % camPar.gate_period) == 0:#16) == 0:
                     pattern_order = np.insert(pattern_order, inc, -1) # double white pattern is required if integration time is shorter than 3.85 ms
                     if camPar.int_time_spect < 3.85:
                         pattern_order = np.insert(pattern_order, inc+1, -1)
@@ -568,6 +670,7 @@ def _setup_patterns_2arms(DMD: ALP4, metadata: MetaData, DMD_params: DMDParamete
         #     # pattern_order = np.insert(pattern_order, 0, -1)     
         if (len(pattern_order)%2) != 0: # Add one pattern at the end of the sequence if the pattern number is even
             pattern_order = np.insert(pattern_order, len(pattern_order), -1)
+            print('pattern order is odd => a black image is automaticly insert, need to be deleted in the case for tuning the spectrometer')
                
     pos_neg = file['pos_neg']
 
@@ -587,7 +690,7 @@ def _setup_patterns_2arms(DMD: ALP4, metadata: MetaData, DMD_params: DMDParamete
         if (DMD.Seqs):
             DMD.FreeSeq()
 
-        _update_sequence(DMD, metadata.pattern_source, metadata.pattern_prefix, 
+        _update_sequence(DMD, DMD_params, acquisition_params, metadata.pattern_source, metadata.pattern_prefix, 
                          pattern_order, bitplanes)
         print(f'DMD available memory after sequence allocation: '
         f'{DMD.DevInquire(ALP_AVAIL_MEMORY)}')
@@ -672,6 +775,8 @@ def setup(spectrometer: Avantes,
           add_illumination_time: int = 356,
           dark_phase_time: int = 44,
           DMD_trigger_in_delay: int = 0,
+          pattern_to_display: str = 'white',
+          loop: bool = False
           ) -> Tuple[SpectrometerParameters, DMDParameters]:
     """Setup everything needed to start an acquisition.
 
@@ -718,6 +823,12 @@ def setup(spectrometer: Avantes,
         DMD_trigger_in_delay (int):
             Time in microseconds between the incoming trigger edge and the start
             of the pattern display on DMD (slave mode). Default is 0 us.
+        pattern_to_display (string):
+            display one pattern on the DMD to tune the spectrometer. Default is white 
+            pattern
+        loop (bool):
+            is to projet in loop, one or few patterns continuously (see AlpProjStartCont
+            in the doc for more detail). Default is False
     Raises:
         ValueError: Sum of dark phase and additional illumination time is lower
         than 400 us.
@@ -731,9 +842,10 @@ def setup(spectrometer: Avantes,
                 DMD metadata object with DMD configurations.
     """
 
-    path = Path(metadata.output_directory)
-    if not path.exists():
-        path.mkdir()
+    if loop == False:
+        path = Path(metadata.output_directory)
+        if not path.exists():
+            path.mkdir()
 
     if dark_phase_time + add_illumination_time < 350:
         raise ValueError(f'Sum of dark phase and additional illumination time '
@@ -764,15 +876,47 @@ def setup(spectrometer: Avantes,
     DMD_params = _setup_DMD(DMD, add_illumination_time, DMD_initial_memory)
 
     _setup_patterns(DMD=DMD, metadata=metadata, DMD_params=DMD_params, 
-                    acquisition_params=acquisition_params)
+                    acquisition_params=acquisition_params, loop=loop,
+                    pattern_to_display=pattern_to_display)
+    
     _setup_timings(DMD, DMD_params, picture_time, illumination_time, 
                    DMD_output_synch_pulse_delay, synch_pulse_width, 
                    DMD_trigger_in_delay, add_illumination_time)
 
     return spectrometer_params, DMD_params
 
-
-
+def change_patterns(DMD: ALP4, 
+                    acquisition_params: AcquisitionParameters, 
+                    zoom: int = 1, 
+                    xw_offset: int = 0, 
+                    yh_offset: int = 0,
+                    force_change: bool = False
+                    ):
+    """
+    change patterns in case where the zoom or (x,y) offset change
+    
+    DMD (ALP4):
+        Connected DMD.
+    acquisition_params (AcquisitionParameters):
+        Acquisition related metadata object. User must partially fill up
+        with pattern_compression, pattern_dimension_x, pattern_dimension_y,
+        zoom, x and y offest of patterns displayed on the DMD.    
+    zoom (int):
+        digital zoom. Deafult is x1. 
+    xw_offset (int):
+        offset int he width direction of the patterns for zoom > 1. 
+        Default is 0. 
+    yh_offset (int):
+        offset int he height direction of the patterns for zoom > 1. 
+        Default is 0.
+    force_change (bool):
+        to force the changement of the pattern sequence. Default is False.
+    """
+    
+    if acquisition_params.zoom != zoom or acquisition_params.xw_offset != xw_offset or acquisition_params.yh_offset != yh_offset or force_change == True:
+        if (DMD.Seqs):
+            DMD.FreeSeq()
+    
 def setup_2arms(spectrometer: Avantes,
           DMD: ALP4,
           camPar: CAM,
@@ -786,7 +930,7 @@ def setup_2arms(spectrometer: Avantes,
           DMD_output_synch_pulse_delay: int = 0, 
           add_illumination_time: int = 356,
           dark_phase_time: int = 44,
-          DMD_trigger_in_delay: int = 0,
+          DMD_trigger_in_delay: int = 0          
           ) -> Tuple[SpectrometerParameters, DMDParameters]:
     """Setup everything needed to start an acquisition.
 
@@ -805,7 +949,8 @@ def setup_2arms(spectrometer: Avantes,
             outputs. Must be created and filled up by the user.
         acquisition_params (AcquisitionParameters):
             Acquisition related metadata object. User must partially fill up
-            with pattern_compression, pattern_dimension_x, pattern_dimension_y.
+            with pattern_compression, pattern_dimension_x, pattern_dimension_y,
+            zoom, x and y offest of patterns displayed on the DMD.
         start_pixel (int):
             Initial pixel data received from spectrometer. Default is 0.
         stop_pixel (int, optional):
@@ -833,6 +978,7 @@ def setup_2arms(spectrometer: Avantes,
         DMD_trigger_in_delay (int):
             Time in microseconds between the incoming trigger edge and the start
             of the pattern display on DMD (slave mode). Default is 0 us.
+    
     Raises:
         ValueError: Sum of dark phase and additional illumination time is lower
         than 400 us.
@@ -849,7 +995,7 @@ def setup_2arms(spectrometer: Avantes,
     path = Path(metadata.output_directory)
     if not path.exists():
         path.mkdir()
-
+    
     if dark_phase_time + add_illumination_time < 350:
         raise ValueError(f'Sum of dark phase and additional illumination time '
                          f'is {dark_phase_time + add_illumination_time}.'
@@ -859,7 +1005,7 @@ def setup_2arms(spectrometer: Avantes,
         warnings.warn(f'Sum of dark phase and additional illumination time '
                       f'is {dark_phase_time + add_illumination_time}.'
                       f' It is recomended to choose at least 400 µs.')
-
+    
     synch_pulse_width, illumination_time, picture_time = _calculate_timings(
         integration_time, 
         integration_delay, 
@@ -900,7 +1046,7 @@ def setup_2arms(spectrometer: Avantes,
     acquisition_params.wavelengths = np.asarray(wavelenghts, dtype=np.float32)
 
     DMD_params = _setup_DMD(DMD, add_illumination_time, DMD_initial_memory)
-
+    
     _setup_patterns_2arms(DMD=DMD, metadata=metadata, DMD_params=DMD_params, 
                     acquisition_params=acquisition_params, camPar=camPar)
 
@@ -909,6 +1055,7 @@ def setup_2arms(spectrometer: Avantes,
                    DMD_trigger_in_delay, add_illumination_time)
 
     return spectrometer_params, DMD_params, camPar
+
  
 def _calculate_elapsed_time(start_measurement_time: int, 
                           measurement_time: np.ndarray,
@@ -1025,7 +1172,8 @@ def _acquire_raw(ava: Avantes,
             DMD: ALP4,
             spectrometer_params: SpectrometerParameters, 
             DMD_params: DMDParameters, 
-            acquisition_params: AcquisitionParameters
+            acquisition_params: AcquisitionParameters,
+            loop: bool = False
             ) -> NamedTuple:
     """Raw data acquisition.
 
@@ -1043,6 +1191,9 @@ def _acquire_raw(ava: Avantes,
             DMD metadata object with DMD configurations.
         acquisition_params (AcquisitionParameters): 
             Acquisition related metadata object.
+        loop (bool):
+            if True, projet continuously the pattern, see the AlpProjStartCont function
+            if False, projet one time the seq of the patterns, see the AlpProjStart function (Default)
 
     Returns:
         NamedTuple: NamedTuple containig spectral data and measurement timings.
@@ -1070,9 +1221,9 @@ def _acquire_raw(ava: Avantes,
         def measurement_callback(handle, info): # If we want to reconstruct during callback; can use it in here. Add function as parameter. 
             nonlocal spectrum_index
             nonlocal saturation_detected
-
-            measurement_time[spectrum_index] = perf_counter_ns()
             
+            measurement_time[spectrum_index] = perf_counter_ns()
+
             if info.contents.value >= 0:                  
                 timestamp,spectrum = ava.get_data()
                 spectral_data[spectrum_index,:] = (
@@ -1104,32 +1255,84 @@ def _acquire_raw(ava: Avantes,
     saturation_detected = False 
 
     spectrum_index = 0 # Accessed as nonlocal variable inside the callback
-
-    #spectro.register_callback(-2,acquisition_params.pattern_amount,pixel_amount)
-    callback = register_callback(measurement_time, timestamps, 
-                                 spectral_data, ava)
-    measurement_callback = MeasureCallback(callback)
-    ava.measure_callback(-2, measurement_callback)
     
-    # Run the whole sequence only once    
-    DMD.Run(loop=False)
+    if loop == False:
+        #spectro.register_callback(-2,acquisition_params.pattern_amount,pixel_amount)
+        callback = register_callback(measurement_time, timestamps, 
+                                     spectral_data, ava)
+        measurement_callback = MeasureCallback(callback)
+        ava.measure_callback(-2, measurement_callback)
+    else:
+        ava.measure(-1)
+    
+       
+    DMD.Run(loop=loop) # if loop=False : Run the whole sequence only once, if loop=True : Run continuously one pattern 
     start_measurement_time = perf_counter_ns()
-    #sleep(13)
-    while(True):
-        if(spectrum_index >= acquisition_params.pattern_amount):
-            break
-        elif((perf_counter_ns() - start_measurement_time) / 1e+6 > 
-            (2 * acquisition_params.pattern_amount * 
-            DMD_params.picture_time_us / 1e+3)):
-            print('Stopping measurement. One of the equipments may be blocked '
-            'or disconnected.')
-            break
-        else:
-            sleep(acquisition_params.pattern_amount *
-            DMD_params.picture_time_us / 1e+6 / 10)
+    
+    if loop == False:
+        while(True):
+            if(spectrum_index >= acquisition_params.pattern_amount) and loop == False:
+                break
+            elif((perf_counter_ns() - start_measurement_time) / 1e+6 > 
+                (2 * acquisition_params.pattern_amount * 
+                DMD_params.picture_time_us / 1e+3)) and loop == False:
+                print('Stopping measurement. One of the equipments may be blocked '
+                'or disconnected.')
+                break
+            else:
+                sleep(acquisition_params.pattern_amount *
+                DMD_params.picture_time_us / 1e+6 / 10)
+        DMD.Halt()
+    else:                
+        sleep(1)
+        
+        timestamp, spectrum = ava.get_data()
+        spectral_data_1 = (np.ctypeslib.as_array(spectrum[0:pixel_amount]))
+        
+        get_ipython().run_line_magic('matplotlib', 'qt')
+        plt.ion() # create GUI
+        figure, ax = plt.subplots(figsize=(10, 8))
+        line1, = ax.plot(acquisition_params.wavelengths, spectral_data_1)
+
+        plt.title("Tune the Spectrometer", fontsize=20)
+        plt.xlabel("Lambda (nm)")
+        plt.ylabel("counts")
+        plt.xticks(fontsize=14)
+        plt.yticks(fontsize=14)
+        plt.grid()
+        printed = False
+        while(True):
+            try:                
+                # sleep(0.01)
+
+                timestamp, spectrum = ava.get_data()
+                spectral_data_1 = (np.ctypeslib.as_array(spectrum[0:pixel_amount]))
+
+                line1.set_xdata(acquisition_params.wavelengths)
+                line1.set_ydata(spectral_data_1) # updating data values
+
+                figure.canvas.draw() # drawing updated values
+                figure.canvas.flush_events() # flush prior plot
+                
+                if not printed:
+                    print('Press "Ctrl + c" to exit')                       
+                    if np.amax(spectral_data_1) >= 65535:
+                        print('!!!!!!!!!! Saturation detected in the spectro !!!!!!!!!!')
+                    printed = True
+            
+            except KeyboardInterrupt:
+                if (DMD.Seqs):
+                    DMD.Halt()
+                    DMD.FreeSeq()
+                plt.close()
+                get_ipython().run_line_magic('matplotlib', 'inline')
+                break
+        
+            
+
 
     ava.stop_measure()
-    DMD.Halt()
+    
 
     AcquisitionResult = namedtuple('AcquisitionResult', [
         'spectral_data', 
@@ -1210,6 +1413,8 @@ def acquire(ava: Avantes,
                 Units in milliseconds.
     """
 
+    loop = False # if true, is to projet continuously a unique pattern to tune the spectrometer
+
     if reconstruct == True:
         print('Creating reconstruction processes')
 
@@ -1259,7 +1464,7 @@ def acquire(ava: Avantes,
             print(f"Acquisition {repetition}")
 
         AcquisitionResults = _acquire_raw(ava, DMD, spectrometer_params, 
-            DMD_params, acquisition_params)
+            DMD_params, acquisition_params, loop)
     
         (data, spectrum_index, timestamp, time,
             start_measurement_time, saturation_detected) = AcquisitionResults
@@ -1311,7 +1516,7 @@ def acquire(ava: Avantes,
     print('Spectra acquired: {}'.format(
         acquisition_params.acquired_spectra))
     if acquisition_params.saturation_detected is True:
-        print('Saturation detected!')
+        print('!!!!!!!!!! Saturation detected in the spectro !!!!!!!!!!')
     print('Mean callback acquisition time: {} ms'.format(
         acquisition_params.mean_callback_acquisition_time_ms))
     print('Total callback acquisition time: {} s'.format(
@@ -1334,8 +1539,184 @@ def acquire(ava: Avantes,
         queue_to_recon.close()
         plot_process.join()
         queue_reconstructed.close()
+        
+    maxi = np.amax(spectral_data[0,:])
+    print('------------------------------------------------')
+    print('maximum in the spectrum = ' + str(maxi))
+    print('------------------------------------------------')
+    if maxi >= 65535:
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('!!!!! warning, spectrum saturation !!!!!!!!')
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
     return spectral_data
+
+def setup_tuneSpectro(spectrometer, 
+                      DMD, 
+                      DMD_initial_memory,
+                      pattern_to_display, 
+                      ti : float = 1, 
+                      zoom : int = 1,
+                      xw_offset: int = 128,
+                      yh_offset: int = 0):
+    """ Setup the hadrware to tune the spectrometer in live. The goal is to find 
+    the integration time of the spectrometer, noise is around 700 counts, 
+    saturation is equak to 2**16=65535
+    
+    Args:
+        spectrometer (Avantes):
+            Connected spectrometer (Avantes object).
+        DMD (ALP4):
+            Connected DMD.
+        DMD_initial_memory (int):
+            Initial memory available in DMD after initialization.
+        metadata (MetaData):
+            Metadata concerning the experiment, paths, file inputs and file 
+            outputs. Must be created and filled up by the user.
+        acquisition_params (AcquisitionParameters):
+            Acquisition related metadata object. User must partially fill up
+            with pattern_compression, pattern_dimension_x, pattern_dimension_y.
+        pattern_to_display (string):
+            display one pattern on the DMD to tune the spectrometer. Default is 
+            white pattern
+        ti (float):
+            The integration time of the spectrometer during one scan in miliseconds. 
+            Default is 1 ms.
+        zoom (int):
+            digital zoom on the DMD. Default is 1
+            
+    return:
+        metadata (MetaData):
+            Metadata concerning the experiment, paths, file inputs and file 
+            outputs. Must be created and filled up by the user.
+        spectrometer_params (SpectrometerParameters): 
+            Spectrometer metadata object with spectrometer configurations.
+        DMD_params (DMDParameters):
+            DMD metadata object with DMD configurations.
+    """
+    
+    data_folder_name = 'Tune'
+    data_name = 'test'
+    # all_path = func_path(data_folder_name, data_name)
+
+    scan_mode   = 'Walsh'
+    Np          = 64
+    source      = ''
+    object_name = ''
+
+    metadata = MetaData(
+        output_directory     = '',#all_path.subfolder_path,
+        pattern_order_source = 'C:/openspyrit/spas/stats/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz',
+        pattern_source       = 'C:/openspyrit/spas/Patterns/Zoom_x' + str(zoom) + '/' + scan_mode + '_' + str(Np) + 'x' + str(Np),
+        pattern_prefix       = scan_mode + '_' + str(Np) + 'x' + str(Np),
+        experiment_name      = data_name,
+        light_source         = source,
+        object               = object_name,
+        filter               = '', 
+        description          = ''
+                        )
+        
+    acquisition_parameters = AcquisitionParameters(
+        pattern_compression = 1,
+        pattern_dimension_x = 1,
+        pattern_dimension_y = 1,
+        zoom                = zoom,
+        xw_offset           = xw_offset,
+        yh_offset           = yh_offset            )
+    
+    acquisition_parameters.pattern_amount = 1
+        
+    spectrometer_params, DMD_params = setup(
+        spectrometer       = spectrometer, 
+        DMD                = DMD,
+        DMD_initial_memory = DMD_initial_memory,
+        metadata           = metadata, 
+        acquisition_params = acquisition_parameters,
+        pattern_to_display = pattern_to_display,
+        integration_time   = ti,           
+        loop = True                         )
+    
+    return metadata, spectrometer_params, DMD_params, acquisition_parameters
+
+def displaySpectro(ava: Avantes, 
+            DMD: ALP4,
+            metadata: MetaData, 
+            spectrometer_params: SpectrometerParameters, 
+            DMD_params: DMDParameters, 
+            acquisition_params: AcquisitionParameters,
+            reconstruction_params: ReconstructionParameters = None
+            ):
+    """Perform a continousely acquisition on the spectrometer for optical tuning.
+
+    Send a pattern on the DMD to project light on the spectrometer. The goal is 
+    to have a look on the amplitude of the spectrum to tune the illumination to
+    avoid saturation (sat >= 65535) and noisy signal (amp <= 650).
+
+    Args:
+        ava (Avantes): 
+            Connected spectrometer (Avantes object).
+        DMD (ALP4): 
+            Connected DMD.
+        metadata (MetaData): 
+            Metadata concerning the experiment, paths, file inputs and file 
+            outputs. Must be created and filled up by the user.
+        spectrometer_params (SpectrometerParameters): 
+            Spectrometer metadata object with spectrometer configurations.
+        DMD_params (DMDParameters):
+            DMD metadata object with DMD configurations.
+        acquisition_params (AcquisitionParameters): 
+            Acquisition related metadata object.
+        wavelengths (List[float]): 
+            List of float corresponding to the wavelengths associated with
+            spectrometer's start and stop pixels.
+        reconstruction_params (ReconstructionParameters):
+            Object containing parameters of the neural network to be loaded for
+            reconstruction.
+    """
+    
+    loop = True # is to project continuously a unique pattern to tune the spectrometer
+    
+    pixel_amount = (spectrometer_params.stop_pixel - 
+                    spectrometer_params.start_pixel + 1)
+    # measurement_time = np.zeros(
+    #     (acquisition_params.pattern_amount))
+    # timestamps = np.zeros(
+    #     ((acquisition_params.pattern_amount - 1)), 
+    #     dtype=np.float32)
+    spectral_data = np.zeros(
+        (acquisition_params.pattern_amount,pixel_amount),
+        dtype=np.float64)
+
+    acquisition_params.acquired_spectra = 0
+
+    AcquisitionResults = _acquire_raw(ava, DMD, spectrometer_params, 
+        DMD_params, acquisition_params, loop)
+
+    (data, spectrum_index, timestamp, time,
+        start_measurement_time, saturation_detected) = AcquisitionResults
+
+
+    time, timestamp = _calculate_elapsed_time(
+        start_measurement_time, time, timestamp)
+
+    begin = acquisition_params.pattern_amount
+    end = 2 * acquisition_params.pattern_amount
+    spectral_data[begin:end] = data
+    # measurement_time[begin:end] = time
+
+    # begin = (acquisition_params.pattern_amount - 1)
+    # end = 2 * (acquisition_params.pattern_amount - 1)
+    # timestamps[begin:end] = timestamp
+
+    acquisition_params.acquired_spectra += spectrum_index
+
+    acquisition_params.saturation_detected = saturation_detected
+
+
+
+    # acquisition_params.update_timings(timestamps, measurement_time)
+    # Real time between each spectrum acquisition by the spectrometer
+
 
 def check_ueye(func, *args, exp=0, raise_exc=True, txt=None):
     ret = func(*args)
@@ -1449,6 +1830,8 @@ def prepareCam(camPar, metadata):
         nRet = ueye_tools.isavi_OpenAVI(camPar.avi, strFileName)
         if nRet != ueye_tools.IS_AVI_NO_ERR:
             print("isavi_OpenAVI ERROR")
+            print('Error code = ' + str(nRet))
+            print('Certainly, it is a problem with the file name, Avoid special character like "µ" or try to redcue its size')
         
         nRet = ueye_tools.isavi_SetFrameRate(camPar.avi, camPar.fps)
         if nRet != ueye_tools.IS_AVI_NO_ERR:
@@ -1892,6 +2275,8 @@ def acquire_2arms(ava: Avantes,
     # delete acquisition with black pattern (white for the camera)
     if camPar.insert_patterns == 1:
         black_pattern_index = np.where(acquisition_params.patterns_wp == -1)
+        # print('index of white patterns :')
+        # print(black_pattern_index[0:38])
         if acquisition_params.patterns_wp.shape == acquisition_params.patterns.shape:
             acquisition_params.patterns = np.delete(acquisition_params.patterns, black_pattern_index)
         spectral_data = np.delete(spectral_data, black_pattern_index, axis = 0)
@@ -1909,6 +2294,15 @@ def acquire_2arms(ava: Avantes,
         queue_to_recon.close()
         plot_process.join()
         queue_reconstructed.close()
+        
+    maxi = np.amax(spectral_data[0,:])
+    print('------------------------------------------------')
+    print('maximum in the spectrum = ' + str(maxi))
+    print('------------------------------------------------')
+    if maxi >= 65535:
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('!!!!! warning, spectrum saturation !!!!!!!!')
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
     return spectral_data
 
@@ -2256,283 +2650,229 @@ def setup_cam(camPar, pixelClock, fps, Gain, gain_boost, nGamma, ExposureTime, b
     returns:
         CAM: a structure containing the parameters of the IDS camera
     """
-     # It is necessary to execute twice this code to take account the parameter modification
-    ############################### Set Pixel Clock ###############################
-    ### Get range of pixel clock, result : range = [118 474] MHz (Inc = 0)
-    getpixelclock = ueye.UINT(0)
-    newpixelclock = ueye.UINT(0)
-    newpixelclock.value = pixelClock
-    PixelClockRange = (ueye.int * 3)()
-
-    # Get pixel clock range
-    nRet = ueye.is_PixelClock(camPar.hCam, ueye.IS_PIXELCLOCK_CMD_GET_RANGE, PixelClockRange, ueye.sizeof(PixelClockRange))
-    if nRet == ueye.IS_SUCCESS:
-        nPixelClockMin = PixelClockRange[0]
-        nPixelClockMax = PixelClockRange[1]
-        nPixelClockInc = PixelClockRange[2]
-
-    # Set pixel clock
-    check_ueye(ueye.is_PixelClock, camPar.hCam, ueye.PIXELCLOCK_CMD.IS_PIXELCLOCK_CMD_SET, newpixelclock,
-               ueye.sizeof(newpixelclock))
-    # Get current pixel clock
-    check_ueye(ueye.is_PixelClock, camPar.hCam, ueye.PIXELCLOCK_CMD.IS_PIXELCLOCK_CMD_GET, getpixelclock,
-               ueye.sizeof(getpixelclock))
+    # It is necessary to execute twice this code to take account the parameter modification
+    for i in range(2): 
+        ############################### Set Pixel Clock ###############################
+        ### Get range of pixel clock, result : range = [118 474] MHz (Inc = 0)
+        getpixelclock = ueye.UINT(0)
+        newpixelclock = ueye.UINT(0)
+        newpixelclock.value = pixelClock
+        PixelClockRange = (ueye.int * 3)()
     
-    camPar.pixelClock = getpixelclock.value
+        # Get pixel clock range
+        nRet = ueye.is_PixelClock(camPar.hCam, ueye.IS_PIXELCLOCK_CMD_GET_RANGE, PixelClockRange, ueye.sizeof(PixelClockRange))
+        if nRet == ueye.IS_SUCCESS:
+            nPixelClockMin = PixelClockRange[0]
+            nPixelClockMax = PixelClockRange[1]
+            nPixelClockInc = PixelClockRange[2]
     
-    print('            pixel clock = ' + str(getpixelclock) + ' MHz')
-    if getpixelclock == 118:
-        print('Pixel clcok blocked to 118 MHz, it is necessary to unplug the camera if not desired')
-    # get the bandwidth (in MByte/s)
-    camPar.bandwidth = ueye.is_GetUsedBandwidth(camPar.hCam)
-    
-    print('              Bandwidth = ' + str(camPar.bandwidth) + ' MB/s')
-    ############################### Set FrameRate #################################
-    ### Read current FrameRate
-    dblFPS_init = ueye.c_double()
-    nRet = ueye.is_GetFramesPerSecond(camPar.hCam, dblFPS_init)
-    if nRet != ueye.IS_SUCCESS:
-        print("FrameRate getting ERROR")
-    else:
-        dblFPS_eff = dblFPS_init
-        print('            current FPS = '+str(round(dblFPS_init.value*100)/100) + ' fps')
-
-        ### Set new FrameRate
-        # if fps > 17.771:    # maximum value depends of the AOI size, pixel clock etc....
-        #     fps = 17.771
-        #     print('FPS exceed upper limit <= 17.771')
-        if fps < 1:
-            fps = 1
-            print('FPS exceed lower limit >= 1')
-            
-        dblFPS = ueye.c_double(fps)  
-        if (dblFPS.value < dblFPS_init.value-0.01) | (dblFPS.value > dblFPS_init.value+0.01):
-            newFPS = ueye.c_double()
-            nRet = ueye.is_SetFrameRate(camPar.hCam, dblFPS, newFPS)
-            time.sleep(1)
-            if nRet != ueye.IS_SUCCESS:
-                print("FrameRate setting ERROR")
-            else:
-                print('                new FPS = '+str(round(newFPS.value*100)/100) + ' fps')
-                ### Read again the effective FPS / depend of the image size, 17.7 fps is not possible with the entire image size (ie 2076x3088)
-                dblFPS_eff = ueye.c_double() 
-                nRet = ueye.is_GetFramesPerSecond(camPar.hCam, dblFPS_eff)
-                if nRet != ueye.IS_SUCCESS:
-                    print("FrameRate getting ERROR")
-                else:                
-                    print('          effective FPS = '+str(round(dblFPS_eff.value*100)/100) + ' fps')
-    ############################### Set GAIN ######################################
-    #### Read maximum value of the Gain depending of the sensor type
-    # gain_max_c = ueye.c_int(100)
-    # gain_max_code = ueye.is_SetHWGainFactor(camPar.hCam, ueye.IS_INQUIRE_MASTER_GAIN_FACTOR, gain_max_c)
-    # if nRet == ueye.IS_SUCCESS:
-    #     print('current GAIN = '+str(gain_max_code))
-    # else:
-    #     print('Error to get GAIN')
-
-    #### Maximum gain is depending of the sensor. Convertion gain code to gain to limit values from 0 to 100
-    # gain_code = gain * slope + b
-    gain_max_code = 1450
-    gain_min_code = 100
-    gain_max = 100
-    gain_min = 0
-    slope = (gain_max_code-gain_min_code)/(gain_max-gain_min)
-    b = gain_min_code
-    #### Read gain setting
-    current_gain_code = ueye.c_int()
-    current_gain_code = ueye.is_SetHWGainFactor(camPar.hCam, ueye.IS_GET_MASTER_GAIN_FACTOR, current_gain_code)
-    current_gain = round((current_gain_code-b)/slope) 
-    
-    print('           current GAIN = '+str(current_gain))    
-    gain_eff = current_gain
-    
-    ### Set new gain value
-    gain = ueye.c_int(Gain)
-    if gain.value != current_gain:
-        if gain.value < 0:
-            gain = ueye.c_int(0)
-            print('Gain exceed lower limit >= 0')
-        elif gain.value > 100:
-            gain = ueye.c_int(100)
-            print('Gain exceed upper limit <= 100')
-        gain_code = ueye.c_int(round(slope*gain.value+b))
+        # Set pixel clock
+        check_ueye(ueye.is_PixelClock, camPar.hCam, ueye.PIXELCLOCK_CMD.IS_PIXELCLOCK_CMD_SET, newpixelclock,
+                   ueye.sizeof(newpixelclock))
+        # Get current pixel clock
+        check_ueye(ueye.is_PixelClock, camPar.hCam, ueye.PIXELCLOCK_CMD.IS_PIXELCLOCK_CMD_GET, getpixelclock,
+                   ueye.sizeof(getpixelclock))
         
-        ueye.is_SetHWGainFactor(camPar.hCam, ueye.IS_SET_MASTER_GAIN_FACTOR, gain_code)
-        new_gain = round((gain_code-b)/slope)
-        
-        print('               new GAIN = '+str(new_gain))
-        gain_eff = new_gain
-    ############################### Set GAIN Boost ################################
-    ### Read current state of the gain boost
-    current_gain_boost_bool = ueye.is_SetGainBoost(camPar.hCam, ueye.IS_GET_GAINBOOST)
-    if nRet != ueye.IS_SUCCESS:
-        print("Gain boost ERROR")   
-    if current_gain_boost_bool == 0:
-        current_gain_boost = 'OFF'
-    elif current_gain_boost_bool == 1:
-        current_gain_boost = 'ON'
-    
-    print('current Gain boost mode = ' + current_gain_boost)
-
-    ### Set the state of the gain boost
-    if gain_boost != current_gain_boost: 
-        if gain_boost == 'OFF':
-            nRet = ueye.is_SetGainBoost (camPar.hCam, ueye.IS_SET_GAINBOOST_OFF)                
-            print('         new Gain Boost : OFF')
-            
-        elif gain_boost == 'ON':
-            nRet = ueye.is_SetGainBoost (camPar.hCam, ueye.IS_SET_GAINBOOST_ON)                
-            print('         new Gain Boost : ON')
+        camPar.pixelClock = getpixelclock.value
+        if i == 1:
+            print('            pixel clock = ' + str(getpixelclock) + ' MHz')
+        if getpixelclock == 118:
+            if i == 1:
+                print('Pixel clcok blocked to 118 MHz, it is necessary to unplug the camera if not desired')
+        # get the bandwidth (in MByte/s)
+        camPar.bandwidth = ueye.is_GetUsedBandwidth(camPar.hCam)
+        if i == 1:
+            print('              Bandwidth = ' + str(camPar.bandwidth) + ' MB/s')
+        ############################### Set FrameRate #################################
+        ### Read current FrameRate
+        dblFPS_init = ueye.c_double()
+        nRet = ueye.is_GetFramesPerSecond(camPar.hCam, dblFPS_init)
+        if nRet != ueye.IS_SUCCESS:
+            print("FrameRate getting ERROR")
+        else:
+            dblFPS_eff = dblFPS_init
+            if i == 1:
+                print('            current FPS = '+str(round(dblFPS_init.value*100)/100) + ' fps')
+            if fps < 1:
+                fps = 1
+                if i == 1:
+                    print('FPS exceed lower limit >= 1')
                 
-        if nRet != ueye.IS_SUCCESS:
-            print("Gain boost setting ERROR")          
-    ############################### Set Gamma #####################################
-    ### Check boundary of Gamma
-    if nGamma > 2.2:
-        nGamma = 2.2
-        print('Gamma exceed upper limit <= 2.2')
-    elif nGamma < 1:
-        nGamma = 1
-        print('Gamma exceed lower limit >= 1')
-    ### Read current Gamma    
-    c_nGamma_init = ueye.c_void_p() 
-    sizeOfnGamma = ueye.c_uint(4)    
-    nRet = ueye.is_Gamma(camPar.hCam, ueye.IS_GAMMA_CMD_GET, c_nGamma_init, sizeOfnGamma)
-    if nRet != ueye.IS_SUCCESS:
-        print("Gamma getting ERROR") 
-    else:
-        print('          current Gamma = ' + str(c_nGamma_init.value/100))
-    ### Set Gamma
-        c_nGamma = ueye.c_void_p(round(nGamma*100)) # need to multiply by 100 [100 - 220]
-        if c_nGamma_init.value != c_nGamma.value:
-            nRet = ueye.is_Gamma(camPar.hCam, ueye.IS_GAMMA_CMD_SET, c_nGamma, sizeOfnGamma)
-            if nRet != ueye.IS_SUCCESS:
-                print("Gamma setting ERROR") 
-            else:
-                print('              new Gamma = '+str(c_nGamma.value/100))
-    ############################### Set Exposure time #############################
-    ### Read current Exposure Time
-    getExposure = ueye.c_double()
-    sizeOfpParam = ueye.c_uint(8)   
-    nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_GET_EXPOSURE, getExposure, sizeOfpParam)
-    if nRet == ueye.IS_SUCCESS:
-        getExposure.value = round(getExposure.value*1000)/1000
+            dblFPS = ueye.c_double(fps)  
+            if (dblFPS.value < dblFPS_init.value-0.01) | (dblFPS.value > dblFPS_init.value+0.01):
+                newFPS = ueye.c_double()
+                nRet = ueye.is_SetFrameRate(camPar.hCam, dblFPS, newFPS)
+                time.sleep(1)
+                if nRet != ueye.IS_SUCCESS:
+                    print("FrameRate setting ERROR")
+                else:
+                    if i == 1:
+                        print('                new FPS = '+str(round(newFPS.value*100)/100) + ' fps')
+                    ### Read again the effective FPS / depend of the image size, 17.7 fps is not possible with the entire image size (ie 2076x3088)
+                    dblFPS_eff = ueye.c_double() 
+                    nRet = ueye.is_GetFramesPerSecond(camPar.hCam, dblFPS_eff)
+                    if nRet != ueye.IS_SUCCESS:
+                        print("FrameRate getting ERROR")
+                    else:       
+                        if i == 1:
+                            print('          effective FPS = '+str(round(dblFPS_eff.value*100)/100) + ' fps')
+        ############################### Set GAIN ######################################
+        #### Maximum gain is depending of the sensor. Convertion gain code to gain to limit values from 0 to 100
+        # gain_code = gain * slope + b
+        gain_max_code = 1450
+        gain_min_code = 100
+        gain_max = 100
+        gain_min = 0
+        slope = (gain_max_code-gain_min_code)/(gain_max-gain_min)
+        b = gain_min_code
+        #### Read gain setting
+        current_gain_code = ueye.c_int()
+        current_gain_code = ueye.is_SetHWGainFactor(camPar.hCam, ueye.IS_GET_MASTER_GAIN_FACTOR, current_gain_code)
+        current_gain = round((current_gain_code-b)/slope) 
         
-        print('  current Exposure Time = ' + str(getExposure.value) + ' ms')
-    ### Get minimum Exposure Time
-    minExposure = ueye.c_double()
-    nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_GET_EXPOSURE_RANGE_MIN, minExposure, sizeOfpParam)
-    # if nRet == ueye.IS_SUCCESS:
-        # print('MIN Exposure Time = ' + str(minExposure.value))
-    ### Get maximum Exposure Time
-    maxExposure = ueye.c_double()
-    nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_GET_EXPOSURE_RANGE_MAX, maxExposure, sizeOfpParam)
-    # if nRet == ueye.IS_SUCCESS:
-        # print('MAX Exposure Time = ' + str(maxExposure.value))
-    ### Get increment Exposure Time
-    incExposure = ueye.c_double()
-    nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_GET_EXPOSURE_RANGE_INC, incExposure, sizeOfpParam)
-    # if nRet == ueye.IS_SUCCESS:
-        # print('INC Exposure Time = ' + str(incExposure.value))
-    ### Set new Exposure Time
-    setExposure = ueye.c_double(ExposureTime)
-    if setExposure.value > maxExposure.value:
-       setExposure.value = maxExposure.value 
-       print('Exposure Time exceed upper limit <= ' + str(maxExposure.value))
-    elif setExposure.value < minExposure.value:
-       setExposure.value = minExposure.value
-       print('Exposure Time exceed lower limit >= ' + str(minExposure.value))
-
-    if (setExposure.value < getExposure.value-incExposure.value/2) | (setExposure.value > getExposure.value+incExposure.value/2):   
-        nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_SET_EXPOSURE, setExposure, sizeOfpParam)
-        if nRet != ueye.IS_SUCCESS:
-            print("Exposure Time ERROR")
-        else:
-            print('      new Exposure Time = ' + str(round(setExposure.value*1000)/1000) + ' ms')
-    ############################### Set Black Level ###############################
-    # nMode = ueye.IS_AUTO_BLACKLEVEL_OFF
-    # nRet = ueye.is_Blacklevel(camPar.hCam, ueye.IS_BLACKLEVEL_CMD_GET_MODE, nMode
-
-    current_black_level_c = ueye.c_uint()      
-    sizeOfBlack_level = ueye.c_uint(4)
-    #nRet = ueye.is_Blacklevel(camPar.hCam, ueye.IS_BLACKLEVEL_CMD_GET_OFFSET_DEFAULT, current_black_level_c, sizeOfBlack_level)
-
-    ### Read current Black Level
-    nRet = ueye.is_Blacklevel(camPar.hCam, ueye.IS_BLACKLEVEL_CMD_GET_OFFSET, current_black_level_c, sizeOfBlack_level)
-    if nRet != ueye.IS_SUCCESS:
-        print("Black Level getting ERROR")
-    else:
-        print('    current Black Level = ' + str(current_black_level_c.value))
+        if i == 1:
+            print('           current GAIN = '+str(current_gain))    
+        gain_eff = current_gain
         
-    ### Set Black Level 
-    if black_level > 255:
-        black_level = 255
-        print('Black Level exceed upper limit <= 255')
-    if black_level < 0:
-        black_level = 0
-        print('Black Level exceed lower limit >= 0')
-        
-    black_level_c = ueye.c_uint(black_level)
-    if black_level != current_black_level_c.value  :            
-        nRet = ueye.is_Blacklevel(camPar.hCam, ueye.IS_BLACKLEVEL_CMD_SET_OFFSET, black_level_c, sizeOfBlack_level)
-        if nRet != ueye.IS_SUCCESS:
-            print("Black Level setting ERROR")
-        else:
-            print('        new Black Level = ' + str(black_level_c.value))
+        ### Set new gain value
+        gain = ueye.c_int(Gain)
+        if gain.value != current_gain:
+            if gain.value < 0:
+                gain = ueye.c_int(0)
+                if i == 1:
+                    print('Gain exceed lower limit >= 0')
+            elif gain.value > 100:
+                gain = ueye.c_int(100)
+                if i == 1:
+                    print('Gain exceed upper limit <= 100')
+            gain_code = ueye.c_int(round(slope*gain.value+b))
             
-
-    # pParam = ueye.c_void_p()
-    # nRet = ueye.is_DeviceFeature(camPar.hCam, ueye.IS_DEVICE_FEATURE_CMD_GET_SHUTTER_MODE, pParam, ueye.sizeof(pParam))
-    # print('nRet = ' + str(nRet))
-    # print('shutter mode : ' + str(pParam.value))
+            ueye.is_SetHWGainFactor(camPar.hCam, ueye.IS_SET_MASTER_GAIN_FACTOR, gain_code)
+            new_gain = round((gain_code-b)/slope)
+            
+            if i == 1:
+                print('               new GAIN = '+str(new_gain))
+            gain_eff = new_gain
+        ############################### Set GAIN Boost ################################
+        ### Read current state of the gain boost
+        current_gain_boost_bool = ueye.is_SetGainBoost(camPar.hCam, ueye.IS_GET_GAINBOOST)
+        if nRet != ueye.IS_SUCCESS:
+            print("Gain boost ERROR")   
+        if current_gain_boost_bool == 0:
+            current_gain_boost = 'OFF'
+        elif current_gain_boost_bool == 1:
+            current_gain_boost = 'ON'
+        
+        if i == 1:
+            print('current Gain boost mode = ' + current_gain_boost)
     
-    # nShutterMode = ueye.c_uint(ueye.IS_DEVICE_FEATURE_CAP_SHUTTER_MODE_ROLLING)
-    # nRet = ueye.is_DeviceFeature(camPar.hCam, ueye.IS_DEVICE_FEATURE_CMD_SET_SHUTTER_MODE, nShutterMode, 
-    #                         ueye.sizeof(nShutterMode))
-    # print('shutter mode = ' + str(nShutterMode.value) + ' / enable : ' + str(nRet))
+        ### Set the state of the gain boost
+        if gain_boost != current_gain_boost: 
+            if gain_boost == 'OFF':
+                nRet = ueye.is_SetGainBoost (camPar.hCam, ueye.IS_SET_GAINBOOST_OFF)                
+                print('         new Gain Boost : OFF')
+                
+            elif gain_boost == 'ON':
+                nRet = ueye.is_SetGainBoost (camPar.hCam, ueye.IS_SET_GAINBOOST_ON)                
+                print('         new Gain Boost : ON')
+                    
+            if nRet != ueye.IS_SUCCESS:
+                print("Gain boost setting ERROR")          
+        ############################### Set Gamma #####################################
+        ### Check boundary of Gamma
+        if nGamma > 2.2:
+            nGamma = 2.2
+            if i == 1:
+                print('Gamma exceed upper limit <= 2.2')
+        elif nGamma < 1:
+            nGamma = 1
+            if i == 1:
+                print('Gamma exceed lower limit >= 1')
+        ### Read current Gamma    
+        c_nGamma_init = ueye.c_void_p() 
+        sizeOfnGamma = ueye.c_uint(4)    
+        nRet = ueye.is_Gamma(camPar.hCam, ueye.IS_GAMMA_CMD_GET, c_nGamma_init, sizeOfnGamma)
+        if nRet != ueye.IS_SUCCESS:
+            print("Gamma getting ERROR") 
+        else:
+            if i == 1:
+                print('          current Gamma = ' + str(c_nGamma_init.value/100))
+        ### Set Gamma
+            c_nGamma = ueye.c_void_p(round(nGamma*100)) # need to multiply by 100 [100 - 220]
+            if c_nGamma_init.value != c_nGamma.value:
+                nRet = ueye.is_Gamma(camPar.hCam, ueye.IS_GAMMA_CMD_SET, c_nGamma, sizeOfnGamma)
+                if nRet != ueye.IS_SUCCESS:
+                    print("Gamma setting ERROR") 
+                else:
+                    if i == 1:
+                        print('              new Gamma = '+str(c_nGamma.value/100))
+        ############################### Set Exposure time #############################
+        ### Read current Exposure Time
+        getExposure = ueye.c_double()
+        sizeOfpParam = ueye.c_uint(8)   
+        nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_GET_EXPOSURE, getExposure, sizeOfpParam)
+        if nRet == ueye.IS_SUCCESS:
+            getExposure.value = round(getExposure.value*1000)/1000
+            
+            if i == 1:
+                print('  current Exposure Time = ' + str(getExposure.value) + ' ms')
+        ### Get minimum Exposure Time
+        minExposure = ueye.c_double()
+        nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_GET_EXPOSURE_RANGE_MIN, minExposure, sizeOfpParam)
+        ### Get maximum Exposure Time
+        maxExposure = ueye.c_double()
+        nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_GET_EXPOSURE_RANGE_MAX, maxExposure, sizeOfpParam)
+        ### Get increment Exposure Time
+        incExposure = ueye.c_double()
+        nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_GET_EXPOSURE_RANGE_INC, incExposure, sizeOfpParam)
+        ### Set new Exposure Time
+        setExposure = ueye.c_double(ExposureTime)
+        if setExposure.value > maxExposure.value:
+           setExposure.value = maxExposure.value 
+           if i == 1:
+               print('Exposure Time exceed upper limit <= ' + str(maxExposure.value))
+        elif setExposure.value < minExposure.value:
+           setExposure.value = minExposure.value
+           if i == 1:
+               print('Exposure Time exceed lower limit >= ' + str(minExposure.value))
     
-    # nShutterMode = ueye.c_uint(ueye.IS_DEVICE_FEATURE_CAP_SHUTTER_MODE_ROLLING_GLOBAL_START)
-    # nRet = ueye.is_DeviceFeature(camPar.hCam, ueye.IS_DEVICE_FEATURE_CMD_SET_SHUTTER_MODE, nShutterMode, 
-    #                         ueye.sizeof(nShutterMode))
-    # print('shutter mode = ' + str(nShutterMode.value) + ' / enable : ' + str(nRet))
-    
-    # # Read the global flash params
-    # flashParams = ueye.IO_FLASH_PARAMS()
-    # nRet = ueye.is_IO(camPar.hCam, ueye.IS_IO_CMD_FLASH_GET_PARAMS, flashParams, ueye.sizeof(flashParams))
-    # if (nRet == ueye.IS_SUCCESS):
-    #     nDelay   = flashParams.s32Delay
-    #     print('nDelay = ' + str(nDelay.value))
-    #     nDuration = flashParams.u32Duration
-    #     print('nDuration = ' + str(nDuration.value))
-
-    # nRet = ueye.is_IO(camPar.hCam, ueye.IS_IO_CMD_FLASH_GET_PARAMS_MIN, flashParams, ueye.sizeof(flashParams))    
-    # print('nDelay_min = ' + str(flashParams.s32Delay.value))
-    # print('nDuration_min = ' + str(flashParams.u32Duration.value))
-
-    # flashParams.s32Delay.value = 0
-    # flashParams.u32Duration.value = 40 
-    # # Apply the global flash params and set the flash params to these values
-    # nRet = ueye.is_IO(camPar.hCam, ueye.IS_IO_CMD_FLASH_SET_PARAMS, flashParams, ueye.sizeof(flashParams))
-    # print('nDelay = ' + str(flashParams.s32Delay.value))
-    # print('nDuration = ' + str(flashParams.u32Duration.value))
-    
-    # nRet = ueye.is_IO(camPar.hCam, ueye.IS_IO_CMD_FLASH_GET_PARAMS,
-    #                 flashParams, ueye.sizeof(flashParams))
-    # if (nRet == ueye.IS_SUCCESS):
-    #     nDelay   = flashParams.s32Delay
-    #     print('nDelay = ' + str(nDelay.value))
-    #     nDuration = flashParams.u32Duration
-    #     print('nDuration = ' + str(nDuration.value))
-    
-    # nShutterMode = ueye.c_uint(ueye.IS_DEVICE_FEATURE_CAP_SHUTTER_MODE_GLOBAL)
-    # nRet = ueye.is_DeviceFeature(camPar.hCam, ueye.IS_DEVICE_FEATURE_CMD_SET_SHUTTER_MODE, nShutterMode, 
-    #                         ueye.sizeof(nShutterMode))
-    # print('shutter mode = ' + str(nShutterMode.value) + ' / enable : ' + str(nRet))
-    
-    # nShutterMode = ueye.c_uint(ueye.IS_DEVICE_FEATURE_CAP_SHUTTER_MODE_GLOBAL_ALTERNATIVE_TIMING)
-    # nRet = ueye.is_DeviceFeature(camPar.hCam, ueye.IS_DEVICE_FEATURE_CMD_SET_SHUTTER_MODE, nShutterMode, 
-    #                         ueye.sizeof(nShutterMode))
-    # print('shutter mode = ' + str(nShutterMode.value) + ' / enable : ' + str(nRet))
+        if (setExposure.value < getExposure.value-incExposure.value/2) | (setExposure.value > getExposure.value+incExposure.value/2):   
+            nRet = ueye.is_Exposure(camPar.hCam, ueye.IS_EXPOSURE_CMD_SET_EXPOSURE, setExposure, sizeOfpParam)
+            if nRet != ueye.IS_SUCCESS:
+                print("Exposure Time ERROR")
+            else:
+                if i == 1:
+                    print('      new Exposure Time = ' + str(round(setExposure.value*1000)/1000) + ' ms')
+        ############################### Set Black Level ###############################
+        current_black_level_c = ueye.c_uint()      
+        sizeOfBlack_level = ueye.c_uint(4)    
+        ### Read current Black Level
+        nRet = ueye.is_Blacklevel(camPar.hCam, ueye.IS_BLACKLEVEL_CMD_GET_OFFSET, current_black_level_c, sizeOfBlack_level)
+        if nRet != ueye.IS_SUCCESS:
+            print("Black Level getting ERROR")
+        else:
+            if i == 1:
+                print('    current Black Level = ' + str(current_black_level_c.value))
+            
+        ### Set Black Level 
+        if black_level > 255:
+            black_level = 255
+            if i == 1:
+                print('Black Level exceed upper limit <= 255')
+        if black_level < 0:
+            black_level = 0
+            if i == 1:
+                print('Black Level exceed lower limit >= 0')
+            
+        black_level_c = ueye.c_uint(black_level)
+        if black_level != current_black_level_c.value  :            
+            nRet = ueye.is_Blacklevel(camPar.hCam, ueye.IS_BLACKLEVEL_CMD_SET_OFFSET, black_level_c, sizeOfBlack_level)
+            if nRet != ueye.IS_SUCCESS:
+                print("Black Level setting ERROR")
+            else:
+                if i == 1:
+                    print('        new Black Level = ' + str(black_level_c.value))
+            
     
     camPar.fps = round(dblFPS_eff.value*100)/100
     camPar.gain = gain_eff
@@ -2556,10 +2896,13 @@ def snapshot(camPar, pathIDSsnapshot, pathIDSsnapshot_overview):
     # ...reshape it in an numpy array...
     frame = np.reshape(array,(camPar.rectAOI.s32Height.value, camPar.rectAOI.s32Width.value))#, camPar.bytes_per_pixel))
     
-    with pathIDSsnapshot.open('ab') as f: #(pathname, mode='w', encoding='utf-8') as f: #('ab') as f:
+    with pathIDSsnapshot.open('wb') as f: #('ab') as f: #(pathname, mode='w', encoding='utf-8') as f: #('ab') as f:
         np.save(f,frame)
     
-    im = Image.fromarray(frame)
+    maxi = np.amax(frame)
+    if maxi == 0:
+        maxi = 1
+    im = Image.fromarray(frame*math.floor(255/maxi))
     im.save(pathIDSsnapshot_overview)
     
     maxi = np.amax(frame)

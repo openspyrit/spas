@@ -118,13 +118,22 @@ def setup_reconstruction(cov_path: str,
     net_arch = network_params.arch
     net_denoi = network_params.denoi
     net_data = network_params.data
-    if (network_params.img_size == 128) and (network_params.M == 4096):
-        net_order   = 'rect'
-    else:
-        net_order   = 'var'
+    # if (network_params.img_size == 128) and (network_params.M == 4096):
+    #     net_order   = 'rect'
+    # else:
+    #     net_order   = 'var'
+        
+    net_order = network_params.subs
     
-    bs = 256
+    if net_data == 'stl10':
+        bs = 1024
+    elif net_data == 'imagenet':
+        bs = 256
+        
     net_suffix  = f'N0_{network_params.N0}_N_{network_params.img_size}_M_{network_params.M}_epo_30_lr_0.001_sss_10_sdr_0.5_bs_{bs}_reg_1e-07_light'
+    # net_suffix  = f'N0_{network_params.N0}_N_{network_params.img_size}_M_{network_params.M}_epo_30_lr_0.001_sss_10_sdr_0.5_bs_{bs}_reg_1e-07'
+    # bs = 1024
+    # net_suffix  = f'N0_{network_params.N0}_N_{network_params.img_size}_M_{network_params.M}_epo_30_lr_0.001_sss_10_sdr_0.5_bs_{bs}_reg_1e-07_seed_0'
     
     net_folder= f'{net_arch}_{net_denoi}_{net_data}/'
     
@@ -162,7 +171,8 @@ def reorder_subsample(meas: np.ndarray,
             Acquisitions can be subsampled a posteriori, leadind to M_rec < M_acq
     """    
     # Dimensions (N.B: images are assumed to be square)
-    N_acq = acqui_param.pattern_dimension_x
+    # print("meas.shape = " + str(meas.shape[0]))
+    N_acq = acqui_param.pattern_dimension_x #int((meas.shape[0]/2)**0.5)#
     N_rec = recon_param.img_size
     N_wav = meas.shape[0]
     

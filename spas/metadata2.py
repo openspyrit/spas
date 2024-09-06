@@ -36,13 +36,6 @@ except: # in the cas the DLL of the spectrometer is not installed
     MeasConfigType =  None
     print('DLL of the spectrometer not installed !!!')
 
-##### DLL for the camera
-try:
-    from pyueye import ueye
-    dll_pyueye_installed = 1
-except:
-    dll_pyueye_installed = 0
-    print('DLL of the cam not installed !!')
 
 class DMDTypes(IntEnum):
     """Enumeration of DMD types and respective codes."""
@@ -57,7 +50,7 @@ class DMDTypes(IntEnum):
     ALP_DMDTYPE_WQXGA_480MHZ_090A = 9
     ALP_DMDTYPE_WXGA_S450 = 12
     ALP_DMDTYPE_DISCONNECT = 255
-    
+
 
 @dataclass_json
 @dataclass
@@ -123,8 +116,8 @@ class MetaData:
         """Sets time and date of object cretion and deals with paths"""
 
         today = datetime.today()
-        self.date = '--/--/----' #today.strftime('%d/%m/%Y')            
-        self.time = '--:--:--' #today.strftime('%I:%M:%S %p')
+        self.date = today.strftime('%d/%m/%Y')
+        self.time = today.strftime('%I:%M:%S %p')
 
         # If parameter is str, turn it into Path
         if isinstance(self.output_directory, str):
@@ -153,179 +146,6 @@ class MetaData:
 
 @dataclass_json
 @dataclass
-class CAM:
-    """Class containing IDS camera configurations.
-
-    Further information: https://en.ids-imaging.com/manuals/ids-software-suite/ueye-manual/4.95/en/c_programmierung.html.
-
-    Attributes: 
-        hCam (ueye.c_uint): Handle of the camera.
-        sInfo (ueye.SENSORINFO):sensor information : [SensorID [c_ushort] = 566;
-                                                      strSensorName [c_char_Array_32] = b'UI388xCP-M';
-                                                      nColorMode [c_char] = b'\x01';
-                                                      nMaxWidth [c_uint] = 3088;
-                                                      nMaxHeight [c_uint] = 2076;
-                                                      bMasterGain [c_int] = 1;
-                                                      bRGain [c_int] = 0;
-                                                      bGGain [c_int] = 0;
-                                                      bBGain [c_int] = 0;
-                                                      bGlobShutter [c_int] = 0;
-                                                      wPixelSize [c_ushort] = 240;
-                                                      nUpperLeftBayerPixel [c_char] = b'\x00';
-                                                      Reserved].
-        cInfo (ueye.BOARDINFO):Camera information: [SerNo [c_char_Array_12] = b'4103219888';
-                                                    ID [c_char_Array_20] = b'IDS GmbH';
-                                                    Version [c_char_Array_10] = b'';
-                                                    Date [c_char_Array_12] = b'30.11.2017';
-                                                    Select [c_ubyte] = 1;
-                                                    Type [c_ubyte] = 100;
-                                                    Reserved [c_char_Array_8] = b'';]                
-        nBitsPerPixel (ueye.c_int): number of bits per pixel (8 for monochrome, 24 for color).
-        m_nColorMode (ueye.c_int): color mode : Y8/RGB16/RGB24/REG32.
-        bytes_per_pixel (int): bytes_per_pixel = int(nBitsPerPixel / 8).
-        rectAOI (ueye.IS_RECT()): rectangle of the Area Of Interest (AOI):  s32X [c_int] = 0;
-                                                                            s32Y [c_int] = 0;
-                                                                            s32Width [c_int] = 3088;
-                                                                            s32Height [c_int] = 2076;                
-        pcImageMemory (ueye.c_mem_p()): memory allocation.
-        MemID (ueye.int()): memory identifier.
-        pitch (ueye.INT()): ???.
-        fps (float): set frame per second.
-        gain (int): Set gain between [0 - 100].
-        gainBoost (str): Activate gain boosting ("ON") or deactivate ("OFF").
-        gamma (float): Set Gamma between [1 - 2.5] to change the image contrast
-        exposureTime (float): Set the exposure time between [0.032 - 56.221]
-        blackLevel (int): Set the black level between [0 - 255] to set an offset in the image. It is adviced to put 5 for noise measurement
-        camActivated (bool) : need to to know if the camera is ready to acquire (1: yes, 0: No) 
-        pixelClock (int) : the pixel clock, three values possible : [118, 237, 474] (MHz)
-        bandwidth (float) the bandwidth (in MByte/s) is an approximate value which is calculated based on the pixel clock
-        Memory (bool) : a boolean to know if the memory inside the camera is busy [1] or free [0]
-        Exit (int) : if Exit = 2 => excute is_ExitCamera function (disables the hCam camera handle and releases the memory) | if Exit = 0 => allow to init cam, after that, Exit = 1
-        vidFormat (str) : save video in the format avi or bin (for binary)
-        gate_period (int) : a second TTL is sent by the DMD to trigg the camera, and based on the fisrt TTL to trigg the spectrometer. camera trigger period = gate_period*(spectrometer trigger period)
-        trigger_mode (str) : hard or soft
-        avi (ueye.int) : A pointer that returns the instance ID which is needed for calling the other uEye AVI functions
-        punFileID (ueye.c_int) : a pointer in which the instance ID is returned. This ID is needed for calling other functions.
-        timeout (int) : a time which stop the camera that waiting for a TTL
-        time_array (List[float]) : the time array saved after each frame received on the camera
-        int_time_spect (float) : is egal to the integration time of the spectrometer, it is need to know this value because of the rolling shutter of the monochrome IDS camera
-        black_pattern_num (int) : is number inside the image name of the black pattern (for the hyperspectral arm, or white pattern for the camera arm) to be inserted betweem the Hadamard patterns
-        insert_patterns (int) : 0 => no insertion / 1=> insert white patterns for the camera
-        acq_mode (str) : mode of the acquisition => 'video' or 'snapshot' mode
-    """
-    if dll_pyueye_installed:
-        hCam: Optional[ueye.c_uint] = None
-        sInfo: Optional[ueye.SENSORINFO] = None
-        cInfo: Optional[ueye.BOARDINFO] = None
-        nBitsPerPixel: Optional[ueye.c_int] = None
-        m_nColorMode: Optional[ueye.c_int] = None
-        bytes_per_pixel: Optional[int] = None
-        rectAOI: Optional[ueye.IS_RECT] = None
-        pcImageMemory: Optional[ueye.c_mem_p] = None
-        MemID: Optional[ueye.c_int] = None
-        pitch: Optional[ueye.c_int] = None
-        fps: Optional[float] = None
-        gain: Optional[int] = None
-        gainBoost: Optional[str] = None
-        gamma: Optional[float] = None
-        exposureTime: Optional[float] = None
-        blackLevel: Optional[int] = None
-        camActivated : Optional[bool] = None
-        pixelClock : Optional[int] = None
-        bandwidth : Optional[float] = None
-        Memory : Optional[bool] = None
-        Exit : Optional[int] = None
-        vidFormat : Optional[str] = None
-        gate_period : Optional[int] = None
-        trigger_mode : Optional[str] = None
-        avi : Optional[ueye.int] = None
-        punFileID : Optional[ueye.c_int] = None
-        timeout : Optional[int] = None
-        time_array : Optional[Union[List[float], str]] = field(default=None, repr=False)
-        int_time_spect : Optional[float] = None
-        black_pattern_num : Optional[int] = None
-        insert_patterns : Optional[int] = None
-        acq_mode : Optional[str] = None
-
-        class_description: str = 'IDS camera configuration'
-
-    def undo_readable_class_CAM(self) -> None:
-        """Changes the time_array attribute from `str` to `List` of `int`."""
-        
-        def to_float(str_arr):
-            arr = []
-            for s in str_arr:
-                try:
-                    num = float(s)
-                    arr.append(num)
-                except ValueError:
-                    pass
-            return arr
-        
-        if self.time_array:
-            self.time_array = (
-                self.time_array.strip('[').strip(']').split(', '))
-            self.time_array = to_float(self.time_array)
-            self.time_array = np.asarray(self.time_array)
-    
-    @staticmethod
-    def readable_class_CAM(cam_params_dict: dict) -> dict:
-        # pass
-        """Turns list of time_array into a string.
-        convert the c_type structure (sInfo, cInfo and rectAOI) into a nested dict
-        change the bytes type item into str
-        change the c_types item into their value
-        """
-
-        readable_cam_dict = {}
-        readable_cam_dict_temp = cam_params_dict#camPar.to_dict()#
-        inc = 0
-        for item in readable_cam_dict_temp:
-            stri = str(type(readable_cam_dict_temp[item]))
-            # print('----- item : ' + item)
-            if item == 'sInfo' or item == 'cInfo' or item == 'rectAOI':
-                readable_cam_dict[item] = dict()
-                try:
-                    for sub_item in readable_cam_dict_temp[item]._fields_:
-                        new_item = item + '-' + sub_item[0]
-                        try:
-                            att = getattr(readable_cam_dict_temp[item], sub_item[0]).value
-                        except:
-                            att = getattr(readable_cam_dict_temp[item], sub_item[0])
-                        
-                        if type(att) == bytes:
-                            att = str(att)
-                            
-                        readable_cam_dict[item][sub_item[0]] = att
-                except:
-                    try:
-                        for sub_item in readable_cam_dict_temp[item]:
-                            # print('----- sub_item : ' + sub_item)
-                            new_item = item + '-' + sub_item
-                            att = readable_cam_dict_temp[item][sub_item]
-                            
-                            if type(att) == bytes:
-                                att = str(att)
-                                
-                            readable_cam_dict[item][sub_item] = att
-                    except:
-                        print('warning, impossible to read the subitem of readable_cam_dict_temp[item]')                        
-                        
-            elif stri.find('pyueye') >=0:
-                try:
-                    readable_cam_dict[item] = readable_cam_dict_temp[item].value
-                except:
-                    readable_cam_dict[item] = readable_cam_dict_temp[item]
-            elif item == 'time_array':
-                readable_cam_dict[item] = str(readable_cam_dict_temp[item])
-            else:
-                readable_cam_dict[item] = readable_cam_dict_temp[item]
-                            
-        return readable_cam_dict
-    
-
-@dataclass_json
-@dataclass
 class AcquisitionParameters:
     """Class containing acquisition specifications and timing results.
 
@@ -339,12 +159,6 @@ class AcquisitionParameters:
             Length of reconstructed image that defines pattern length.
         pattern_dimension_y (int):
             Width of reconstructed image that defines pattern width.
-        zoom (int):
-            numerical zoom of the patterns
-        xw_offset (int):
-            offset of the pattern in the DMD for zoom > 1 in the width (x) direction
-        yh_offset (int):
-            offset of the pattern in the DMD for zoom > 1 in the heihgt (y) direction    
         pattern_amount (int, optional):
             Quantity of patterns sent to DMD for an acquisition. This value is
             calculated by an external function. Default in None.
@@ -394,10 +208,7 @@ class AcquisitionParameters:
     pattern_compression: float
     pattern_dimension_x: int
     pattern_dimension_y: int
-    zoom: int
-    xw_offset: int
-    yh_offset: int
-    
+
     pattern_amount: Optional[int] = None
     acquired_spectra: Optional[int] = None
 
@@ -874,7 +685,122 @@ class DMDParameters:
         self.add_illumination_time_us = add_illumination_time
 
 
-          
+@dataclass_json
+@dataclass
+class CAM(object):
+    """Class containing IDS camera configurations.
+
+    Further information: https://en.ids-imaging.com/manuals/ids-software-suite/ueye-manual/4.95/en/c_programmierung.html.
+
+    Attributes:
+        hCam (ueye.c_uint):
+            Handle of the camera.
+        sInfo (ueye.SENSORINFO):
+            sensor information : [SensorID [c_ushort] = 566;
+                                strSensorName [c_char_Array_32] = b'UI388xCP-M';
+                                nColorMode [c_char] = b'\x01';
+                                nMaxWidth [c_uint] = 3088;
+                                nMaxHeight [c_uint] = 2076;
+                                bMasterGain [c_int] = 1;
+                                bRGain [c_int] = 0;
+                                bGGain [c_int] = 0;
+                                bBGain [c_int] = 0;
+                                bGlobShutter [c_int] = 0;
+                                wPixelSize [c_ushort] = 240;
+                                nUpperLeftBayerPixel [c_char] = b'\x00';
+                                Reserved].
+        cInfo (ueye.BOARDINFO):
+            Camera information: [SerNo [c_char_Array_12] = b'4103219888';
+                                ID [c_char_Array_20] = b'IDS GmbH';
+                                Version [c_char_Array_10] = b'';
+                                Date [c_char_Array_12] = b'30.11.2017';
+                                Select [c_ubyte] = 1;
+                                Type [c_ubyte] = 100;
+                                Reserved [c_char_Array_8] = b'';]                
+        nBitsPerPixel (ueye.c_int):
+            number of bits per pixel (8 for monochrome, 24 for color).
+        m_nColorMode (ueye.c_int):
+            color mode : Y8/RGB16/RGB24/REG32.
+        bytes_per_pixel (int):
+            bytes_per_pixel = int(nBitsPerPixel / 8).
+        rectAOI (ueye.IS_RECT()):
+            rectangle of the Area Of Interest (AOI):    s32X [c_int] = 0;
+                                                        s32Y [c_int] = 0;
+                                                        s32Width [c_int] = 3088;
+                                                        s32Height [c_int] = 2076;                
+        pcImageMemory (ueye.c_mem_p()):
+            memory allocation.
+        MemID (ueye.int()):
+            memory identifier.
+        pitch (ueye.INT()):
+            ???.
+        fps (float):
+            set frame per second.
+        gain (int):
+            Set gain between [0 - 100].
+        gainBoost (str):
+            Activate gain boosting ("ON") or deactivate ("OFF").
+        gamma (float):
+            Set Gamma between [1 - 2.5] to change the image contrast
+        exposureTime (float):
+            Set the exposure time between [0.032 - 56.221]
+        blackLevel (int):
+            Set the black level between [0 - 255] to set an offset in the image.
+    """
+
+    # hCam: ueye.c_uint()
+    # sInfo: ueye.SENSORINFO
+    # cInfo: ueye.BOARDINFO
+    # nBitsPerPixel: ueye.c_int()
+    # m_nColorMode: ueye.c_int()
+    # bytes_per_pixel: int
+    # rectAOI: ueye.IS_RECT()
+    # pcImageMemory: ueye.c_mem_p()
+    # MemID: ueye.c_int()
+    # pitch: ueye.c_int()    
+    # fps: float
+    # gain: int
+    # gainBoost: str
+    # gamma: float 
+    # exposureTime: float
+    # blackLevel: int
+    # camActivated : bool
+    # pixelClock : int
+    # bandwidth : float
+    # Memory : bool
+    # Exit : bool
+    # vidFormat : str
+    # gate_period : int
+    # trigger_mode : str
+    # avi : ueye.int
+    # punFileID : ueye.c_int()
+    # timeout : int
+    # time_array : []
+    # int_time_spect : float
+    # black_pattern_num : int
+    
+    
+    # _fields_ = [("hCam"),# ueye.c_uint()),
+    #             ("sInfo"),# ueye.SENSORINFO),
+    #             ("cInfo"),# ueye.BOARDINFO),
+    #             ("nBitsPerPixel"),# ueye.c_int),
+    #             ("m_nColorMode"),# ueye.c_int),
+    #             ("bytes_per_pixel", int),
+    #             ("rectAOI")],# ueye.IS_RECT()),               
+    #             # ("pcImageMemory"),# ueye.c_mem_p()),
+    #             # ("MemID"),# ueye.int()),
+    #             # ("pitch"),# ueye.INT()),                
+    #             # ("fps", float),
+    #             # ("gain", int),
+    #             # ("gainBoost", str),
+    #             # ("gamma", float ),
+    #             # ("exposureTime", float),
+    #             # ("blackLevel", int)]
+
+    class_description: str = 'IDS camera configuration'
+    
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)            
             
 
 def read_metadata(file_path: str) -> Tuple[MetaData,
@@ -921,8 +847,7 @@ def read_metadata(file_path: str) -> Tuple[MetaData,
 def read_metadata_2arms(file_path: str) -> Tuple[MetaData,
                                            AcquisitionParameters,
                                            SpectrometerParameters,
-                                           DMDParameters,
-                                           CAM]:
+                                           DMDParameters]:
     """Reads metadata of a previous acquisition from JSON file.
 
     Args:
@@ -957,9 +882,7 @@ def read_metadata_2arms(file_path: str) -> Tuple[MetaData,
         if object['class_description'] == 'DMD parameters':
             saved_dmd_params = DMDParameters.from_dict(object)
         if object['class_description'] == 'IDS camera configuration':
-            saved_cam_params = CAM.from_dict(object)  
-            saved_cam_params.undo_readable_class_CAM()
-            
+            saved_cam_params = CAM.from_dict(object)    
 
     return (saved_metadata, saved_acquisition_params, 
             saved_spectrometer_params, saved_dmd_params, saved_cam_params)
@@ -999,7 +922,7 @@ def save_metadata(metadata: MetaData,
 def save_metadata_2arms(metadata: MetaData, 
                   DMD_params: DMDParameters, 
                   spectrometer_params: SpectrometerParameters, 
-                  camPar : CAM,
+                  camPar,
                   acquisition_parameters: AcquisitionParameters) -> None:
     """Saves metadata to JSON file.
 
@@ -1014,7 +937,34 @@ def save_metadata_2arms(metadata: MetaData,
         acquisition_parameters (AcquisitionParameters):
             Object containing acquisition specifications and timing results.
     """
-
+    
+    # camPar2 = camPar
+    
+    # for key in list(camPar.__dict__):
+    #     key_str = str(type(camPar.__dict__[key]))
+    #     print(key_str)
+    #     if key_str.find('pyueye.ueye.c') != -1:
+    #         print(key)
+    #         camPar2.__dict__[key] = camPar.__dict__[key].value
+    #     elif key == 'sInfo' or key == 'cInfo' or 'rectAOI':
+    #         print(camPar.__dict__[key])
+    #         for key2, value in list(camPar.__dict__[key]._fields_):
+    #             print('key2 : ' + key2)
+    #             key_str2 = str(type(camPar.__dict__[key].__getattribute__(key2)))
+    #             if key_str2.find('pyueye.ueye.c') != -1:
+    #                 print('ici key2 : ' + key2)
+    #                 camPar2.__dict__[key+'_'+key2] = camPar.__dict__[key].__getattribute__(key2).value
+    #             else:
+    #                 camPar2.__dict__[key+'_'+key2] = camPar.__dict__[key].__getattribute__(key2)
+    #         #delattr(camPar2, 'sInfo')
+    #         # del camPar2.sInfo
+    #     else:
+    #         camPar2.__dict__[key] = camPar.__dict__[key]
+            
+    # del camPar2.sInfo
+    # del camPar2.cInfo
+    # del camPar2.rectAOI
+    
     path = Path(metadata.output_directory)
     with open(
         path / f'{metadata.experiment_name}_metadata.json',
@@ -1024,40 +974,68 @@ def save_metadata_2arms(metadata: MetaData,
             metadata.to_dict(),
             DMD_params.to_dict(), 
             spectrometer_params.to_dict(),
-            CAM.readable_class_CAM(camPar.to_dict()),
+            #CAM.to_dict(camPar.__dict__),            
             AcquisitionParameters.readable_pattern_order(acquisition_parameters.to_dict())]
+        
 
+        # for key in list(output_params[4]):
+        #     print(key)
+        #     key_str = str(type(output_params[4][key]))
+        #     print(key_str)
+        #     if key_str.find('pyueye.ueye.c') != -1 and key != 'Reserved':
+        #         print('-----------')
+        #         print(key)
+        #         print('-----------')
+        #         output_params[4][key] = output_params[4][key].value
+        #     elif key == 'sInfo':# or key == 'cInfo' or 'rectAOI':
+        #         print('sInfo beginning')
+        #         print(output_params[4][key])
+        #         for key2, value2 in output_params[4][key]._fields_:
+        #             print('key2 : ' + key2)
+        #             #print('value2 : ' + value2)
+        #             if key2 != 'Reserved':
+        #                 key_str2 = str(type(output_params[4][key].__getattribute__(key2)))
+        #                 if key_str2.find('pyueye.ueye.c') != -1:
+        #                     print('ici key2 : ' + key2)
+        #                     #output_params2[4][key + '_' + key2] = output_params[4][key].__getattribute__(key2).value
+        #                     #setattr(output_params[4], key + '_' + key2, output_params[4][key].__getattribute__(key2).value)
+        #                     #setattr(output_params[4][key], key2, output_params[4][key].__getattribute__(key2).value)
+        #                     output_params[4][key + '_' + key2] = output_params[4][key].__getattribute__(key2).value
+
+        # del output_params[4]['sInfo']
+        # del output_params[4]['cInfo']
+        # del output_params[4]['rectAOI']
+        # del output_params[4]['sInfo_nColorMode']
+        # del output_params[4]['sInfo_nUpperLeftBayerPixel']
+        
+        # def convert(o):
+        #     print(o)
+        #     if isinstance(o, ct.c_uint): 
+        #         return int(o)  
+        #     raise TypeError
+        
         json.dump(output_params, output, ensure_ascii=False, indent=4)#, default=convert)
     
-    # with open(path / f'{metadata.experiment_name}_metadata_cam.pkl', 'wb') as f:
-    #     pickle.dump(camPar.__dict__, f)    
+    with open(path / f'{metadata.experiment_name}_metadata_cam.pkl', 'wb') as f:
+        pickle.dump(camPar.__dict__, f)    
 
 @dataclass_json
 @dataclass
 class func_path:
-    def __init__(self, data_folder_name, data_name):        
+    def __init__(self, data_folder_name, data_name):
         if not os.path.exists('../data/' + data_folder_name):
             os.makedirs('../data/' + data_folder_name)
-            aborted = False
-        else:
-            res = input('Acquisition already exists, overwrite it ?[y/n]')
-            if res == 'n':
-                aborted = True
-            else:
-                aborted = False
 
-        self.aborted = aborted
         self.subfolder_path = '../data/' + data_folder_name + '/' + data_name    
         self.overview_path = self.subfolder_path + '/overview'
         if not os.path.exists(self.overview_path):
             os.makedirs(self.overview_path)
 
-        self.data_name = data_name
         self.data_path = self.subfolder_path + '/' + data_name
         self.had_reco_path = self.data_path + '_had_reco.npz'         
         self.fig_had_reco_path = self.overview_path + '/' + data_name   
         self.pathIDSsnapshot = Path(self.data_path + '_IDScam_before_acq.npy')
-        self.pathIDSsnapshot_overview = self.overview_path + '/' + data_name + '_IDScam_before_acq.png'
+        self.pathIDSsnapshot_overview = self.overview_path + '/' + 'CAM_before_acq_' + data_name + '.png'
         self.nn_reco_path = self.data_path + '_nn_reco.npz'
         self.fig_nn_reco_path = self.overview_path + '/' + data_name 
 

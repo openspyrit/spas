@@ -75,7 +75,7 @@ This project is licensed under the LGPL-3.0 license - see the [LICENSE.md](LICEN
 
 Run in Python:
 ``` python
-from spas import walsh_patterns
+from spas.generate import walsh_patterns
 walsh_patterns(save_data=True)
 ```
 By default the patterns are 1024x768 PNG images saved in `./Walsh_64_64/`.

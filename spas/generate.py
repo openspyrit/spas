@@ -10,7 +10,7 @@ from typing import Tuple
 import numpy as np
 from PIL import Image
 from spyrit.misc.statistics import Cov2Var
-from spyrit.learning.model_Had_DCAN import Permutation_Matrix
+from spyrit.misc.sampling import Permutation_Matrix
 import spyrit.misc.walsh_hadamard as wh
 
 
