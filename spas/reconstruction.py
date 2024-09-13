@@ -2,8 +2,9 @@
 __author__ = 'Guilherme Beneti Martins'
 
 import numpy as np
+from spas.metadata import AcquisitionParameters
 
-def reconstruction_hadamard(patterns: np.ndarray,
+def reconstruction_hadamard(acquisition_parameters: AcquisitionParameters,
                             mode: str,
                             Q: np.ndarray, 
                             M: np.ndarray, 
@@ -11,9 +12,8 @@ def reconstruction_hadamard(patterns: np.ndarray,
     """Reconstruct an image acquired with Hadamard patterns.
 
     Args:
-        patterns (np.ndarray): 
-            Array containing an ordered list of the patterns used for 
-            acquisition.
+        acquisition_parameters (AcquisitionParameters):
+            Object containing acquisition specifications
         mode (str):
             Select if reconstruction is based on MATLAB, fht or Walsh generated 
             patterns.
@@ -28,7 +28,9 @@ def reconstruction_hadamard(patterns: np.ndarray,
         [np.ndarray]: 
             Reconstructed matrix of size NxN pixels.
     """
-
+    
+    patterns = acquisition_parameters.patterns
+    
     if mode == 'matlab':
         ind_opt = patterns[1::2]
     if mode == 'fht' or mode == 'walsh':
@@ -47,6 +49,19 @@ def reconstruction_hadamard(patterns: np.ndarray,
     f = np.matmul(Q,M_Had) # Q.T = Q
     frames = np.reshape(f,(N,N,M.shape[1]))
     frames /= N*N
+    
+    mask_index = acquisition_parameters.mask_index
+    if mask_index != []:
+        x_mask_coord = acquisition_parameters.x_mask_coord
+        y_mask_coord = acquisition_parameters.y_mask_coord         
+        x_mask_length = x_mask_coord[1] - x_mask_coord[0]
+        y_mask_length = y_mask_coord[1] - y_mask_coord[0]
+
+        GTnew_vec = np.zeros((x_mask_length*y_mask_length, frames.shape[2]))
+        GT_vec = frames.reshape(-1, frames.shape[-1])
+
+        GTnew_vec[mask_index,:] = GT_vec[:len(mask_index),:]
+        frames = np.reshape(GTnew_vec, (y_mask_length, x_mask_length, frames.shape[2]))
 
     return frames
 

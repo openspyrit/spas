@@ -344,7 +344,16 @@ class AcquisitionParameters:
         xw_offset (int):
             offset of the pattern in the DMD for zoom > 1 in the width (x) direction
         yh_offset (int):
-            offset of the pattern in the DMD for zoom > 1 in the heihgt (y) direction    
+            offset of the pattern in the DMD for zoom > 1 in the heihgt (y) direction   
+        mask_index (Union[np.ndarray, str], optional):
+            Array of `int` type corresponding to the index of the mask vector where
+            the value is egal to 1
+        x_mask_coord (Union[np.ndarray, str], optional):
+            coordinates of the mask in the x direction x[0] and x[1] are the first
+            and last points respectively
+        y_mask_coord (Union[np.ndarray, str], optional):
+            coordinates of the mask in the y direction y[0] and y[1] are the first
+            and last points respectively    
         pattern_amount (int, optional):
             Quantity of patterns sent to DMD for an acquisition. This value is
             calculated by an external function. Default in None.
@@ -397,6 +406,12 @@ class AcquisitionParameters:
     zoom: int
     xw_offset: int
     yh_offset: int
+    mask_index: Optional[Union[np.ndarray, str]] = field(default=None, 
+                                                        repr=False)
+    x_mask_coord: Optional[Union[np.ndarray, str]] = field(default=None, 
+                                                        repr=False)
+    y_mask_coord: Optional[Union[np.ndarray, str]] = field(default=None, 
+                                                        repr=False)
     
     pattern_amount: Optional[int] = None
     acquired_spectra: Optional[int] = None
@@ -452,7 +467,6 @@ class AcquisitionParameters:
                 self.wavelengths.strip('[').strip(']').split(', '))
             self.wavelengths = to_float(self.wavelengths)
             self.wavelengths = np.asarray(self.wavelengths)
-
         else:
             print('wavelenghts not present in metadata.'
             ' Reading data in legacy mode.')
@@ -472,7 +486,33 @@ class AcquisitionParameters:
             print('measurement_time not present in metadata.'
             ' Reading data in legacy mode.')
 
-
+        if self.mask_index:
+            self.mask_index = (
+                self.mask_index.strip('[').strip(']').split(', '))
+            self.mask_index = to_float(self.mask_index)
+            self.mask_index = np.asarray(self.mask_index)
+        else:
+            print('mask_index not present in metadata.'
+            ' Reading data in legacy mode.')
+        
+        if self.x_mask_coord:
+            self.x_mask_coord = (
+                self.x_mask_coord.strip('[').strip(']').split(', '))
+            self.x_mask_coord = to_float(self.x_mask_coord)
+            self.x_mask_coord = np.asarray(self.x_mask_coord)
+        else:
+            print('x_mask_coord not present in metadata.'
+            ' Reading data in legacy mode.')
+        
+        if self.y_mask_coord:
+            self.y_mask_coord = (
+                self.y_mask_coord.strip('[').strip(']').split(', '))
+            self.y_mask_coord = to_float(self.y_mask_coord)
+            self.y_mask_coord = np.asarray(self.y_mask_coord)
+        else:
+            print('y_mask_coord not present in metadata.'
+            ' Reading data in legacy mode.')
+        
     @staticmethod
     def readable_pattern_order(acquisition_params_dict: dict) -> dict:
         """Turns list of patterns into a string.
@@ -511,6 +551,15 @@ class AcquisitionParameters:
 
         readable_dict['measurement_time'] = _hard_coded_conversion(
             readable_dict['measurement_time'])
+        
+        readable_dict['mask_index'] = _hard_coded_conversion(
+            readable_dict['mask_index'])
+        
+        readable_dict['x_mask_coord'] = _hard_coded_conversion(
+            readable_dict['x_mask_coord'])
+        
+        readable_dict['y_mask_coord'] = _hard_coded_conversion(
+            readable_dict['y_mask_coord'])
 
         return readable_dict
 
@@ -1038,6 +1087,9 @@ class func_path:
     def __init__(self, data_folder_name, data_name):        
         if not os.path.exists('../data/' + data_folder_name):
             os.makedirs('../data/' + data_folder_name)
+        
+        if not os.path.exists('../data/' + data_folder_name + '/' + data_name):
+            os.makedirs('../data/' + data_folder_name + '/' + data_name)
             aborted = False
         else:
             res = input('Acquisition already exists, overwrite it ?[y/n]')
@@ -1045,7 +1097,7 @@ class func_path:
                 aborted = True
             else:
                 aborted = False
-
+                
         self.aborted = aborted
         self.subfolder_path = '../data/' + data_folder_name + '/' + data_name    
         self.overview_path = self.subfolder_path + '/overview'
