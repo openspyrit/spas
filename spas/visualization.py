@@ -15,14 +15,12 @@ from spas.plot_spec_to_rgb_image import plot_spec_to_rgb_image
 from spas.noise import noiseClass
 from spas.reconstruction_nn import reorder_subsample, reconstruct
 from spas.metadata import DMDParameters, read_metadata
-import cv2
 import time
 # Libraries for the IDS CAMERA
 try:
     from pyueye import ueye
 except:
     print('ueye DLL not installed')
-
 
 def spectral_binning(F: np.ndarray, wavelengths: np.ndarray, lambda_min: int, 
     lambda_max: int, n_bin: int, noise: noiseClass=None
@@ -482,6 +480,7 @@ def displayVid(camPar):
             start_time = time.time()
         
         #...and finally display it
+        import cv2
         cv2.imshow(window_name, frame*fac)
         
         # if cv2.waitKey(1) & 0xFF == ord('p'):
@@ -665,7 +664,9 @@ def extract_ROI_coord(DMD_params, acquisition_parameters, all_path, data_folder_
         y_mask_coord (np.array):
             the y coord, first and last point of the rectangular that most closely the freehand ROI
     """
-    
+
+    import cv2    
+
     if data_name != all_path.data_name and data_name != '':
         print('Warning, you read an old acquisition')
         print('')

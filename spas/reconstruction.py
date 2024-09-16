@@ -51,7 +51,7 @@ def reconstruction_hadamard(acquisition_parameters: AcquisitionParameters,
     frames /= N*N
     
     mask_index = acquisition_parameters.mask_index
-    if mask_index != []:
+    if len(mask_index) > 0:
         x_mask_coord = acquisition_parameters.x_mask_coord
         y_mask_coord = acquisition_parameters.y_mask_coord         
         x_mask_length = x_mask_coord[1] - x_mask_coord[0]

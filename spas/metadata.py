@@ -213,42 +213,42 @@ class CAM:
         insert_patterns (int) : 0 => no insertion / 1=> insert white patterns for the camera
         acq_mode (str) : mode of the acquisition => 'video' or 'snapshot' mode
     """
-    
-    hCam: Optional[ueye.c_uint] = None
-    sInfo: Optional[ueye.SENSORINFO] = None
-    cInfo: Optional[ueye.BOARDINFO] = None
-    nBitsPerPixel: Optional[ueye.c_int] = None
-    m_nColorMode: Optional[ueye.c_int] = None
-    bytes_per_pixel: Optional[int] = None
-    rectAOI: Optional[ueye.IS_RECT] = None
-    pcImageMemory: Optional[ueye.c_mem_p] = None
-    MemID: Optional[ueye.c_int] = None
-    pitch: Optional[ueye.c_int] = None
-    fps: Optional[float] = None
-    gain: Optional[int] = None
-    gainBoost: Optional[str] = None
-    gamma: Optional[float] = None
-    exposureTime: Optional[float] = None
-    blackLevel: Optional[int] = None
-    camActivated : Optional[bool] = None
-    pixelClock : Optional[int] = None
-    bandwidth : Optional[float] = None
-    Memory : Optional[bool] = None
-    Exit : Optional[int] = None
-    vidFormat : Optional[str] = None
-    gate_period : Optional[int] = None
-    trigger_mode : Optional[str] = None
-    avi : Optional[ueye.int] = None
-    punFileID : Optional[ueye.c_int] = None
-    timeout : Optional[int] = None
-    time_array : Optional[Union[List[float], str]] = field(default=None, repr=False)
-    int_time_spect : Optional[float] = None
-    black_pattern_num : Optional[int] = None
-    insert_patterns : Optional[int] = None
-    acq_mode : Optional[str] = None
-                   
-    class_description: str = 'IDS camera configuration'
-    
+    if dll_pyueye_installed:
+        hCam: Optional[ueye.c_uint] = None
+        sInfo: Optional[ueye.SENSORINFO] = None
+        cInfo: Optional[ueye.BOARDINFO] = None
+        nBitsPerPixel: Optional[ueye.c_int] = None
+        m_nColorMode: Optional[ueye.c_int] = None
+        bytes_per_pixel: Optional[int] = None
+        rectAOI: Optional[ueye.IS_RECT] = None
+        pcImageMemory: Optional[ueye.c_mem_p] = None
+        MemID: Optional[ueye.c_int] = None
+        pitch: Optional[ueye.c_int] = None
+        fps: Optional[float] = None
+        gain: Optional[int] = None
+        gainBoost: Optional[str] = None
+        gamma: Optional[float] = None
+        exposureTime: Optional[float] = None
+        blackLevel: Optional[int] = None
+        camActivated : Optional[bool] = None
+        pixelClock : Optional[int] = None
+        bandwidth : Optional[float] = None
+        Memory : Optional[bool] = None
+        Exit : Optional[int] = None
+        vidFormat : Optional[str] = None
+        gate_period : Optional[int] = None
+        trigger_mode : Optional[str] = None
+        avi : Optional[ueye.int] = None
+        punFileID : Optional[ueye.c_int] = None
+        timeout : Optional[int] = None
+        time_array : Optional[Union[List[float], str]] = field(default=None, repr=False)
+        int_time_spect : Optional[float] = None
+        black_pattern_num : Optional[int] = None
+        insert_patterns : Optional[int] = None
+        acq_mode : Optional[str] = None
+
+        class_description: str = 'IDS camera configuration'
+
     def undo_readable_class_CAM(self) -> None:
         """Changes the time_array attribute from `str` to `List` of `int`."""
         
