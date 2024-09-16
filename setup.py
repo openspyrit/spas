@@ -17,7 +17,7 @@ setup(
         'certifi',
         'cycler',
         'kiwisolver',
-        'matplotlib',
+        'matplotlib==3.7.5',
         'numpy',
         'msl-equipment @ git+https://github.com/MSLNZ/msl-equipment.git',
         'Pillow',
@@ -31,7 +31,9 @@ setup(
         'wincertstore',
         'pyueye',
         'tensorboard',
-        'girder-client'
+        'girder-client',
+        'plotter',
+        'tikzplotlib'
     ],
     packages=find_packages()
 )
