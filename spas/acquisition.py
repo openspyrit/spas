@@ -92,7 +92,7 @@ import logging
 import time
 import threading
 from plotter import Plotter
-import cv2
+
 #from spas.visualization import snapshotVisu
 
 
@@ -428,7 +428,9 @@ def _update_sequence(DMD: ALP4,
         bitplanes (int, optional): 
             Pattern bitplanes. Defaults to 1.
     """
-
+    
+    import cv2
+    
     path_base = Path(pattern_source)
 
     seqId = DMD.SeqAlloc(nbImg=len(pattern_order), 
@@ -450,7 +452,7 @@ def _update_sequence(DMD: ALP4,
     apply_mask = False
     mask_index = acquisition_params.mask_index
         
-    if mask_index != []:
+    if len(mask_index) > 0:
         apply_mask = True
         Npx = acquisition_params.pattern_dimension_x
         Npy = acquisition_params.pattern_dimension_y
