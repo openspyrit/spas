@@ -15,15 +15,12 @@ from spas.plot_spec_to_rgb_image import plot_spec_to_rgb_image
 from spas.noise import noiseClass
 from spas.reconstruction_nn import reorder_subsample, reconstruct
 from spas.metadata import DMDParameters, read_metadata
-
+import time
 # Libraries for the IDS CAMERA
 try:
     from pyueye import ueye
 except:
     print('ueye DLL not installed')
-# import pyueye as ueye    
-# from pyueye import ueye
-import time
 
 def spectral_binning(F: np.ndarray, wavelengths: np.ndarray, lambda_min: int, 
     lambda_max: int, n_bin: int, noise: noiseClass=None
@@ -632,7 +629,8 @@ def plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, netw
     plt.savefig(fig_nn_reco_path + '_SPECTRA_PLOT_nn_reco.png')
     plt.show()
     
-def extract_ROI_coord(DMD_params, acquisition_parameters, all_path, data_folder_name: str, data_name: str, GT: np.ndarray, ti: float):
+def extract_ROI_coord(DMD_params, acquisition_parameters, all_path, data_folder_name: str, 
+                      data_name: str, GT: np.ndarray, ti: float, Np: int) -> Tuple[np.ndarray, np.array, np.array]:
     
     """Extract the coordinates of the ROI drawing in the hadamard reconstruction matrix.
 
@@ -652,12 +650,19 @@ def extract_ROI_coord(DMD_params, acquisition_parameters, all_path, data_folder_
         data_name (str):
             the folder name of the data to be load if acquisition is not the last one.
         GT (np.ndarray): 
-            the hadamard reconstruction
+            the hyperspectral cube reconstruct by the hadamard transformation
         ti (float):
             integration time of the sepctrometer
+        Np (int):
+            Number of pixel of the desired initial image (in one dimension) define in the main prog
             
-    Returns:
-        No return, just display the coordinate to be inserted in the "SETUP" section
+    Returns (only for the freehand ROI):
+        mask_index (np.array):
+            A 1D array of the index of the mask
+        x_mask_coord (np.array):
+            the x coord, first and last point of the rectangular that most closely the freehand ROI
+        y_mask_coord (np.array):
+            the y coord, first and last point of the rectangular that most closely the freehand ROI
     """
 
     import cv2    
@@ -672,7 +677,7 @@ def extract_ROI_coord(DMD_params, acquisition_parameters, all_path, data_folder_
         
         # read metadata
         old_metadata_path = '../data/' + data_folder_name + '/' + data_name + '/' + data_name + '_metadata.json'
-        metadata, acquisition_parameters, spectrometer_parameters, DMD_parameters = read_metadata(old_metadata_path)
+        metadata, acquisition_parameters, spectrometer_parameters, DMD_params = read_metadata(old_metadata_path)
         ti = spectrometer_parameters.integration_time_ms
     else:
         GT = np.rot90(GT, 2) 
@@ -684,110 +689,345 @@ def extract_ROI_coord(DMD_params, acquisition_parameters, all_path, data_folder_
     init_lambda_index = min(range(len(wavelengths)), key=lambda i: abs(wavelengths[i]-init_lambda))
     final_lambda_index = min(range(len(wavelengths)), key=lambda i: abs(wavelengths[i]-final_lambda))
     
-    # Convert hypercube into en RGB image to read by the "selectROI" function
     GT_sum = np.sum(GT[:,:,init_lambda_index:final_lambda_index], axis=2)
-    GT_sum_pos = GT_sum - np.min(GT_sum)
-    GT_sum_8bit = np.array(GT_sum_pos/np.amax(GT_sum_pos)*255, dtype=np.uint8)
-    colored_img = np.stack((GT_sum_8bit,)*3, axis=-1)
 
-    Np = GT.shape[0]
-    # resize image for the "selectROI" function
-    HD = DMD_params.display_height#768 => The DMD height
-    WD = DMD_params.display_width#1024 => The DMD width
-    
-    #current zoom and offset of the displayed image
-    zoom_cu = acquisition_parameters.zoom
-    xw_offset_cu = acquisition_parameters.xw_offset
-    yh_offset_cu = acquisition_parameters.yh_offset
-    if zoom_cu == 1:
-        xw_offset_cu = (WD - HD)/2
-        yh_offset_cu = 0
-    
-    # Draw the ROI
-    print('Draw a ROI in the image by holding the left mouse button')
-    print('Press "ENTER" when done')
-    x, y, w, h = cv2.selectROI(cv2.resize(colored_img, (HD, HD)))
-    cv2.destroyAllWindows()
-    
-    # rescale displayed image in the case of current zoom
-    
+    mask_index = acquisition_parameters.mask_index    
 
-    # Available digital zoom    
-    zoom_tab = [1, 2, 3, 4, 6, 12, 24, 48, 96, 192, 384, 768]
-    x = x / zoom_cu
-    y = y / zoom_cu
-    w = w / zoom_cu
-    h = h / zoom_cu
+    # choose between a freehand drawn ROI or a geometrical drawn ROI
+    ret = input('Draw a freehand[f] or geometrical[g] ROI ? [f/g]')
     
-    # calculate the center of the ROI
-    Cx = x + w / 2
-    Cy = y + h / 2
-    
-    # calculate the center of the ROI in the rotated image
-    Crx = HD / zoom_cu - Cx
-    Cry = HD / zoom_cu - Cy
-    
-    # calculate the new width and height of the ROI in function of the available zoom
-    max_side = max(w,h) # find the maximum size of the drawn ROI
-    fac = HD / max_side
-    
-    # find index of the zoom_tab for the current zoom
-    inc_cu = zoom_tab.index(zoom_cu)
-    
-    # Define the two nearest zoom of the drawn ROI
-    inc = inc_cu
-    for zoom in zoom_tab:
-        if fac < zoom:
-            break
-        inc = inc + 1
+    # freehand drawn ROI
+    if ret == 'f':
+        #current zoom of the displayed image
+        zoom_cu = acquisition_parameters.zoom
+        xw_offset_cu = acquisition_parameters.xw_offset
+        yh_offset_cu = acquisition_parameters.yh_offset
+        Npxx = acquisition_parameters.pattern_dimension_x
+        Npyy = acquisition_parameters.pattern_dimension_y
+        HD = DMD_params.display_height
+        WD = DMD_params.display_width
+
+        if acquisition_parameters.x_mask_coord != [] and acquisition_parameters.x_mask_coord is not None:
+            x_mask_coord_cu = acquisition_parameters.x_mask_coord[0]
+            y_mask_coord_cu = acquisition_parameters.y_mask_coord[0]
+        else:
+            x_mask_coord_cu = 0
+            y_mask_coord_cu = 0
+
+        # GT_sum = np.mean(GT2, axis=2)
+        GT_sum = GT_sum - GT_sum.min()
+        GT_sum = GT_sum * 255 / GT_sum.max()
+        GT_sum = GT_sum.astype(np.uint8)
+
+        Npx = GT_sum.shape[1]
+        Npy = GT_sum.shape[0]
+
+        fac_resize = int(768/np.amax(GT_sum.shape))
+
+        GT_sum_resized = cv2.resize(GT_sum, (Npx*fac_resize, Npy*fac_resize))#Warning, "cv2.resize" function inverte the axis
+
+        # transform im to RGB matrix to use the freehand_ROI function
+        im = np.zeros([GT_sum_resized.shape[0], GT_sum_resized.shape[1], 3], dtype=np.uint8)
+        im[:,:,0] = GT_sum_resized
+        im[:,:,1] = GT_sum_resized
+        im[:,:,2] = GT_sum_resized
+
+        # plt.figure()
+        # plt.imshow(im)
+        # plt.colorbar()
+
+        print('Draw one or more ROI by holding down the mouse button')
+        print(' ----')
+        print('Press "r" after drawing a ROI to save it')
+        print(' ----')
+        print('Press "e" to erase the previous saved ROI')
+        print(' ----')
+        print('Press "Echap" to exit when done')
+        print(' ----')
+
+        # Draw ROIs to create a mask
+        global drawing, mode, tab_roi
+        drawing = False # true if mouse is pressed
+        mode = True # if True, draw rectangle. Press 'm' to toggle to curve
         
-    zoom_range = np.array([zoom_tab[inc-1], zoom_tab[inc]], dtype=float)
-    
-    w_roi = HD/zoom_range
-    
-    # calculate the difference of the drawn ROI and the final ROI (due to the available zoom)
-    diff_size = (w_roi - max_side)/float(max_side) * 100
-    
-    # calculate x, y at the top left of the ROI
-    x_roi = Crx - w_roi/2
-    y_roi = Cry - w_roi/2
-    
-    # because the DMD is a rectangle and the pattern is square
-    xw_offset = x_roi + xw_offset_cu
-    yh_offset = y_roi + yh_offset_cu
-    
-    # calculate new integration time and acquisition time
-    new_ti = ti*zoom_range**2
-    
-    # display result
-    for inc in range(len(zoom_range)):
-        # if xw_offset[inc] < 0:
-        #     xw_offset[inc] = 0
-        # elif xw_offset[inc] > (WD + HD)/2 - w_roi[inc]:
-        #     xw_offset[inc] = (WD + HD)/2 - w_roi[inc]
+        tab_roi = [] # tab of an unique ROI
+        tab_all_roi = [] # tab of all the ROIs
+        
+        # mouse callback function
+        def freehand_ROI(event,former_x,former_y,flags,param):
+            global current_former_x, current_former_y, drawing, mode, tab_roi
+
+            if event==cv2.EVENT_LBUTTONDOWN:
+                drawing=True
+                current_former_x,current_former_y=former_x,former_y
+
+            elif event==cv2.EVENT_MOUSEMOVE:
+                if drawing==True:
+                    if mode==True:
+                        cv2.line(im,(current_former_x,current_former_y),(former_x,former_y),(0,0,255),5)
+                        current_former_x = former_x
+                        current_former_y = former_y
+                        # print('(x,y) = (' + str(former_x) + ',' + str(former_y) + ')')
+                        tab_roi.append([former_x, former_y])
+            elif event==cv2.EVENT_LBUTTONUP:
+                drawing=False
+                if mode==True:
+                    cv2.line(im,(current_former_x,current_former_y),(former_x,former_y),(0,0,255),5)
+                    current_former_x = former_x
+                    current_former_y = former_y
+
+        # Draw ROIs, return tab with its coordinates
+        cv2.namedWindow("HyperSpectral Cube")
+        cv2.setMouseCallback('HyperSpectral Cube', freehand_ROI)
+        incROI = 0
+        while(1):
+            cv2.imshow('HyperSpectral Cube',im)
+            k=cv2.waitKey(1)&0xFF
+            if k==27: # Press "Echap" to exit
+                break
+            elif k == 114: # Press 'r' letter to save the drawing ROI
+                incROI = incROI + 1
+                tab_all_roi.append(np.array(tab_roi))
+                tab_roi = []
+                print('ROI n° ' + str(incROI) + ' saved')
+            elif k == 101: # Press 'e' letter to erase the previous ROI
+                del tab_all_roi[incROI-1]
+                tab_roi = []
+                print('ROI n° ' + str(incROI) + ' deleted')
+                incROI = incROI - 1
+                
+            time.sleep(0.1)
+                     
+        cv2.destroyAllWindows()
+
+        # Draw mask by filling into the contours of the ROIs
+        mask = np.zeros(im.shape[:2], dtype=np.uint8)
+        for i in range(len(tab_all_roi)):
+            cv2.drawContours(mask, [tab_all_roi[i]], -1, 1, thickness=cv2.FILLED)
+
+        # plt.figure()
+        # plt.imshow(mask)
+        # plt.title('mask')
+
+        # Rotate the mask as the image is rotated
+        mask_rot = np.rot90(mask, 2)
+
+        # plt.figure()
+        # plt.imshow(mask_rot)
+        # plt.title('mask_rot')
+
+        # resize image in respect of the DMD size of the previous acquisition
+        # mask_rot_re = cv2.resize(mask_rot, (int(Npx*HD/(Np*zoom_cu)), int(Npy*HD/(Np*zoom_cu))))
+        
+        # plt.figure()
+        # plt.imshow(mask_rot_re)
+        # plt.title('mask_rot_re')
+        
+        mask_rot_re = cv2.resize(mask_rot, (HD, HD))
+        
+        # plt.figure()
+        # plt.imshow(mask_rot_re)
+        # plt.title('mask_rot_re')
+
+        # define x, y offset in full HD of the DMD (offset by micromirror unit)
+        lim_mask_rot = np.stack(np.nonzero(mask_rot_re), axis=-1)
+        y_mask_coord_HD = np.array([lim_mask_rot[:,0].min(), lim_mask_rot[:,0].max()], dtype=np.uint64)
+        x_mask_coord_HD = np.array([lim_mask_rot[:,1].min(), lim_mask_rot[:,1].max()], dtype=np.uint64)
+        print('x_mask_HD = ' + str(x_mask_coord_HD))     
+        print('y_mask_HD = ' + str(y_mask_coord_HD)) 
+        # pour info, à commenter ultéreirement
+        x_mask_HD_length = x_mask_coord_HD[1] - x_mask_coord_HD[0]
+        y_mask_HD_length = y_mask_coord_HD[1] - y_mask_coord_HD[0]
+        # print('x_mask_HD_length = ' + str(x_mask_HD_length))
+        # print('y_mask_HD_length = ' + str(y_mask_HD_length))
+
+        yh_offset = int(y_mask_coord_HD[0] + yh_offset_cu)
+        xw_offset = int(x_mask_coord_HD[0] + xw_offset_cu)
+
+        # find the best zoom factor
+        zoom_tab = [1, 2, 3, 4, 6, 12, 24, 48, 96, 192, 384, 768]
+        indx_1 = np.where(mask.ravel() > 0)[0]
+        zoom_ratio = np.sqrt(HD**2/len(indx_1)) * zoom_cu
+        for zoom_c in zoom_tab:
+            if zoom_ratio <= zoom_c:
+                break
+            zoom_i = zoom_c
             
-        # if yh_offset[inc] < 0:
-        #     yh_offset[inc] = 0
-        # elif yh_offset[inc] > HD - w_roi[inc]:
-        #     yh_offset[inc] = HD - w_roi[inc]
+        print('Suggested zoom = x' + str(zoom_i))
+        print('With image size = (' + str(Npx) + ',' + str(Npy) + ')')
+        val = input("Are you ok with this zoom factor ?[y/n] ")
+        if val == 'n':
+            zoom_input = input('please enter the zoom factor you want :')
+            zoom_i = int(zoom_input)
+            print('Selected zoom = x' + str(zoom_i))
+            print('With image size = (' + str(Npx) + ',' + str(Npy) + ')')
+
+        val = input("Are you ok with this image size ?[y/n] ")
+        if val == 'n':
+            Np_new = input('please entre the image side size you want (Np) : ')
+            Npx = int(Np_new)
+            Npy = int(Np_new)
+            print('Selected zoom = x' + str(zoom_i))
+            print('With image size = (' + str(Npx) + ',' + str(Npy) + ')')
+
+        mask_re = cv2.resize(mask_rot, (int(Npx*zoom_i/zoom_cu), int(Npy*zoom_i/zoom_cu)))
+
+        # plt.figure()
+        # plt.imshow(mask_re)
+        # plt.title('mask resized')
+
+        # find the coordinates and lengths of the rectangular ROI that most closely match the freehand ROI
+        lim_mask_re = np.stack(np.nonzero(mask_re), axis=-1)
+        y_mask_coord = np.array([lim_mask_re[:,0].min(), lim_mask_re[:,0].max()], dtype=np.uint64)
+        x_mask_coord = np.array([lim_mask_re[:,1].min(), lim_mask_re[:,1].max()], dtype=np.uint64)
+        # print('x_mask = ' + str(x_mask_coord))     
+        # print('y_mask = ' + str(y_mask_coord)) 
+        x_mask_length = x_mask_coord[1] - x_mask_coord[0]
+        y_mask_length = y_mask_coord[1] - y_mask_coord[0]
+        # print('x_mask_length = ' + str(x_mask_length))
+        # print('y_mask_length = ' + str(y_mask_length))
+
+        # Crop the mask that most closely match the freehand ROI
+        mask_re_crop = mask_re[y_mask_coord[0]:y_mask_coord[1], x_mask_coord[0]:x_mask_coord[1]]
+
+        # plt.figure()
+        # plt.imshow(mask_re_crop)
+        # plt.title('mask_re_crop')
+
+
+        # find index in the resized mask
+        mask_index = np.where(mask_re_crop.ravel() > 0)[0]
+        mask_element_nbr = len(mask_index)
+        diff = (mask_element_nbr - Np**2) / (Np**2) * 100
+
+        if diff > 0:
+            print('!!! Warning, the ROI is ' + str(int(diff)) + '% larger than the pattern, this will lead to an error !!!') 
+            print(' => please change the size of the ROI !!!')
+        else:
+            print('loss of = ' + str(-int(diff)) + ' % of the pattern size')
+            print(' => ok, the ROI is smaller than the pattern')
+
+        print('---------------')
+        print('Set the following offsets in the "Setup acquisition" cell:')
+        print('xw_offset = ' + str(int(xw_offset)))
+        print('yh_offset = ' + str(int(yh_offset)))
+
+        # Display the masked image
+        im_re = cv2.resize(im, (int(Npx*zoom_i/zoom_cu), int(Npy*zoom_i/zoom_cu)))
+        mask_re_rot = np.rot90(mask_re, 2)
+
+        im2 = np.mean(im_re, axis=2)
+        im_mask = im2*mask_re_rot
+
+        plt.figure()
+        plt.imshow(im_mask)
+        plt.title('masked image')   
+    
+    # geometrical drawn ROI
+    elif ret == 'g':
+        # Convert hypercube into en RGB image to be read by the "selectROI" function
+        GT_sum_pos = GT_sum - np.min(GT_sum)
+        GT_sum_8bit = np.array(GT_sum_pos/np.amax(GT_sum_pos)*255, dtype=np.uint8)
+        colored_img = np.stack((GT_sum_8bit,)*3, axis=-1)
+    
+        Np = GT.shape[0]
+        # resize image for the "selectROI" function
+        HD = DMD_params.display_height#768 => The DMD height
+        WD = DMD_params.display_width#1024 => The DMD width
         
-        # if zoom_range[inc] == 1:
-        #     xw_offset[inc] = 0
-        #     yh_offset[inc] = 0
+        #current zoom and offset of the displayed image
+        zoom_cu = acquisition_parameters.zoom
+        xw_offset_cu = acquisition_parameters.xw_offset
+        yh_offset_cu = acquisition_parameters.yh_offset
+        # if zoom_cu == 1: # warning, to be change if zoom = x1 and x offset is different than 128 !!!
+        #     xw_offset_cu = (WD - HD)/2
+        #     yh_offset_cu = 0
+        
+        # Draw the ROI
+        print('Draw a ROI in the image by holding the left mouse button')
+        print('Press "ENTER" when done')
+        x, y, w, h = cv2.selectROI(cv2.resize(colored_img, (HD, HD)))
+        cv2.destroyAllWindows()
+        
+        # rescale displayed image in the case of current zoom
+        
+        # calculate the factor size between the drawn ROI and the future ROI
+        fac = np.sqrt(HD**2 / (w*h))
+        fac_round = np.round(fac)
+        dif_fac = fac_round - fac
+    
+        # Available digital zoom    
+        zoom_tab = [1, 2, 3, 4, 6, 12, 24, 48, 96, 192, 384, 768]
+        x = x / zoom_cu
+        y = y / zoom_cu
+        w = w / zoom_cu
+        h = h / zoom_cu
+        
+        # calculate the center of the ROI
+        Cx = x + w / 2
+        Cy = y + h / 2
+        
+        # calculate the center of the ROI in the rotated image
+        Crx = HD / zoom_cu - Cx
+        Cry = HD / zoom_cu - Cy
+        
+        
+        
+        # find index of the zoom_tab for the current zoom
+        inc_cu = zoom_tab.index(zoom_cu)
+        
+        # Define the two nearest zoom of the drawn ROI
+        inc = inc_cu
+        
+        for zoom in zoom_tab:
+            if fac <= zoom:
+                break
+            inc = inc + 1
+        
+        if dif_fac <= 0:
+            zoom_range = np.array([zoom_tab[inc], zoom_tab[inc+1]], dtype=float)
+        else:
+            zoom_range = np.array([zoom_tab[inc-1], zoom_tab[inc]], dtype=float)
             
-        print('------------------------------------')
-        print('Zoom = x' + str(int(zoom_range[inc])))
-        print('This lead to a change of the drawn ROI by = ' + str(diff_size[inc]) + ' %')
+        w_roi = HD/zoom_range
         
-        print('xw_offset = ' + str(int(xw_offset[inc])))
-        print('yh_offset = ' + str(int(yh_offset[inc])))
-        print('Suggested new ti = ' + str(new_ti[inc]) + (' ms'))
-        print('Leading to a total acq time : ' + str(int(acquisition_parameters.pattern_amount*(new_ti[inc]+0.356)/1000 // 60)) + ' min ' + 
-              str(round(acquisition_parameters.pattern_amount*new_ti[inc]/1000 % 60)) + ' s')
-        print('------------------------------------')
+        # calculate the difference of the drawn ROI and the final ROI (due to the available zoom)
+        diff_size = np.round((w_roi**2 - w*h)/(w*h) * 10000) / 100
+        
+        # calculate x, y at the top left of the ROI
+        x_roi = Crx - w_roi/2
+        y_roi = Cry - w_roi/2
+        
+        # because the DMD is a rectangle and the pattern is square
+        xw_offset = x_roi + xw_offset_cu
+        yh_offset = y_roi + yh_offset_cu
+        
+        # calculate new integration time and acquisition time
+        new_ti = ti*zoom_range**2
+        
+        # display result
+        for inc in range(len(zoom_range)):           
+            print('------------------------------------')
+            print('Zoom = x' + str(int(zoom_range[inc])))
+            print('This lead to a change of the drawn ROI by = ' + str(diff_size[inc]) + ' %')
+            
+            print('xw_offset = ' + str(int(xw_offset[inc])))
+            print('yh_offset = ' + str(int(yh_offset[inc])))
+            print('Suggested new ti = ' + str(new_ti[inc]) + (' ms'))
+            print('Leading to a total acq time : ' + str(int(acquisition_parameters.pattern_amount*(new_ti[inc]+0.356)/1000 // 60)) + ' min ' + 
+                  str(round(acquisition_parameters.pattern_amount*new_ti[inc]/1000 % 60)) + ' s')
+            print('------------------------------------')
+        
+        mask_index = []
+        x_mask_coord = []
+        y_mask_coord = []
+    else:
+        print('Bad entry, aborted !!!')
+        x_mask_coord = acquisition_parameters.x_mask_coord
+        y_mask_coord = acquisition_parameters.y_mask_coord
+        mask_index = acquisition_parameters.mask_index
     
-    
-    
+    return mask_index, x_mask_coord, y_mask_coord
     
     
     

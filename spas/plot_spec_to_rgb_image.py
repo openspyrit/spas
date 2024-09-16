@@ -65,7 +65,10 @@ def plot_spec_to_rgb_image(GT, wavelengths):
             
             # rescale the spectrum by its original maximum value
             max_med_spec = np.amax(med_spect)
-            med_spect = med_spect * max_raw_spec / max_med_spec
+            if max_med_spec != 0:
+                med_spect = med_spect * max_raw_spec / max_med_spec
+            else:
+                med_spect = np.zeros(len(med_spect))
             # delete all negative values
             med_spect[np.where(med_spect<0)] = 0
             # interpolate to combine with the spectra from the CIE (cmf) => interpolation degrade the spectral resolution, interpolation of the spectra of the CIE would be better (high resolution)

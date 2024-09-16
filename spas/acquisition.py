@@ -92,9 +92,8 @@ import logging
 import time
 import threading
 from plotter import Plotter
+import cv2
 #from spas.visualization import snapshotVisu
-
-
 
 
 def _init_spectrometer() -> Avantes:
@@ -271,7 +270,7 @@ def _setup_spectrometer(ava: Avantes,
     # Get the number of pixels that the spectrometer has
     initial_available_pixels = ava.get_num_pixels()
     
-    print(f'\nThe spectrometer has {initial_available_pixels} pixels')
+    # print(f'\nThe spectrometer has {initial_available_pixels} pixels')
 
     # Enable the 16-bit AD converter for High-Resolution
     ava.use_high_res_adc(True)
@@ -429,7 +428,7 @@ def _update_sequence(DMD: ALP4,
         bitplanes (int, optional): 
             Pattern bitplanes. Defaults to 1.
     """
-    
+
     path_base = Path(pattern_source)
 
     seqId = DMD.SeqAlloc(nbImg=len(pattern_order), 
@@ -438,81 +437,74 @@ def _update_sequence(DMD: ALP4,
     zoom = acquisition_params.zoom
     x_offset = acquisition_params.xw_offset
     y_offset = acquisition_params.yh_offset
+    Np = acquisition_params.pattern_dimension_x
            
     dmd_height = DMD_params.display_height
     dmd_width = DMD_params.display_width
-    len_im = int(dmd_height / zoom)
-    
-    # if zoom == 1:
-    #     x_offset = int((dmd_width - dmd_height)/2)
-    #     y_offset = int(0)
+    len_im = int(dmd_height / zoom)  
 
-    # mask_path = 'D:/hspc/scripts/image/2squares.npy'#'D:/hspc/scripts/image/star.npy'
-    # mask = np.load(mask_path)    
-
-    print(f'Pattern order size: {len(pattern_order)}')   
+    # print(f'Pattern order size: {len(pattern_order)}')   
     t = perf_counter_ns()
-    
-    # T1 = []
-    # T2 = []
-    first_pass = True
-    for index,pattern_name in enumerate(tqdm(pattern_order, unit=' patterns')):
-        # t0 = time.time()
 
-        # read png patterns
-        path = path_base.joinpath(f'{pattern_prefix}_{pattern_name}.png')
-        image = Image.open(path)                    
+    # for adaptative patterns into a ROI
+    apply_mask = False
+    mask_index = acquisition_params.mask_index
+        
+    if mask_index != []:
+        apply_mask = True
+        Npx = acquisition_params.pattern_dimension_x
+        Npy = acquisition_params.pattern_dimension_y
+        mask_element_nbr = len(mask_index)
+        x_mask_coord = acquisition_params.x_mask_coord
+        y_mask_coord = acquisition_params.y_mask_coord 
+        x_mask_length = x_mask_coord[1] - x_mask_coord[0]
+        y_mask_length = y_mask_coord[1] - y_mask_coord[0]
+    
+    first_pass = True
+    for index,pattern_name in enumerate(tqdm(pattern_order, unit=' patterns', total=len(pattern_order))):
+        # read numpy patterns
+        path = path_base.joinpath(f'{pattern_prefix}_{pattern_name}.npy')
+        im = np.load(path) 
+        
         patterns = np.zeros((dmd_height, dmd_width), dtype=np.uint8)
-        im = np.array(image, dtype=np.uint8)
-        # im[0:384,:] = 0
-        # im[:,0:384] = 0
-        # if first_pass == True:
-        #     len_im = im.shape[0]
-        #     first_pass = False
+        
+        if apply_mask == True: # for adaptative patterns into a ROI 
+            pat_mask_all = np.zeros(y_mask_length*x_mask_length) # initialize a vector of lenght = size of the cropped mask           
+            pat_mask_all[mask_index] = im[:mask_element_nbr] #pat_re_vec[:mask_element_nbr] # put the pattern into the vector    
+            pat_mask_all_mat = np.reshape(pat_mask_all, [y_mask_length, x_mask_length]) # reshape the vector into a matrix of the 2d cropped mask
+            # resize the matrix to the DMD size
+            pat_mask_all_mat_DMD = cv2.resize(pat_mask_all_mat, (int(dmd_height*x_mask_length/(Npx*zoom)), int(dmd_height*y_mask_length/(Npy*zoom))), interpolation = cv2.INTER_NEAREST)
+            
+            if first_pass == True:
+                first_pass = False
+                len_im3 = pat_mask_all_mat_DMD.shape
                     
-        patterns[y_offset:y_offset+len_im, x_offset:x_offset+len_im] = im
-        # patterns = patterns * mask
+            patterns[y_offset:y_offset+len_im3[0], x_offset:x_offset+len_im3[1]] = pat_mask_all_mat_DMD 
+        else: # send the entire square pattern without the mask
+            im_mat = np.reshape(im, [Np,Np])
+            im_HD = cv2.resize(im_mat, (int(dmd_height/zoom), int(dmd_height/zoom)), interpolation = cv2.INTER_NEAREST)
+            
+            if first_pass == True:
+                len_im = im_HD.shape
+                first_pass = False
+                
+            patterns[y_offset:y_offset+len_im[0], x_offset:x_offset+len_im[1]] = im_HD  
+        
+        if pattern_name == 151:
+            plt.figure()
+            # plt.imshow(pat_c_re)
+            # plt.imshow(pat_mask_all_mat)
+            # plt.imshow(pat_mask_all_mat_DMD)
+            plt.imshow(patterns)
+            plt.colorbar()
+            plt.title('pattern n°' + str(pattern_name))
+        
         patterns = patterns.ravel()
         
-        # # read numpy patterns
-        # path = path_base.joinpath(f'{pattern_prefix}_{pattern_name}.npy')
-        # patterns = np.load(path)
-        
-        # t1 = time.time()        
-        # T1.append(t1 - t0)
-        
-        # # read C binary patterns
-        # path = path_base.joinpath(f'{pattern_prefix}_{pattern_name}')
-        # with open(path, 'rb') as f:
-        #     byte_data = f.read()    
-            
-        # ArrayFour = ct.c_void_p 
-        # patterns = ArrayFour.from_buffer_copy(byte_data)
-        
-        # if index == 0:
-        #     print('patterns = ' + str(patterns))
-        
-        # for patterns in png or numpy array
         DMD.SeqPut(
             imgData=patterns.copy(),
             PicOffset=index, 
             PicLoad=1)
-        
-        # t2 = time.time()
-        # T2.append(t2-t1)
-        
-        # # for patterns in C format
-        # DMD.SeqPut(
-        #     imgData=patterns,
-        #     PicOffset=index, 
-        #     PicLoad=1,
-        #     dataFormat = 'C')
-        
-        
-    # print('\nT1_mean = ' + str(np.mean(T1)))
-    # print('\nT1_sum = ' + str(np.sum(T1)))
-    # print('\nT2_mean = ' + str(np.mean(T2)))
-    # print('\nT2_sum = ' + str(np.sum(T2)))
     
     print(f'\nTime for sending all patterns: '
           f'{(perf_counter_ns() - t)/1e+9} s')
@@ -629,17 +621,14 @@ def _setup_patterns_2arms(DMD: ALP4, metadata: MetaData, DMD_params: DMDParamete
     pattern_order = pattern_order.astype('int32')
     
     # copy the black pattern image (png) to the number = -1
-    black_pattern_dest_path = Path( metadata.pattern_source + '/' + metadata.pattern_prefix + '_' + '-1.png' )
-    # black_pattern_dest_path = Path( metadata.pattern_source + '/' + metadata.pattern_prefix + '_' + '-1.npy' )
-    # black_pattern_dest_path = Path( metadata.pattern_source + '/' + metadata.pattern_prefix + '_' + '-1' )
+    # black_pattern_dest_path = Path( metadata.pattern_source + '/' + metadata.pattern_prefix + '_' + '-1.png' )
+    black_pattern_dest_path = Path( metadata.pattern_source + '/' + metadata.pattern_prefix + '_' + '-1.npy' )
                                   
     if black_pattern_dest_path.is_file() == False:
+        # black_pattern_orig_path = Path( metadata.pattern_source + '/' + metadata.pattern_prefix + '_' + 
+        #                               str(camPar.black_pattern_num) + '.png' )
         black_pattern_orig_path = Path( metadata.pattern_source + '/' + metadata.pattern_prefix + '_' + 
-                                      str(camPar.black_pattern_num) + '.png' )
-        # black_pattern_orig_path = Path( metadata.pattern_source + '/' + metadata.pattern_prefix + '_' + 
-        #                               str(camPar.black_pattern_num) + '.npy' )
-        # black_pattern_orig_path = Path( metadata.pattern_source + '/' + metadata.pattern_prefix + '_' + 
-        #                               str(camPar.black_pattern_num))
+                                      str(camPar.black_pattern_num) + '.npy' )
         shutil.copyfile(black_pattern_orig_path, black_pattern_dest_path)                              
         
         
@@ -893,7 +882,7 @@ def change_patterns(DMD: ALP4,
                     force_change: bool = False
                     ):
     """
-    change patterns in case where the zoom or (x,y) offset change
+    Delete patterns in the memory of the DMD in the case where the zoom or (x,y) offset change
     
     DMD (ALP4):
         Connected DMD.
@@ -1127,11 +1116,12 @@ def _save_acquisition(metadata: MetaData,
     path = path / f'{metadata.experiment_name}_spectraldata.npz'
     np.savez_compressed(path, spectral_data=spectral_data)
 
-    # Saving metadata
-    save_metadata(metadata, 
-                  DMD_params,
-                  spectrometer_params,
-                  acquisition_parameters)
+    # 'save_metadata' function is commented because the 'save_metadata_2arms' function is executed after the 'acquire' function in the "main_seq_2arms.py" prog
+    # # Saving metadata
+    # save_metadata(metadata, 
+    #               DMD_params,
+    #               spectrometer_params,
+    #               acquisition_parameters)
 
 def _save_acquisition_2arms(metadata: MetaData, 
                      DMD_params: DMDParameters, 
@@ -1558,7 +1548,8 @@ def setup_tuneSpectro(spectrometer,
                       ti : float = 1, 
                       zoom : int = 1,
                       xw_offset: int = 128,
-                      yh_offset: int = 0):
+                      yh_offset: int = 0,
+                      mask_index : np.array = []):
     """ Setup the hadrware to tune the spectrometer in live. The goal is to find 
     the integration time of the spectrometer, noise is around 700 counts, 
     saturation is equak to 2**16=65535
@@ -1584,6 +1575,13 @@ def setup_tuneSpectro(spectrometer,
             Default is 1 ms.
         zoom (int):
             digital zoom on the DMD. Default is 1
+        xw_offset (int):
+            offset of the pattern in the DMD for zoom > 1 in the width (x) direction
+        yh_offset (int):
+            offset of the pattern in the DMD for zoom > 1 in the heihgt (y) direction   
+        mask_index (Union[np.ndarray, str], optional):
+            Array of `int` type corresponding to the index of the mask vector where
+            the value is egal to 1
             
     return:
         metadata (MetaData):
@@ -1622,7 +1620,8 @@ def setup_tuneSpectro(spectrometer,
         pattern_dimension_y = 1,
         zoom                = zoom,
         xw_offset           = xw_offset,
-        yh_offset           = yh_offset            )
+        yh_offset           = yh_offset,
+        mask_index          = []            )
     
     acquisition_parameters.pattern_amount = 1
         

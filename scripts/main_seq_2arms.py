@@ -23,7 +23,7 @@ spectrometer, DMD, DMD_initial_memory, camPar = init_2arms()
 #%% Define the AOI of the camera
 # Warning, not all values are allowed for Width and Height (max: 2076x3088 | ex: 768x544)
 camPar.rectAOI.s32X.value      = 1100#550#0 #0#  // X
-camPar.rectAOI.s32Y.value      = 670#380#0#0#800#   // Y
+camPar.rectAOI.s32Y.value      = 640#380#0#0#800#   // Y
 camPar.rectAOI.s32Width.value  = 768#1544#3088#1544 # 3000#3088#         // Width must be multiple of 8
 camPar.rectAOI.s32Height.value = 544 #1038#2076#1730#2000## 1038#  2076   // Height   
 
@@ -48,21 +48,21 @@ ti   = 1 # Integration time of the spectrometer
 zoom = 1 # Numerical zoom applied in the DMD
 
 metadata, spectrometer_params, DMD_params, acquisition_parameters = setup_tuneSpectro(spectrometer = spectrometer, DMD = DMD, DMD_initial_memory = DMD_initial_memory,
-    pattern_to_display = pattern_to_display, ti = ti, zoom = zoom, xw_offset = 128, yh_offset = 0)
+                                                                                      pattern_to_display = pattern_to_display, ti = ti, zoom = zoom, xw_offset = 128, yh_offset = 0)
 displaySpectro(ava = spectrometer, DMD = DMD, metadata = metadata, spectrometer_params = spectrometer_params, DMD_params = DMD_params, acquisition_params = acquisition_parameters)
 #%% Setup acquisition and send pattern to the DMD
 setup_version            = 'setup_v1.3.1'
 collection_access        = 'public' #'private'#
-Np                       = 8       # Number of pixels in one dimension of the image (image: NpxNp)
-ti                       = 100       # Integration time of the spectrometer   
+Np                       = 64       # Number of pixels in one dimension of the image (image: NpxNp)
+ti                       = 1       # Integration time of the spectrometer   
 zoom                     = 1        # Numerical zoom applied in the DMD
 xw_offset                = 128 #Np*(zoom-1)/(2*zoom),
 yh_offset                = 0 #Np*(zoom-1)/(2*zoom))
 pattern_compression      = 1
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
 source                   = 'white_LED'#'Thorlabs_White_halogen_lamp'#'White_Zeiss_KL-2500-LCD_lamp'#No-light'#Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#'Bioblock power: II',#'HgAr multilines Source (HG-1 Oceanoptics)'
-object_name              = 'test'#'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
-data_folder_name         = '2024-08-26_test'#'Patient-69_exvivo_LGG_BU'
+object_name              = 'cat_pat5'#'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
+data_folder_name         = '2024-09-13_test_adaptativePatterns'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
 
 camPar.acq_mode          = 'snapshot'#'video'   # 
@@ -71,38 +71,36 @@ camPar.insert_patterns   = 0         # 0: no insertion / 1: insert white pattern
 camPar.gate_period       = 16         # a multiple of the integration time of the spectro, between [2 - 16] (2: insert one white pattern between each pattern)
 camPar.black_pattern_num = 1         # insert the picture number (in the pattern_source folder) of the pattern you want to insert
 all_path = func_path(data_folder_name, data_name)
-# bool_file_exist = file_exist(object_name, data_folder_name)
+if 'mask_index' not in locals(): mask_index = [];  x_mask_coord = []; y_mask_coord = []# execute "mask_index = []" to not apply the mask
 
 if all_path.aborted == False:
     metadata = MetaData(
         output_directory     = all_path.subfolder_path,
         pattern_order_source = 'C:/openspyrit/spas/stats/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz',
-        pattern_source       = 'C:/openspyrit/spas/Patterns/Zoom_x' + str(zoom) + '/' + scan_mode + '_' + str(Np) + 'x' + str(Np),
+        pattern_source       = 'C:/openspyrit/spas/Patterns/' + scan_mode + '_' + str(Np) + 'x' + str(Np),
         pattern_prefix       = scan_mode + '_' + str(Np) + 'x' + str(Np),
         experiment_name      = data_name,
         light_source         = source,
         object               = object_name,
         filter               = 'Diffuser', #+ OD=0.3',#optical density = 0.1''No filter',#'linear colored filter',#'Orange filter (600nm)',#'Dichroic_420nm',#'HighPass_500nm + LowPass_750nm + Dichroic_560nm',#'BandPass filter 560nm Dl=10nm',#'None', # + , #'Nothing',#'Diffuser + HighPass_500nm + LowPass_750nm',##'Microsope objective x40',#'' linear colored filter + OD#0',#'Nothing',#
-        description          = 'test a mask on the patterns to check the SNR.'
+        description          = 'insert patterns into a freehand or geometrical ROI.'
         # description          = 'two positions of the lens 80mm, P1:12cm (zoom=0.5), P2:22cm (zoom=1.5) from the DMD. Dichroic plate (T:>420nm, R:<420nm), HighPass_500nm in front of the cam, GP: Glass Plate, OP: other position, OA: out of anapath',
-                        )
-    
-    try:
-        change_patterns(DMD = DMD, acquisition_params = acquisition_parameters, zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset,
-                        force_change = False)
-    except:
-        pass
-        
+                        )    
+    try: change_patterns(DMD = DMD, acquisition_params = acquisition_parameters, zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset,
+                         force_change = True)
+    except: pass
+          
     acquisition_parameters = AcquisitionParameters(pattern_compression = pattern_compression, pattern_dimension_x = Np, pattern_dimension_y = Np, 
-                                                   zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset)
+                                                   zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, mask_index = mask_index, 
+                                                   x_mask_coord = x_mask_coord, y_mask_coord = y_mask_coord)
         
     spectrometer_params, DMD_params, camPar = setup_2arms(spectrometer = spectrometer, DMD = DMD, camPar = camPar, DMD_initial_memory = DMD_initial_memory, 
                                                           metadata = metadata, acquisition_params = acquisition_parameters, DMD_output_synch_pulse_delay = 42, 
                                                           integration_time = ti)
 
     if DMD_params.patterns != None:
-        print('Total acq time Expected : ' + str(int(acquisition_parameters.pattern_amount*(ti+0.356)/1000 // 60)) + ' min ' + 
-              str(round(acquisition_parameters.pattern_amount*ti/1000 % 60)) + ' s')
+        print('Total expected acq time  : ' + str(int(acquisition_parameters.pattern_amount*(ti+0.356)/1000 // 60)) + ' min ' + 
+              str(round(acquisition_parameters.pattern_amount*(ti+0.356)/1000 % 60)) + ' s')
 else:
     print('setup aborted')
 #%% Acquire
@@ -133,7 +131,7 @@ elif camPar.acq_mode == 'snapshot':
     save_metadata_2arms(metadata, DMD_params, spectrometer_params, camPar, acquisition_parameters)
 #%% Hadamard Reconstruction
 Q = wh.walsh2_matrix(Np)
-GT = reconstruction_hadamard(acquisition_parameters.patterns, 'walsh', Q, spectral_data, Np)
+GT = reconstruction_hadamard(acquisition_parameters, 'walsh', Q, spectral_data, Np)
 plot_reco_without_NN(acquisition_parameters, GT, all_path)
 #%% Neural Network setup (executed it just one time)
 Meas = Np*Np
@@ -175,9 +173,33 @@ plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, network_
 #%% transfer data to girder
 transfer_data_2arms(metadata, acquisition_parameters, spectrometer_params, DMD_params, camPar,
                     setup_version, data_folder_name, data_name, collection_access, upload_metadata = 1)
-#%% Extract the coordinate of a ROI for digital zoom
-# put data_name = '' or data_name to draw a ROI on the current acquisition, else specify its old acquisition name
-data_name = 'obj_cat_source_white_LED_Walsh_im_64x64_ti_1ms_zoom_x1'
-extract_ROI_coord(DMD_params, acquisition_parameters, all_path, data_folder_name, data_name, GT, ti)
+#%% Draw a ROI
+# Comment data_folder_name & data_name to draw a ROI in the current acquisition, else specify the acquisition name
+# data_folder_name = '2024-09-13_test_adaptativePatterns'
+# data_name = 'obj_cat_freehand_source_white_LED_Walsh_im_64x64_ti_1ms_zoom_x1'
+mask_index, x_mask_coord, y_mask_coord = extract_ROI_coord(DMD_params, acquisition_parameters, all_path, 
+                                                           data_folder_name, data_name, GT, ti, Np)
 #%% Disconnect
 disconnect_2arms(spectrometer, DMD, camPar)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
