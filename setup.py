@@ -12,7 +12,7 @@ setup(
     long_description=readme,
     long_description_content_type = "text/markdown",
     install_requires=[
-        'ALP4lib @ git+https://github.com/guilhermebene/ALP4lib.git@7e35abf3a5c2e31652f7cfb2e4243b279b6a3a47',
+        'ALP4lib @ git+https://github.com/openspyrit/ALP4lib@3db7bec88b260e5396626b1b185d7a2f678e9bbf',
         'dataclasses-json (==0.5.2)',
         'certifi',
         'cycler',
