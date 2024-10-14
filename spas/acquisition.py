@@ -1607,7 +1607,7 @@ def setup_tuneSpectro(spectrometer,
     metadata = MetaData(
         output_directory     = '',#all_path.subfolder_path,
         pattern_order_source = 'C:/openspyrit/spas/stats/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz',
-        pattern_source       = 'C:/openspyrit/spas/Patterns/Zoom_x' + str(zoom) + '/' + scan_mode + '_' + str(Np) + 'x' + str(Np),
+        pattern_source       = 'C:/openspyrit/spas/Patterns/' + scan_mode + '_' + str(Np) + 'x' + str(Np),
         pattern_prefix       = scan_mode + '_' + str(Np) + 'x' + str(Np),
         experiment_name      = data_name,
         light_source         = source,

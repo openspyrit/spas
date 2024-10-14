@@ -403,9 +403,9 @@ class AcquisitionParameters:
     pattern_compression: float
     pattern_dimension_x: int
     pattern_dimension_y: int
-    zoom: int
-    xw_offset: int
-    yh_offset: int
+    zoom: Optional[int] = field(default=None) 
+    xw_offset: Optional[int] = field(default=None) 
+    yh_offset: Optional[int] = field(default=None) 
     mask_index: Optional[Union[np.ndarray, str]] = field(default=None, 
                                                         repr=False)
     x_mask_coord: Optional[Union[np.ndarray, str]] = field(default=None, 
