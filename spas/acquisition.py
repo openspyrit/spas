@@ -492,14 +492,14 @@ def _update_sequence(DMD: ALP4,
                 
             patterns[y_offset:y_offset+len_im[0], x_offset:x_offset+len_im[1]] = im_HD  
         
-        if pattern_name == 151:
-            plt.figure()
-            # plt.imshow(pat_c_re)
-            # plt.imshow(pat_mask_all_mat)
-            # plt.imshow(pat_mask_all_mat_DMD)
-            plt.imshow(patterns)
-            plt.colorbar()
-            plt.title('pattern n°' + str(pattern_name))
+        # if pattern_name == 151:
+        #     plt.figure()
+        #     # plt.imshow(pat_c_re)
+        #     # plt.imshow(pat_mask_all_mat)
+        #     # plt.imshow(pat_mask_all_mat_DMD)
+        #     plt.imshow(patterns)
+        #     plt.colorbar()
+        #     plt.title('pattern n°' + str(pattern_name))
         
         patterns = patterns.ravel()
         
@@ -1618,8 +1618,8 @@ def setup_tuneSpectro(spectrometer,
         
     acquisition_parameters = AcquisitionParameters(
         pattern_compression = 1,
-        pattern_dimension_x = 1,
-        pattern_dimension_y = 1,
+        pattern_dimension_x = 64,
+        pattern_dimension_y = 64,
         zoom                = zoom,
         xw_offset           = xw_offset,
         yh_offset           = yh_offset,
