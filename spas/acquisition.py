@@ -1461,7 +1461,7 @@ def acquire(ava: Avantes,
         (data, spectrum_index, timestamp, time,
             start_measurement_time, saturation_detected) = AcquisitionResults
 
-        print('Data acquired')
+        print('Acquisition number : ' + str(repetition) + ' finished')
 
         if reconstruct == True:
             queue_to_recon.put(data.T)
@@ -1482,11 +1482,11 @@ def acquire(ava: Avantes,
         acquisition_params.acquired_spectra += spectrum_index
 
         acquisition_params.saturation_detected = saturation_detected
-
-        # Print data for each repetition only if there are not too many repetitions
-        if (verbose) and repetitions <= 10:
-            if saturation_detected is True:
-                print('Saturation detected!')
+        
+        if saturation_detected is True:
+            print('!!!!!!!!!! Saturation detected in the spectro !!!!!!!!!!')
+        # Print data for each repetition
+        if (verbose):
             print('Spectra acquired: {}'.format(spectrum_index))
             print('Mean callback acquisition time: {} ms'.format(
                np.mean(time)))
@@ -1504,21 +1504,9 @@ def acquire(ava: Avantes,
 
     acquisition_params.update_timings(timestamps, measurement_time)
     # Real time between each spectrum acquisition by the spectrometer
-    print('Complete acquisition results:')
-    print('Spectra acquired: {}'.format(
-        acquisition_params.acquired_spectra))
-    if acquisition_params.saturation_detected is True:
-        print('!!!!!!!!!! Saturation detected in the spectro !!!!!!!!!!')
-    print('Mean callback acquisition time: {} ms'.format(
-        acquisition_params.mean_callback_acquisition_time_ms))
-    print('Total callback acquisition time: {} s'.format(
-        acquisition_params.total_callback_acquisition_time_s))
-    print('Mean spectrometer acquisition time: {} ms'.format(
-        acquisition_params.mean_spectrometer_acquisition_time_ms))
-    print('Total spectrometer acquisition time: {} s'.format(
-        acquisition_params.total_spectrometer_acquisition_time_s))
-    print(f'Acquisition matrix dimension: {spectral_data.shape}')
-
+    print('Complete acquisition done')
+    print('Spectra acquired: {}'.format(acquisition_params.acquired_spectra))      
+    print('Total acquisition time: {} s'.format(acquisition_params.total_spectrometer_acquisition_time_s))
     print(f'Saving data to {metadata.output_directory}')
     
     _save_acquisition(metadata, DMD_params, spectrometer_params, 
@@ -1542,409 +1530,6 @@ def acquire(ava: Avantes,
         print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
     return spectral_data
-
-def setup_tuneSpectro(spectrometer, 
-                      DMD, 
-                      DMD_initial_memory,
-                      pattern_to_display, 
-                      ti : float = 1, 
-                      zoom : int = 1,
-                      xw_offset: int = 128,
-                      yh_offset: int = 0,
-                      mask_index : np.array = []):
-    """ Setup the hadrware to tune the spectrometer in live. The goal is to find 
-    the integration time of the spectrometer, noise is around 700 counts, 
-    saturation is equak to 2**16=65535
-    
-    Args:
-        spectrometer (Avantes):
-            Connected spectrometer (Avantes object).
-        DMD (ALP4):
-            Connected DMD.
-        DMD_initial_memory (int):
-            Initial memory available in DMD after initialization.
-        metadata (MetaData):
-            Metadata concerning the experiment, paths, file inputs and file 
-            outputs. Must be created and filled up by the user.
-        acquisition_params (AcquisitionParameters):
-            Acquisition related metadata object. User must partially fill up
-            with pattern_compression, pattern_dimension_x, pattern_dimension_y.
-        pattern_to_display (string):
-            display one pattern on the DMD to tune the spectrometer. Default is 
-            white pattern
-        ti (float):
-            The integration time of the spectrometer during one scan in miliseconds. 
-            Default is 1 ms.
-        zoom (int):
-            digital zoom on the DMD. Default is 1
-        xw_offset (int):
-            offset of the pattern in the DMD for zoom > 1 in the width (x) direction
-        yh_offset (int):
-            offset of the pattern in the DMD for zoom > 1 in the heihgt (y) direction   
-        mask_index (Union[np.ndarray, str], optional):
-            Array of `int` type corresponding to the index of the mask vector where
-            the value is egal to 1
-            
-    return:
-        metadata (MetaData):
-            Metadata concerning the experiment, paths, file inputs and file 
-            outputs. Must be created and filled up by the user.
-        spectrometer_params (SpectrometerParameters): 
-            Spectrometer metadata object with spectrometer configurations.
-        DMD_params (DMDParameters):
-            DMD metadata object with DMD configurations.
-    """
-    
-    data_folder_name = 'Tune'
-    data_name = 'test'
-    # all_path = func_path(data_folder_name, data_name)
-
-    scan_mode   = 'Walsh'
-    Np          = 64
-    source      = ''
-    object_name = ''
-
-    metadata = MetaData(
-        output_directory     = '',#all_path.subfolder_path,
-        pattern_order_source = 'C:/openspyrit/spas/stats/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz',
-        pattern_source       = 'C:/openspyrit/spas/Patterns/' + scan_mode + '_' + str(Np) + 'x' + str(Np),
-        pattern_prefix       = scan_mode + '_' + str(Np) + 'x' + str(Np),
-        experiment_name      = data_name,
-        light_source         = source,
-        object               = object_name,
-        filter               = '', 
-        description          = ''
-                        )
-        
-    acquisition_parameters = AcquisitionParameters(
-        pattern_compression = 1,
-        pattern_dimension_x = 64,
-        pattern_dimension_y = 64,
-        zoom                = zoom,
-        xw_offset           = xw_offset,
-        yh_offset           = yh_offset,
-        mask_index          = []            )
-    
-    acquisition_parameters.pattern_amount = 1
-        
-    spectrometer_params, DMD_params = setup(
-        spectrometer       = spectrometer, 
-        DMD                = DMD,
-        DMD_initial_memory = DMD_initial_memory,
-        metadata           = metadata, 
-        acquisition_params = acquisition_parameters,
-        pattern_to_display = pattern_to_display,
-        integration_time   = ti,           
-        loop = True                         )
-    
-    return metadata, spectrometer_params, DMD_params, acquisition_parameters
-
-def displaySpectro(ava: Avantes, 
-            DMD: ALP4,
-            metadata: MetaData, 
-            spectrometer_params: SpectrometerParameters, 
-            DMD_params: DMDParameters, 
-            acquisition_params: AcquisitionParameters,
-            reconstruction_params: ReconstructionParameters = None
-            ):
-    """Perform a continousely acquisition on the spectrometer for optical tuning.
-
-    Send a pattern on the DMD to project light on the spectrometer. The goal is 
-    to have a look on the amplitude of the spectrum to tune the illumination to
-    avoid saturation (sat >= 65535) and noisy signal (amp <= 650).
-
-    Args:
-        ava (Avantes): 
-            Connected spectrometer (Avantes object).
-        DMD (ALP4): 
-            Connected DMD.
-        metadata (MetaData): 
-            Metadata concerning the experiment, paths, file inputs and file 
-            outputs. Must be created and filled up by the user.
-        spectrometer_params (SpectrometerParameters): 
-            Spectrometer metadata object with spectrometer configurations.
-        DMD_params (DMDParameters):
-            DMD metadata object with DMD configurations.
-        acquisition_params (AcquisitionParameters): 
-            Acquisition related metadata object.
-        wavelengths (List[float]): 
-            List of float corresponding to the wavelengths associated with
-            spectrometer's start and stop pixels.
-        reconstruction_params (ReconstructionParameters):
-            Object containing parameters of the neural network to be loaded for
-            reconstruction.
-    """
-    
-    loop = True # is to project continuously a unique pattern to tune the spectrometer
-    
-    pixel_amount = (spectrometer_params.stop_pixel - 
-                    spectrometer_params.start_pixel + 1)
-    # measurement_time = np.zeros(
-    #     (acquisition_params.pattern_amount))
-    # timestamps = np.zeros(
-    #     ((acquisition_params.pattern_amount - 1)), 
-    #     dtype=np.float32)
-    spectral_data = np.zeros(
-        (acquisition_params.pattern_amount,pixel_amount),
-        dtype=np.float64)
-
-    acquisition_params.acquired_spectra = 0
-
-    AcquisitionResults = _acquire_raw(ava, DMD, spectrometer_params, 
-        DMD_params, acquisition_params, loop)
-
-    (data, spectrum_index, timestamp, time,
-        start_measurement_time, saturation_detected) = AcquisitionResults
-
-
-    time, timestamp = _calculate_elapsed_time(
-        start_measurement_time, time, timestamp)
-
-    begin = acquisition_params.pattern_amount
-    end = 2 * acquisition_params.pattern_amount
-    spectral_data[begin:end] = data
-    # measurement_time[begin:end] = time
-
-    # begin = (acquisition_params.pattern_amount - 1)
-    # end = 2 * (acquisition_params.pattern_amount - 1)
-    # timestamps[begin:end] = timestamp
-
-    acquisition_params.acquired_spectra += spectrum_index
-
-    acquisition_params.saturation_detected = saturation_detected
-
-
-
-    # acquisition_params.update_timings(timestamps, measurement_time)
-    # Real time between each spectrum acquisition by the spectrometer
-
-
-def check_ueye(func, *args, exp=0, raise_exc=True, txt=None):
-    ret = func(*args)
-    if not txt:
-        txt = "{}: Expected {} but ret={}!".format(str(func), exp, ret)
-    if ret != exp:
-        if raise_exc:
-            raise RuntimeError(txt)
-        else:
-            logging.critical(txt)
-
-
-def stopCapt_DeallocMem(camPar):
-    # Stop capture and deallocate camera memory if need to change AOI
-    if camPar.camActivated == 1:        
-        nRet = ueye.is_StopLiveVideo(camPar.hCam, ueye.IS_FORCE_VIDEO_STOP)
-        if nRet == ueye.IS_SUCCESS:
-            camPar.camActivated = 0
-            print('video stop successful')
-        else:
-            print('problem to stop the video')
-            
-    if camPar.Memory == 1:        
-        nRet = ueye.is_FreeImageMem(camPar.hCam, camPar.pcImageMemory, camPar.MemID)
-        if nRet == ueye.IS_SUCCESS:
-            camPar.Memory = 0
-            print('deallocate memory successful')
-        else:
-            print('Problem to deallocate memory of the camera')
-                
-    return camPar
-
-def stopCapt_DeallocMem_ExitCam(camPar):
-    # Stop capture and deallocate camera memory if need to change AOI
-    if camPar.camActivated == 1:        
-        nRet = ueye.is_StopLiveVideo(camPar.hCam, ueye.IS_FORCE_VIDEO_STOP)
-        if nRet == ueye.IS_SUCCESS:
-            camPar.camActivated = 0
-            print('video stop successful')
-        else:
-            print('problem to stop the video')
-            
-    if camPar.Memory == 1:        
-        nRet = ueye.is_FreeImageMem(camPar.hCam, camPar.pcImageMemory, camPar.MemID)
-        if nRet == ueye.IS_SUCCESS:
-            camPar.Memory = 0
-            print('deallocate memory successful')
-        else:
-            print('Problem to deallocate memory of the camera')
-    
-    if camPar.Exit == 2:
-        nRet = ueye.is_ExitCamera(camPar.hCam)
-        if nRet == ueye.IS_SUCCESS:
-            camPar.Exit = 0
-            print('Camera disconnected')
-        else:
-            print('Problem to disconnect camera, need to restart spyder')
-                
-    return camPar
-
-class ImageBuffer:
-    pcImageMemory = None
-    MemID = None
-    width = None
-    height = None
-    nbitsPerPixel = None
-
-def imageQueue(camPar):
-    #   Create Imagequeue ---------------------------------------------------------
-    # - allocate 3 ore more buffers depending on the framerate
-    # - initialize Imagequeue
-    # ---------------------------------------------------------
-    sleep(1)   # is required (delay of 1s was not optimized!!)
-    buffers = []
-    for y in range(10):
-        buffers.append(ImageBuffer())
-
-    for x in range(len(buffers)):
-        buffers[x].nbitsPerPixel = camPar.nBitsPerPixel  # RAW8
-        buffers[x].height = camPar.rectAOI.s32Height  # sensorinfo.nMaxHeight
-        buffers[x].width = camPar.rectAOI.s32Width  # sensorinfo.nMaxWidth
-        buffers[x].MemID = ueye.int(0)
-        buffers[x].pcImageMemory = ueye.c_mem_p()
-        check_ueye(ueye.is_AllocImageMem, camPar.hCam, buffers[x].width, buffers[x].height, buffers[x].nbitsPerPixel,
-                   buffers[x].pcImageMemory, buffers[x].MemID)
-        check_ueye(ueye.is_AddToSequence, camPar.hCam, buffers[x].pcImageMemory, buffers[x].MemID)
-
-    check_ueye(ueye.is_InitImageQueue, camPar.hCam, ueye.c_int(0))
-    if camPar.trigger_mode == 'soft':
-        check_ueye(ueye.is_SetExternalTrigger, camPar.hCam, ueye.IS_SET_TRIGGER_SOFTWARE)
-    elif camPar.trigger_mode == 'hard':
-        check_ueye(ueye.is_SetExternalTrigger, camPar.hCam, ueye.IS_SET_TRIGGER_LO_HI)
-
-def prepareCam(camPar, metadata):
-    cam_path = metadata.output_directory + '\\' + metadata.experiment_name + '_video.' + camPar.vidFormat
-    strFileName = ueye.c_char_p(cam_path.encode('utf-8'))
-    
-    if camPar.vidFormat == 'avi':         
-        # print('Video format : AVI')
-        camPar.avi = ueye.int()
-        nRet = ueye_tools.isavi_InitAVI(camPar.avi, camPar.hCam)
-        # print("isavi_InitAVI")
-        if nRet != ueye_tools.IS_AVI_NO_ERR:
-            print("isavi_InitAVI ERROR")
-        
-        nRet = ueye_tools.isavi_SetImageSize(camPar.avi, camPar.m_nColorMode,  camPar.rectAOI.s32Width , camPar.rectAOI.s32Height, 0, 0, 0)
-        nRet = ueye_tools.isavi_SetImageQuality(camPar.avi, 100)
-        if nRet != ueye_tools.IS_AVI_NO_ERR:
-            print("isavi_SetImageQuality ERROR")
- 
-        nRet = ueye_tools.isavi_OpenAVI(camPar.avi, strFileName)
-        if nRet != ueye_tools.IS_AVI_NO_ERR:
-            print("isavi_OpenAVI ERROR")
-            print('Error code = ' + str(nRet))
-            print('Certainly, it is a problem with the file name, Avoid special character like "µ" or try to redcue its size')
-        
-        nRet = ueye_tools.isavi_SetFrameRate(camPar.avi, camPar.fps)
-        if nRet != ueye_tools.IS_AVI_NO_ERR:
-            print("isavi_SetFrameRate ERROR")
-        nRet = ueye_tools.isavi_StartAVI(camPar.avi)
-        # print("isavi_StartAVI")
-        if nRet != ueye_tools.IS_AVI_NO_ERR:
-            print("isavi_StartAVI ERROR")
-
-            
-    elif camPar.vidFormat == 'bin':
-        camPar.punFileID = ueye.c_uint()
-        nRet = ueye_tools.israw_InitFile(camPar.punFileID, ueye_tools.IS_FILE_ACCESS_MODE_WRITE)
-        if nRet != ueye_tools.IS_AVI_NO_ERR:
-            print("INIT RAW FILE ERROR")
-            
-        nRet = ueye_tools.israw_SetImageInfo(camPar.punFileID, camPar.rectAOI.s32Width, camPar.rectAOI.s32Height, camPar.nBitsPerPixel)
-        if nRet != ueye_tools.IS_AVI_NO_ERR:
-            print("SET IMAGE INFO ERROR")
-            
-        if nRet == ueye.IS_SUCCESS: 
-            # print('initFile ok')
-            # print('SetImageInfo ok')
-            nRet = ueye_tools.israw_OpenFile(camPar.punFileID, strFileName)
-            # if nRet == ueye.IS_SUCCESS:
-            #     # print('OpenFile success')
-    
-    # nShutterMode = ueye.c_uint(ueye.IS_DEVICE_FEATURE_CAP_SHUTTER_MODE_ROLLING_GLOBAL_START)
-    # nRet = ueye.is_DeviceFeature(camPar.hCam, ueye.IS_DEVICE_FEATURE_CMD_SET_SHUTTER_MODE, nShutterMode, 
-    #                         ueye.sizeof(nShutterMode))
-    # print('shutter mode = ' + str(nShutterMode.value) + ' / enable : ' + str(nRet))
-    
-    # # Read the global flash params
-    # flashParams = ueye.IO_FLASH_PARAMS()
-    # nRet = ueye.is_IO(camPar.hCam, ueye.IS_IO_CMD_FLASH_GET_GLOBAL_PARAMS, flashParams, ueye.sizeof(flashParams))
-    # if (nRet == ueye.IS_SUCCESS):
-    #     nDelay   = flashParams.s32Delay
-    #     print('nDelay = ' + str(nDelay.value))
-    #     nDuration = flashParams.u32Duration
-    #     print('nDuration = ' + str(nDuration.value))
-
-    # flashParams.s32Delay.value = 0
-    # flashParams.u32Duration.value = 40 
-    # # Apply the global flash params and set the flash params to these values
-    # nRet = ueye.is_IO(camPar.hCam, ueye.IS_IO_CMD_FLASH_SET_PARAMS, flashParams, ueye.sizeof(flashParams))
-    
-    
-    # nRet = ueye.is_IO(camPar.hCam, ueye.IS_IO_CMD_FLASH_GET_PARAMS, flashParams, ueye.sizeof(flashParams))
-    # if (nRet == ueye.IS_SUCCESS):
-    #     nDelay   = flashParams.s32Delay
-    #     print('nDelay = ' + str(nDelay.value))
-    #     nDuration = flashParams.u32Duration
-    #     print('nDuration = ' + str(nDuration.value))
-            
-    # ---------------------------------------------------------
-    # Activates the camera's live video mode (free run mode)
-    # ---------------------------------------------------------
-    nRet = ueye.is_CaptureVideo(camPar.hCam, ueye.IS_DONT_WAIT)
-    # nRet = ueye.is_FreezeVideo(camPar.hCam, ueye.IS_DONT_WAIT)
-    if nRet != ueye.IS_SUCCESS:
-        print("is_CaptureVideo ERROR")
-    else:
-        camPar.camActivated = 1
-    
-    return camPar
-    
-        
-def runCam_thread(camPar, start_chrono): 
-    imageinfo = ueye.UEYEIMAGEINFO()
-    current_buffer = ueye.c_mem_p()
-    current_id = ueye.int()
-    # inc = 0
-    entier_old = 0
-    # time.sleep(0.01)
-    while True: 
-        nret = ueye.is_WaitForNextImage(camPar.hCam, camPar.timeout, current_buffer, current_id)
-        if nret == ueye.IS_SUCCESS:
-            check_ueye(ueye.is_GetImageInfo, camPar.hCam, current_id, imageinfo, ueye.sizeof(imageinfo))
-            start_time = time.time()
-            counter = start_time - start_chrono
-            camPar.time_array.append(counter)
-            if camPar.vidFormat == 'avi':
-                nRet = ueye_tools.isavi_AddFrame(camPar.avi, current_buffer)  
-            elif camPar.vidFormat == 'bin':   
-                nRet = ueye_tools.israw_AddFrame(camPar.punFileID, current_buffer, imageinfo.u64TimestampDevice)
-                                
-            check_ueye(ueye.is_UnlockSeqBuf, camPar.hCam, current_id, current_buffer)
-        else:
-            # nRet = ueye.is_FreeImageMem (camPar.hCam, current_buffer, current_id)
-            # if nRet != ueye.IS_SUCCESS:
-            #     print('ERROR to free the memory')
-            #     print(nRet)
-            print('Thread finished')
-            break
-        # else:
-        #     print('thread cam stop correctly')
-        #     break
-
-def stopCam(camPar):
-    if camPar.vidFormat == 'avi':
-        ueye_tools.isavi_StopAVI(camPar.hCam)
-        ueye_tools.isavi_CloseAVI(camPar.hCam)
-        ueye_tools.isavi_ExitAVI(camPar.hCam)
-    elif camPar.vidFormat == 'bin':   
-        ueye_tools.israw_CloseFile(camPar.punFileID)
-        ueye_tools.israw_ExitFile(camPar.punFileID)
-        camPar.punFileID = ueye.c_uint()
-        
-    # camPar = stopCapt_DeallocMem(camPar)
-    
-    return camPar
-    
 
 def _acquire_raw_2arms(ava: Avantes, 
             DMD: ALP4,
@@ -2211,7 +1796,7 @@ def acquire_2arms(ava: Avantes,
         (data, spectrum_index, timestamp, time,
             start_measurement_time, saturation_detected) = AcquisitionResults
 
-        print('Data acquired')
+        print('Acquisition number : ' + str(repetition) + ' finished')
 
         if reconstruct == True:
             queue_to_recon.put(data.T)
@@ -2232,11 +1817,11 @@ def acquire_2arms(ava: Avantes,
         acquisition_params.acquired_spectra += spectrum_index
 
         acquisition_params.saturation_detected = saturation_detected
-
-        # Print data for each repetition only if there are not too many repetitions
-        if (verbose) and repetitions <= 10:
-            if saturation_detected is True:
-                print('Saturation detected!')
+    
+        if saturation_detected is True:
+            print('!!!!!!!!!! Saturation detected in the spectro !!!!!!!!!!')
+        # Print data for each repetition
+        if (verbose):
             print('Spectra acquired: {}'.format(spectrum_index))
             print('Mean callback acquisition time: {} ms'.format(
                np.mean(time)))
@@ -2246,31 +1831,17 @@ def acquire_2arms(ava: Avantes,
                 np.mean(timestamp)))
             print('Total spectrometer acquisition time: {} s'.format(
                 np.sum(timestamp)/1000))
-
+    
             # Print shape of acquisition matrix for one repetition    
             print(f'Partial acquisition matrix dimensions:'
                   f'{data.shape}')
             print()
-
     
     acquisition_params.update_timings(timestamps, measurement_time)
-    print('Acquisition completed')
     # Real time between each spectrum acquisition by the spectrometer
-    # print('Complete acquisition results:')
-    # print('Spectra acquired: {}'.format(
-    #     acquisition_params.acquired_spectra))
-    if acquisition_params.saturation_detected is True:
-        print('Saturation detected!')
-    print('Mean callback acquisition time: {} ms'.format(
-        acquisition_params.mean_callback_acquisition_time_ms))
-    # print('Total callback acquisition time: {} s'.format(
-    #     acquisition_params.total_callback_acquisition_time_s))
-    # print('Mean spectrometer acquisition time: {} ms'.format(
-    #     acquisition_params.mean_spectrometer_acquisition_time_ms))
-    print('Total spectrometer acquisition time: {} s'.format(
-        acquisition_params.total_spectrometer_acquisition_time_s))
-    # print(f'Acquisition matrix dimension: {spectral_data.shape}')
-
+    print('Complete acquisition done')
+    print('Spectra acquired: {}'.format(acquisition_params.acquired_spectra))      
+    print('Total acquisition time: {} s'.format(acquisition_params.total_spectrometer_acquisition_time_s))
     print(f'Saving data to {metadata.output_directory}')
     
     # delete acquisition with black pattern (white for the camera)
@@ -2307,6 +1878,414 @@ def acquire_2arms(ava: Avantes,
 
     return spectral_data
 
+
+def setup_tuneSpectro(spectrometer, 
+                      DMD, 
+                      DMD_initial_memory,
+                      pattern_to_display, 
+                      ti : float = 1, 
+                      zoom : int = 1,
+                      xw_offset: int = 128,
+                      yh_offset: int = 0,
+                      mask_index : np.array = []):
+    """ Setup the hadrware to tune the spectrometer in live. The goal is to find 
+    the integration time of the spectrometer, noise is around 700 counts, 
+    saturation is equak to 2**16=65535
+    
+    Args:
+        spectrometer (Avantes):
+            Connected spectrometer (Avantes object).
+        DMD (ALP4):
+            Connected DMD.
+        DMD_initial_memory (int):
+            Initial memory available in DMD after initialization.
+        metadata (MetaData):
+            Metadata concerning the experiment, paths, file inputs and file 
+            outputs. Must be created and filled up by the user.
+        acquisition_params (AcquisitionParameters):
+            Acquisition related metadata object. User must partially fill up
+            with pattern_compression, pattern_dimension_x, pattern_dimension_y.
+        pattern_to_display (string):
+            display one pattern on the DMD to tune the spectrometer. Default is 
+            white pattern
+        ti (float):
+            The integration time of the spectrometer during one scan in miliseconds. 
+            Default is 1 ms.
+        zoom (int):
+            digital zoom on the DMD. Default is 1
+        xw_offset (int):
+            offset of the pattern in the DMD for zoom > 1 in the width (x) direction
+        yh_offset (int):
+            offset of the pattern in the DMD for zoom > 1 in the heihgt (y) direction   
+        mask_index (Union[np.ndarray, str], optional):
+            Array of `int` type corresponding to the index of the mask vector where
+            the value is egal to 1
+            
+    return:
+        metadata (MetaData):
+            Metadata concerning the experiment, paths, file inputs and file 
+            outputs. Must be created and filled up by the user.
+        spectrometer_params (SpectrometerParameters): 
+            Spectrometer metadata object with spectrometer configurations.
+        DMD_params (DMDParameters):
+            DMD metadata object with DMD configurations.
+    """
+    
+    data_folder_name = 'Tune'
+    data_name = 'test'
+    # all_path = func_path(data_folder_name, data_name)
+
+    scan_mode   = 'Walsh'
+    Np          = 64
+    source      = ''
+    object_name = ''
+
+    metadata = MetaData(
+        output_directory     = '',#all_path.subfolder_path,
+        pattern_order_source = 'C:/openspyrit/spas/stats/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz',
+        pattern_source       = 'C:/openspyrit/spas/Patterns/' + scan_mode + '_' + str(Np) + 'x' + str(Np),
+        pattern_prefix       = scan_mode + '_' + str(Np) + 'x' + str(Np),
+        experiment_name      = data_name,
+        light_source         = source,
+        object               = object_name,
+        filter               = '', 
+        description          = ''
+                        )
+        
+    acquisition_parameters = AcquisitionParameters(
+        pattern_compression = 1,
+        pattern_dimension_x = 64,
+        pattern_dimension_y = 64,
+        zoom                = zoom,
+        xw_offset           = xw_offset,
+        yh_offset           = yh_offset,
+        mask_index          = []            )
+    
+    acquisition_parameters.pattern_amount = 1
+        
+    spectrometer_params, DMD_params = setup(
+        spectrometer       = spectrometer, 
+        DMD                = DMD,
+        DMD_initial_memory = DMD_initial_memory,
+        metadata           = metadata, 
+        acquisition_params = acquisition_parameters,
+        pattern_to_display = pattern_to_display,
+        integration_time   = ti,           
+        loop = True                         )
+    
+    return metadata, spectrometer_params, DMD_params, acquisition_parameters
+
+def displaySpectro(ava: Avantes, 
+            DMD: ALP4,
+            metadata: MetaData, 
+            spectrometer_params: SpectrometerParameters, 
+            DMD_params: DMDParameters, 
+            acquisition_params: AcquisitionParameters,
+            reconstruction_params: ReconstructionParameters = None
+            ):
+    """Perform a continousely acquisition on the spectrometer for optical tuning.
+
+    Send a pattern on the DMD to project light on the spectrometer. The goal is 
+    to have a look on the amplitude of the spectrum to tune the illumination to
+    avoid saturation (sat >= 65535) and noisy signal (amp <= 650).
+
+    Args:
+        ava (Avantes): 
+            Connected spectrometer (Avantes object).
+        DMD (ALP4): 
+            Connected DMD.
+        metadata (MetaData): 
+            Metadata concerning the experiment, paths, file inputs and file 
+            outputs. Must be created and filled up by the user.
+        spectrometer_params (SpectrometerParameters): 
+            Spectrometer metadata object with spectrometer configurations.
+        DMD_params (DMDParameters):
+            DMD metadata object with DMD configurations.
+        acquisition_params (AcquisitionParameters): 
+            Acquisition related metadata object.
+        wavelengths (List[float]): 
+            List of float corresponding to the wavelengths associated with
+            spectrometer's start and stop pixels.
+        reconstruction_params (ReconstructionParameters):
+            Object containing parameters of the neural network to be loaded for
+            reconstruction.
+    """
+    
+    loop = True # is to project continuously a unique pattern to tune the spectrometer
+    
+    pixel_amount = (spectrometer_params.stop_pixel - 
+                    spectrometer_params.start_pixel + 1)
+    # measurement_time = np.zeros(
+    #     (acquisition_params.pattern_amount))
+    # timestamps = np.zeros(
+    #     ((acquisition_params.pattern_amount - 1)), 
+    #     dtype=np.float32)
+    spectral_data = np.zeros(
+        (acquisition_params.pattern_amount,pixel_amount),
+        dtype=np.float64)
+
+    acquisition_params.acquired_spectra = 0
+
+    AcquisitionResults = _acquire_raw(ava, DMD, spectrometer_params, 
+        DMD_params, acquisition_params, loop)
+
+    (data, spectrum_index, timestamp, time,
+        start_measurement_time, saturation_detected) = AcquisitionResults
+
+
+    time, timestamp = _calculate_elapsed_time(
+        start_measurement_time, time, timestamp)
+
+    begin = acquisition_params.pattern_amount
+    end = 2 * acquisition_params.pattern_amount
+    spectral_data[begin:end] = data
+    # measurement_time[begin:end] = time
+
+    # begin = (acquisition_params.pattern_amount - 1)
+    # end = 2 * (acquisition_params.pattern_amount - 1)
+    # timestamps[begin:end] = timestamp
+
+    acquisition_params.acquired_spectra += spectrum_index
+
+    acquisition_params.saturation_detected = saturation_detected
+
+
+
+    # acquisition_params.update_timings(timestamps, measurement_time)
+    # Real time between each spectrum acquisition by the spectrometer
+
+
+def check_ueye(func, *args, exp=0, raise_exc=True, txt=None):
+    ret = func(*args)
+    if not txt:
+        txt = "{}: Expected {} but ret={}!".format(str(func), exp, ret)
+    if ret != exp:
+        if raise_exc:
+            raise RuntimeError(txt)
+        else:
+            logging.critical(txt)
+
+
+def stopCapt_DeallocMem(camPar):
+    # Stop capture and deallocate camera memory if need to change AOI
+    if camPar.camActivated == 1:        
+        nRet = ueye.is_StopLiveVideo(camPar.hCam, ueye.IS_FORCE_VIDEO_STOP)
+        if nRet == ueye.IS_SUCCESS:
+            camPar.camActivated = 0
+            print('video stop successful')
+        else:
+            print('problem to stop the video')
+            
+    if camPar.Memory == 1:        
+        nRet = ueye.is_FreeImageMem(camPar.hCam, camPar.pcImageMemory, camPar.MemID)
+        if nRet == ueye.IS_SUCCESS:
+            camPar.Memory = 0
+            print('deallocate memory successful')
+        else:
+            print('Problem to deallocate memory of the camera')
+                
+    return camPar
+
+
+def stopCapt_DeallocMem_ExitCam(camPar):
+    # Stop capture and deallocate camera memory if need to change AOI
+    if camPar.camActivated == 1:        
+        nRet = ueye.is_StopLiveVideo(camPar.hCam, ueye.IS_FORCE_VIDEO_STOP)
+        if nRet == ueye.IS_SUCCESS:
+            camPar.camActivated = 0
+            print('video stop successful')
+        else:
+            print('problem to stop the video')
+            
+    if camPar.Memory == 1:        
+        nRet = ueye.is_FreeImageMem(camPar.hCam, camPar.pcImageMemory, camPar.MemID)
+        if nRet == ueye.IS_SUCCESS:
+            camPar.Memory = 0
+            print('deallocate memory successful')
+        else:
+            print('Problem to deallocate memory of the camera')
+    
+    if camPar.Exit == 2:
+        nRet = ueye.is_ExitCamera(camPar.hCam)
+        if nRet == ueye.IS_SUCCESS:
+            camPar.Exit = 0
+            print('Camera disconnected')
+        else:
+            print('Problem to disconnect camera, need to restart spyder')
+                
+    return camPar
+
+
+class ImageBuffer:
+    pcImageMemory = None
+    MemID = None
+    width = None
+    height = None
+    nbitsPerPixel = None
+
+
+def imageQueue(camPar):
+    #   Create Imagequeue ---------------------------------------------------------
+    # - allocate 3 ore more buffers depending on the framerate
+    # - initialize Imagequeue
+    # ---------------------------------------------------------
+    sleep(1)   # is required (delay of 1s was not optimized!!)
+    buffers = []
+    for y in range(10):
+        buffers.append(ImageBuffer())
+
+    for x in range(len(buffers)):
+        buffers[x].nbitsPerPixel = camPar.nBitsPerPixel  # RAW8
+        buffers[x].height = camPar.rectAOI.s32Height  # sensorinfo.nMaxHeight
+        buffers[x].width = camPar.rectAOI.s32Width  # sensorinfo.nMaxWidth
+        buffers[x].MemID = ueye.int(0)
+        buffers[x].pcImageMemory = ueye.c_mem_p()
+        check_ueye(ueye.is_AllocImageMem, camPar.hCam, buffers[x].width, buffers[x].height, buffers[x].nbitsPerPixel,
+                   buffers[x].pcImageMemory, buffers[x].MemID)
+        check_ueye(ueye.is_AddToSequence, camPar.hCam, buffers[x].pcImageMemory, buffers[x].MemID)
+
+    check_ueye(ueye.is_InitImageQueue, camPar.hCam, ueye.c_int(0))
+    if camPar.trigger_mode == 'soft':
+        check_ueye(ueye.is_SetExternalTrigger, camPar.hCam, ueye.IS_SET_TRIGGER_SOFTWARE)
+    elif camPar.trigger_mode == 'hard':
+        check_ueye(ueye.is_SetExternalTrigger, camPar.hCam, ueye.IS_SET_TRIGGER_LO_HI)
+
+
+def prepareCam(camPar, metadata):
+    cam_path = metadata.output_directory + '\\' + metadata.experiment_name + '_video.' + camPar.vidFormat
+    strFileName = ueye.c_char_p(cam_path.encode('utf-8'))
+    
+    if camPar.vidFormat == 'avi':         
+        # print('Video format : AVI')
+        camPar.avi = ueye.int()
+        nRet = ueye_tools.isavi_InitAVI(camPar.avi, camPar.hCam)
+        # print("isavi_InitAVI")
+        if nRet != ueye_tools.IS_AVI_NO_ERR:
+            print("isavi_InitAVI ERROR")
+        
+        nRet = ueye_tools.isavi_SetImageSize(camPar.avi, camPar.m_nColorMode,  camPar.rectAOI.s32Width , camPar.rectAOI.s32Height, 0, 0, 0)
+        nRet = ueye_tools.isavi_SetImageQuality(camPar.avi, 100)
+        if nRet != ueye_tools.IS_AVI_NO_ERR:
+            print("isavi_SetImageQuality ERROR")
+ 
+        nRet = ueye_tools.isavi_OpenAVI(camPar.avi, strFileName)
+        if nRet != ueye_tools.IS_AVI_NO_ERR:
+            print("isavi_OpenAVI ERROR")
+            print('Error code = ' + str(nRet))
+            print('Certainly, it is a problem with the file name, Avoid special character like "µ" or try to redcue its size')
+        
+        nRet = ueye_tools.isavi_SetFrameRate(camPar.avi, camPar.fps)
+        if nRet != ueye_tools.IS_AVI_NO_ERR:
+            print("isavi_SetFrameRate ERROR")
+        nRet = ueye_tools.isavi_StartAVI(camPar.avi)
+        # print("isavi_StartAVI")
+        if nRet != ueye_tools.IS_AVI_NO_ERR:
+            print("isavi_StartAVI ERROR")
+
+            
+    elif camPar.vidFormat == 'bin':
+        camPar.punFileID = ueye.c_uint()
+        nRet = ueye_tools.israw_InitFile(camPar.punFileID, ueye_tools.IS_FILE_ACCESS_MODE_WRITE)
+        if nRet != ueye_tools.IS_AVI_NO_ERR:
+            print("INIT RAW FILE ERROR")
+            
+        nRet = ueye_tools.israw_SetImageInfo(camPar.punFileID, camPar.rectAOI.s32Width, camPar.rectAOI.s32Height, camPar.nBitsPerPixel)
+        if nRet != ueye_tools.IS_AVI_NO_ERR:
+            print("SET IMAGE INFO ERROR")
+            
+        if nRet == ueye.IS_SUCCESS: 
+            # print('initFile ok')
+            # print('SetImageInfo ok')
+            nRet = ueye_tools.israw_OpenFile(camPar.punFileID, strFileName)
+            # if nRet == ueye.IS_SUCCESS:
+            #     # print('OpenFile success')
+    
+    # nShutterMode = ueye.c_uint(ueye.IS_DEVICE_FEATURE_CAP_SHUTTER_MODE_ROLLING_GLOBAL_START)
+    # nRet = ueye.is_DeviceFeature(camPar.hCam, ueye.IS_DEVICE_FEATURE_CMD_SET_SHUTTER_MODE, nShutterMode, 
+    #                         ueye.sizeof(nShutterMode))
+    # print('shutter mode = ' + str(nShutterMode.value) + ' / enable : ' + str(nRet))
+    
+    # # Read the global flash params
+    # flashParams = ueye.IO_FLASH_PARAMS()
+    # nRet = ueye.is_IO(camPar.hCam, ueye.IS_IO_CMD_FLASH_GET_GLOBAL_PARAMS, flashParams, ueye.sizeof(flashParams))
+    # if (nRet == ueye.IS_SUCCESS):
+    #     nDelay   = flashParams.s32Delay
+    #     print('nDelay = ' + str(nDelay.value))
+    #     nDuration = flashParams.u32Duration
+    #     print('nDuration = ' + str(nDuration.value))
+
+    # flashParams.s32Delay.value = 0
+    # flashParams.u32Duration.value = 40 
+    # # Apply the global flash params and set the flash params to these values
+    # nRet = ueye.is_IO(camPar.hCam, ueye.IS_IO_CMD_FLASH_SET_PARAMS, flashParams, ueye.sizeof(flashParams))
+    
+    
+    # nRet = ueye.is_IO(camPar.hCam, ueye.IS_IO_CMD_FLASH_GET_PARAMS, flashParams, ueye.sizeof(flashParams))
+    # if (nRet == ueye.IS_SUCCESS):
+    #     nDelay   = flashParams.s32Delay
+    #     print('nDelay = ' + str(nDelay.value))
+    #     nDuration = flashParams.u32Duration
+    #     print('nDuration = ' + str(nDuration.value))
+            
+    # ---------------------------------------------------------
+    # Activates the camera's live video mode (free run mode)
+    # ---------------------------------------------------------
+    nRet = ueye.is_CaptureVideo(camPar.hCam, ueye.IS_DONT_WAIT)
+    # nRet = ueye.is_FreezeVideo(camPar.hCam, ueye.IS_DONT_WAIT)
+    if nRet != ueye.IS_SUCCESS:
+        print("is_CaptureVideo ERROR")
+    else:
+        camPar.camActivated = 1
+    
+    return camPar
+    
+        
+def runCam_thread(camPar, start_chrono): 
+    imageinfo = ueye.UEYEIMAGEINFO()
+    current_buffer = ueye.c_mem_p()
+    current_id = ueye.int()
+    # inc = 0
+    entier_old = 0
+    # time.sleep(0.01)
+    while True: 
+        nret = ueye.is_WaitForNextImage(camPar.hCam, camPar.timeout, current_buffer, current_id)
+        if nret == ueye.IS_SUCCESS:
+            check_ueye(ueye.is_GetImageInfo, camPar.hCam, current_id, imageinfo, ueye.sizeof(imageinfo))
+            start_time = time.time()
+            counter = start_time - start_chrono
+            camPar.time_array.append(counter)
+            if camPar.vidFormat == 'avi':
+                nRet = ueye_tools.isavi_AddFrame(camPar.avi, current_buffer)  
+            elif camPar.vidFormat == 'bin':   
+                nRet = ueye_tools.israw_AddFrame(camPar.punFileID, current_buffer, imageinfo.u64TimestampDevice)
+                                
+            check_ueye(ueye.is_UnlockSeqBuf, camPar.hCam, current_id, current_buffer)
+        else:
+            # nRet = ueye.is_FreeImageMem (camPar.hCam, current_buffer, current_id)
+            # if nRet != ueye.IS_SUCCESS:
+            #     print('ERROR to free the memory')
+            #     print(nRet)
+            print('Thread finished')
+            break
+        # else:
+        #     print('thread cam stop correctly')
+        #     break
+
+def stopCam(camPar):
+    if camPar.vidFormat == 'avi':
+        ueye_tools.isavi_StopAVI(camPar.hCam)
+        ueye_tools.isavi_CloseAVI(camPar.hCam)
+        ueye_tools.isavi_ExitAVI(camPar.hCam)
+    elif camPar.vidFormat == 'bin':   
+        ueye_tools.israw_CloseFile(camPar.punFileID)
+        ueye_tools.israw_ExitFile(camPar.punFileID)
+        camPar.punFileID = ueye.c_uint()
+        
+    # camPar = stopCapt_DeallocMem(camPar)
+    
+    return camPar
+
+
 def disconnect(ava: Optional[Avantes]=None, DMD: Optional[ALP4]=None):
     """Disconnect spectrometer and DMD.
 
@@ -2323,7 +2302,8 @@ def disconnect(ava: Optional[Avantes]=None, DMD: Optional[ALP4]=None):
 
     if ava is not None:
         ava.disconnect()
-
+        print('Spectro disconnected')
+        
     if DMD is not None:
        
         # Stop the sequence display
@@ -2334,6 +2314,7 @@ def disconnect(ava: Optional[Avantes]=None, DMD: Optional[ALP4]=None):
             DMD.FreeSeq()
 
         DMD.Free()
+        print('DMD disconnected')
 
 
 def disconnect_2arms(ava: Optional[Avantes]=None, DMD: Optional[ALP4]=None, camPar=None):
@@ -2354,21 +2335,21 @@ def disconnect_2arms(ava: Optional[Avantes]=None, DMD: Optional[ALP4]=None, camP
         ava.disconnect()
         print('Spectro disconnected')
 
-    if DMD is not None:
-       
+    if DMD is not None:       
         # Stop the sequence display
         try:
             DMD.Halt()
+            # Free the sequence from the onboard memory (if any is present)
+            if (DMD.Seqs):
+                DMD.FreeSeq()
+
+            DMD.Free()  
+            print('DMD disconnected')
+            
         except:
             print('probelm to Halt the DMD')    
 
-        # Free the sequence from the onboard memory (if any is present)
-        if (DMD.Seqs):
-            DMD.FreeSeq()
-
-        DMD.Free()  
-        print('DMD disconnected')
-        
+                
     if camPar.camActivated == 1:
         nRet = ueye.is_StopLiveVideo(camPar.hCam, ueye.IS_FORCE_VIDEO_STOP)
         if nRet == ueye.IS_SUCCESS:
@@ -2389,7 +2370,6 @@ def disconnect_2arms(ava: Optional[Avantes]=None, DMD: Optional[ALP4]=None, camP
         if nRet == ueye.IS_SUCCESS:
             camPar.Exit = 0
             print('Camera disconnected')
-            print("END")
         else:
             print('Problem to disconnect camera, need to restart spyder')
         
@@ -2469,7 +2449,6 @@ def _init_CAM():
                  )          
 
     # # Camera Initialization ---
-    # print("START Initialization of the IDS camera")
     ### Starts the driver and establishes the connection to the camera
     nRet = ueye.is_InitCamera(camPar.hCam, None)
     if nRet != ueye.IS_SUCCESS:
@@ -2498,34 +2477,16 @@ def _init_CAM():
         # setup the color depth to the current windows setting
         ueye.is_GetColorDepth(camPar.hCam, camPar.nBitsPerPixel, camPar.m_nColorMode)
         camPar.bytes_per_pixel = int(camPar.nBitsPerPixel / 8)
-        # print("IS_COLORMODE_BAYER: ", )
-        # print("\tm_nColorMode: \t\t", m_nColorMode)
-        # print("\tnBitsPerPixel: \t\t", nBitsPerPixel)
-        # print("\tbytes_per_pixel: \t\t", bytes_per_pixel)
-        # print()
-
     elif int.from_bytes(camPar.sInfo.nColorMode.value, byteorder='big') == ueye.IS_COLORMODE_CBYCRY:
         # for color camera models use RGB32 mode
         camPar.m_nColorMode = ueye.IS_CM_BGRA8_PACKED
         camPar.nBitsPerPixel = ueye.INT(32)
         camPar.bytes_per_pixel = int(camPar.nBitsPerPixel / 8)
-        # print("IS_COLORMODE_CBYCRY: ", )
-        # print("\tm_nColorMode: \t\t", m_nColorMode)
-        # print("\tnBitsPerPixel: \t\t", nBitsPerPixel)
-        # print("\tbytes_per_pixel: \t\t", bytes_per_pixel)
-        # print()
-
     elif int.from_bytes(camPar.sInfo.nColorMode.value, byteorder='big') == ueye.IS_COLORMODE_MONOCHROME:
         # for color camera models use RGB32 mode
         camPar.m_nColorMode = ueye.IS_CM_MONO8
         camPar.nBitsPerPixel = ueye.INT(8)
         camPar.bytes_per_pixel = int(camPar.nBitsPerPixel / 8)
-        # print("IS_COLORMODE_MONOCHROME: ", )
-        # print("\tm_nColorMode: \t\t", m_nColorMode)
-        # print("\tnBitsPerPixel: \t\t", nBitsPerPixel)
-        # print("\tbytes_per_pixel: \t\t", bytes_per_pixel)
-        # print()
-
     else:
         # for monochrome camera models use Y8 mode
         camPar.m_nColorMode = ueye.IS_CM_MONO8
@@ -2551,26 +2512,6 @@ def _init_CAM():
     
     # get the bandwidth (in MByte/s)
     camPar.bandwidth = ueye.is_GetUsedBandwidth(camPar.hCam)
-    # print('Bandwidth = ' + str(camPar.bandwidth) + ' MB/s')
-    
-    
-    # width = rectAOI.s32Width
-    # height = rectAOI.s32Height
-
-    # Prints out some information about the camera and the sensor
-    # print("Camera model:\t\t", sInfo.strSensorName.decode('utf-8'))
-    # print("Camera serial no.:\t", cInfo.SerNo.decode('utf-8'))
-    # print("Maximum image width:\t", width)
-    # print("Maximum image height:\t", height)
-    # print()    
-        
-    # self.hCam = hCam
-    # self.sInfo = sInfo
-    # self.cInfo = cInfo
-    # self.nBitsPerPixel = nBitsPerPixel
-    # self.m_nColorMode = m_nColorMode
-    # self.bytes_per_pixel = bytes_per_pixel
-    # self.rectAOI = rectAOI
     
     camPar.Exit = 1
     
