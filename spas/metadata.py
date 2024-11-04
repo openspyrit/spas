@@ -1084,19 +1084,21 @@ def save_metadata_2arms(metadata: MetaData,
 @dataclass_json
 @dataclass
 class func_path:
-    def __init__(self, data_folder_name, data_name):        
+    def __init__(self, data_folder_name, data_name, ask_overwrite=False):        
         if not os.path.exists('../data/' + data_folder_name):
             os.makedirs('../data/' + data_folder_name)
         
         if not os.path.exists('../data/' + data_folder_name + '/' + data_name):
             os.makedirs('../data/' + data_folder_name + '/' + data_name)
             aborted = False
-        else:
+        elif ask_overwrite == True:
             res = input('Acquisition already exists, overwrite it ?[y/n]')
             if res == 'n':
                 aborted = True
             else:
                 aborted = False
+        else:
+            aborted = True
                 
         self.aborted = aborted
         self.subfolder_path = '../data/' + data_folder_name + '/' + data_name    

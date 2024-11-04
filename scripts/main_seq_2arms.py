@@ -55,23 +55,23 @@ setup_version            = 'setup_v1.3.1'
 collection_access        = 'public' #'private'#
 Np                       = 64       # Number of pixels in one dimension of the image (image: NpxNp)
 ti                       = 1       # Integration time of the spectrometer   
-zoom                     = 1        # Numerical zoom applied in the DMD
-xw_offset                = 128 #Np*(zoom-1)/(2*zoom),
-yh_offset                = 0 #Np*(zoom-1)/(2*zoom))
+zoom                     = 2        # Numerical zoom applied in the DMD
+xw_offset                = 401 #Np*(zoom-1)/(2*zoom),
+yh_offset                = 301 #Np*(zoom-1)/(2*zoom))
 pattern_compression      = 1
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
 source                   = 'white_LED'#'Thorlabs_White_halogen_lamp'#'White_Zeiss_KL-2500-LCD_lamp'#No-light'#Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#'Bioblock power: II',#'HgAr multilines Source (HG-1 Oceanoptics)'
-object_name              = 'cat_pat5'#'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
-data_folder_name         = '2024-09-13_test_adaptativePatterns'#'Patient-69_exvivo_LGG_BU'
+object_name              = 'cat2'#'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
+data_folder_name         = '2024-10-18_test_without_dll'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
 
 camPar.acq_mode          = 'snapshot'#'video'   # 
 camPar.vidFormat         = 'avi'     #'bin'#
 camPar.insert_patterns   = 0         # 0: no insertion / 1: insert white patterns for the camera / In the case of snapshot, put 0 to avoid bad reco
-camPar.gate_period       = 16         # a multiple of the integration time of the spectro, between [2 - 16] (2: insert one white pattern between each pattern)
+camPar.gate_period       = 16        # a multiple of the integration time of the spectro, between [2 - 16] (2: insert one white pattern between each pattern)
 camPar.black_pattern_num = 1         # insert the picture number (in the pattern_source folder) of the pattern you want to insert
-all_path = func_path(data_folder_name, data_name)
-if 'mask_index' not in locals(): mask_index = [];  x_mask_coord = []; y_mask_coord = []# execute "mask_index = []" to not apply the mask
+all_path = func_path(data_folder_name, data_name, ask_overwrite = True)
+if 'mask_index' not in locals(): mask_index = [];  x_mask_coord = []; y_mask_coord = [] # execute "mask_index = []" to not apply the mask
 
 if all_path.aborted == False:
     metadata = MetaData(
@@ -83,11 +83,11 @@ if all_path.aborted == False:
         light_source         = source,
         object               = object_name,
         filter               = 'Diffuser', #+ OD=0.3',#optical density = 0.1''No filter',#'linear colored filter',#'Orange filter (600nm)',#'Dichroic_420nm',#'HighPass_500nm + LowPass_750nm + Dichroic_560nm',#'BandPass filter 560nm Dl=10nm',#'None', # + , #'Nothing',#'Diffuser + HighPass_500nm + LowPass_750nm',##'Microsope objective x40',#'' linear colored filter + OD#0',#'Nothing',#
-        description          = 'insert patterns into a freehand or geometrical ROI.'
+        description          = 'last test before to merge the remote branches: main and install_without_lib.'
         # description          = 'two positions of the lens 80mm, P1:12cm (zoom=0.5), P2:22cm (zoom=1.5) from the DMD. Dichroic plate (T:>420nm, R:<420nm), HighPass_500nm in front of the cam, GP: Glass Plate, OP: other position, OA: out of anapath',
                         )    
     try: change_patterns(DMD = DMD, acquisition_params = acquisition_parameters, zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset,
-                         force_change = True)
+                         force_change = False)
     except: pass
           
     acquisition_parameters = AcquisitionParameters(pattern_compression = pattern_compression, pattern_dimension_x = Np, pattern_dimension_y = Np, 
@@ -134,7 +134,6 @@ Q = wh.walsh2_matrix(Np)
 GT = reconstruction_hadamard(acquisition_parameters, 'walsh', Q, spectral_data, Np)
 plot_reco_without_NN(acquisition_parameters, GT, all_path)
 #%% Neural Network setup (executed it just one time)
-Meas = Np*Np
 if Np == 64:
     img_size_reco = 128
 else:
@@ -142,7 +141,7 @@ else:
     
 network_param = ReconstructionParameters(
     # Reconstruction network    
-    M = Meas,#Np*Np-1,          # Number of measurements
+    M = Np*Np,                  # Number of measurements
     img_size = img_size_reco,   # Image size of the NN reconstruction
     arch = 'dc-net',            # Main architecture
     denoi = 'unet',             # Image domain denoiser (possibility to do not apply, put : None)
@@ -175,8 +174,8 @@ transfer_data_2arms(metadata, acquisition_parameters, spectrometer_params, DMD_p
                     setup_version, data_folder_name, data_name, collection_access, upload_metadata = 1)
 #%% Draw a ROI
 # Comment data_folder_name & data_name to draw a ROI in the current acquisition, else specify the acquisition name
-# data_folder_name = '2024-09-13_test_adaptativePatterns'
-# data_name = 'obj_cat_freehand_source_white_LED_Walsh_im_64x64_ti_1ms_zoom_x1'
+# data_folder_name = '2024-09-16_test_without_dll'
+# data_name = 'obj_cat3_source_white_LED_Walsh_im_64x64_ti_1ms_zoom_x1'
 mask_index, x_mask_coord, y_mask_coord = extract_ROI_coord(DMD_params, acquisition_parameters, all_path, 
                                                            data_folder_name, data_name, GT, ti, Np)
 #%% Disconnect
