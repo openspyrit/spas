@@ -492,14 +492,14 @@ def _update_sequence(DMD: ALP4,
                 
             patterns[y_offset:y_offset+len_im[0], x_offset:x_offset+len_im[1]] = im_HD  
         
-        # if pattern_name == 151:
-        #     plt.figure()
-        #     # plt.imshow(pat_c_re)
-        #     # plt.imshow(pat_mask_all_mat)
-        #     # plt.imshow(pat_mask_all_mat_DMD)
-        #     plt.imshow(patterns)
-        #     plt.colorbar()
-        #     plt.title('pattern n°' + str(pattern_name))
+        if pattern_name == 800:
+            plt.figure()
+            # plt.imshow(pat_c_re)
+            # plt.imshow(pat_mask_all_mat)
+            # plt.imshow(pat_mask_all_mat_DMD)
+            plt.imshow(np.rot90(patterns,2))
+            plt.colorbar()
+            plt.title('pattern n°' + str(pattern_name))
         
         patterns = patterns.ravel()
         
@@ -1276,7 +1276,7 @@ def _acquire_raw(ava: Avantes,
                 DMD_params.picture_time_us / 1e+6 / 10)
         DMD.Halt()
     else:                
-        sleep(1)
+        sleep(0.1)
         
         timestamp, spectrum = ava.get_data()
         spectral_data_1 = (np.ctypeslib.as_array(spectrum[0:pixel_amount]))
@@ -1293,10 +1293,8 @@ def _acquire_raw(ava: Avantes,
         plt.yticks(fontsize=14)
         plt.grid()
         printed = False
-        while(True):
-            try:                
-                # sleep(0.01)
-
+        while(True):            
+            try:                          
                 timestamp, spectrum = ava.get_data()
                 spectral_data_1 = (np.ctypeslib.as_array(spectrum[0:pixel_amount]))
 
@@ -1305,7 +1303,7 @@ def _acquire_raw(ava: Avantes,
 
                 figure.canvas.draw() # drawing updated values
                 figure.canvas.flush_events() # flush prior plot
-                
+            
                 if not printed:
                     print('Press "Ctrl + c" to exit')                       
                     if np.amax(spectral_data_1) >= 65535:
@@ -1319,13 +1317,9 @@ def _acquire_raw(ava: Avantes,
                 plt.close()
                 get_ipython().run_line_magic('matplotlib', 'inline')
                 break
-        
             
-
-
     ava.stop_measure()
     
-
     AcquisitionResult = namedtuple('AcquisitionResult', [
         'spectral_data', 
         'spectrum_index',
@@ -1890,7 +1884,7 @@ def setup_tuneSpectro(spectrometer,
                       mask_index : np.array = []):
     """ Setup the hadrware to tune the spectrometer in live. The goal is to find 
     the integration time of the spectrometer, noise is around 700 counts, 
-    saturation is equak to 2**16=65535
+    saturation is equal to 2**16=65535
     
     Args:
         spectrometer (Avantes):
@@ -1936,7 +1930,7 @@ def setup_tuneSpectro(spectrometer,
     # all_path = func_path(data_folder_name, data_name)
 
     scan_mode   = 'Walsh'
-    Np          = 64
+    Np          = 16
     source      = ''
     object_name = ''
 
@@ -1954,8 +1948,8 @@ def setup_tuneSpectro(spectrometer,
         
     acquisition_parameters = AcquisitionParameters(
         pattern_compression = 1,
-        pattern_dimension_x = 64,
-        pattern_dimension_y = 64,
+        pattern_dimension_x = 16,
+        pattern_dimension_y = 16,
         zoom                = zoom,
         xw_offset           = xw_offset,
         yh_offset           = yh_offset,
