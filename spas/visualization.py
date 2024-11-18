@@ -15,14 +15,12 @@ from spas.plot_spec_to_rgb_image import plot_spec_to_rgb_image
 from spas.noise import noiseClass
 from spas.reconstruction_nn import reorder_subsample, reconstruct
 from spas.metadata import DMDParameters, read_metadata
-import cv2
 import time
 # Libraries for the IDS CAMERA
 try:
     from pyueye import ueye
 except:
     print('ueye DLL not installed')
-
 
 def spectral_binning(F: np.ndarray, wavelengths: np.ndarray, lambda_min: int, 
     lambda_max: int, n_bin: int, noise: noiseClass=None
@@ -395,7 +393,7 @@ def plot_color(F: np.ndarray, wavelengths: np.ndarray, filename: str = None,
             cax = divider.append_axes('right', size='5%', pad=0.05)
 
             im = ax.imshow(F[bin_,:,:], cmap=colormap)
-            ax.set_title('$\lambda=$'f'{wavelengths[bin_]:.2f}',
+            ax.set_title('$\\lambda=$'f'{wavelengths[bin_]:.2f}',
                 fontsize=fontsize)
             
             cbar = fig.colorbar(im, cax=cax, orientation='vertical')
@@ -442,53 +440,47 @@ def displayVid(camPar):
     Args:
         CAM: a structure containing the parameters of the IDS camera
     """
-    ii = 0
-    start_time = time.time()
+    
+    import cv2
+    # Creating a cv2 window
+    window_name = "Camera of the Spatial Arm"
+    cv2.namedWindow(window_name) 
+    
+    # Create a function 'nothing' for creating trackbar 
+    def nothing(x): 
+        pass
+    
+    # waiting time inside the loop of the display of the window
     t1 = camPar.exposureTime/1000
     t2 = 1/camPar.fps
     t_wait = max(t1, t2)
-    print('Press "q" on the new window to exit')
-    window_name = "Camera of the Spatial Arm"
-    # start_point = (0, int(camPar.rectAOI.s32Width.value/2))
-    # end_point = (int(camPar.rectAOI.s32Height.value), int(camPar.rectAOI.s32Width.value/2))
-    # color = (255, 0, 0)
-    # thickness = 3
-    first_passage = False
+
+    first_passage = True
     while 1:
         time.sleep(t_wait) # Sleep for 1 seconds
-        ii = ii + 1
-
+        
         # extract the data of the image memory
         array = ueye.get_data(camPar.pcImageMemory, camPar.rectAOI.s32Width, camPar.rectAOI.s32Height, camPar.nBitsPerPixel, camPar.pitch, copy=False)
-
-        # ...reshape it in an numpy array...
+        
+        # reshape it in an numpy array
         frame = np.reshape(array,(camPar.rectAOI.s32Height.value, camPar.rectAOI.s32Width.value, camPar.bytes_per_pixel))
         
-        if first_passage == False:
+        if first_passage == True:
             maxi = np.max(frame)
-            fac = round(225/maxi)
-            if fac == 0:
-                fac = 1
-            elif fac > 255:
-                fac = 255
             print('maxi = ' + str(maxi))
-            first_passage = True
-
-        if ii%100 == 0:
-            print('frame max = ' + str(np.amax(frame*fac)))
-            print('frame min = ' + str(np.amin(frame*fac)))
-            print('fac = ' + str(fac))
-            print("--- enlapse time :" + str(round((time.time() - start_time)*1000)/100) + 'ms')
-            start_time = time.time()
+            # Creating trackbars for color change 
+            cv2.createTrackbar('brightness', window_name, maxi, 510, nothing) 
+            first_passage = False
         
-        #...and finally display it
-        cv2.imshow(window_name, frame*fac)
-        
-        # if cv2.waitKey(1) & 0xFF == ord('p'):
-        #     plt.figure()
-        #     plt.plot(frame[:, int(camPar.rectAOI.s32Height.value/2)])
-
-        # Press q if you want to end the loop
+        # Get current positions of trackbar 
+        brightness = cv2.getTrackbarPos('brightness', window_name) 
+    
+        frame = frame.astype(np.float64)
+        frame2=frame*brightness/maxi
+        frame3=frame2.astype(np.uint8)
+        #*brightness/maxi
+        cv2.imshow(window_name, frame3)
+    
         if cv2.waitKey(1) & 0xFF == ord('q'):
             cv2.destroyWindow(window_name)
             break
@@ -665,7 +657,9 @@ def extract_ROI_coord(DMD_params, acquisition_parameters, all_path, data_folder_
         y_mask_coord (np.array):
             the y coord, first and last point of the rectangular that most closely the freehand ROI
     """
-    
+
+    import cv2    
+
     if data_name != all_path.data_name and data_name != '':
         print('Warning, you read an old acquisition')
         print('')
@@ -832,8 +826,8 @@ def extract_ROI_coord(DMD_params, acquisition_parameters, all_path, data_folder_
         lim_mask_rot = np.stack(np.nonzero(mask_rot_re), axis=-1)
         y_mask_coord_HD = np.array([lim_mask_rot[:,0].min(), lim_mask_rot[:,0].max()], dtype=np.uint64)
         x_mask_coord_HD = np.array([lim_mask_rot[:,1].min(), lim_mask_rot[:,1].max()], dtype=np.uint64)
-        print('x_mask_HD = ' + str(x_mask_coord_HD))     
-        print('y_mask_HD = ' + str(y_mask_coord_HD)) 
+        # print('x_mask_HD = ' + str(x_mask_coord_HD))     
+        # print('y_mask_HD = ' + str(y_mask_coord_HD)) 
         # pour info, à commenter ultéreirement
         x_mask_HD_length = x_mask_coord_HD[1] - x_mask_coord_HD[0]
         y_mask_HD_length = y_mask_coord_HD[1] - y_mask_coord_HD[0]
@@ -861,7 +855,7 @@ def extract_ROI_coord(DMD_params, acquisition_parameters, all_path, data_folder_
             print('Selected zoom = x' + str(zoom_i))
             print('With image size = (' + str(Npx) + ',' + str(Npy) + ')')
 
-        val = input("Are you ok with this image size ?[y/n] ")
+        val = input("Are you ok with this image size ?[y/n]")
         if val == 'n':
             Np_new = input('please entre the image side size you want (Np) : ')
             Npx = int(Np_new)
