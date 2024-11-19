@@ -395,7 +395,7 @@ def plot_color(F: np.ndarray, wavelengths: np.ndarray, filename: str = None,
             cax = divider.append_axes('right', size='5%', pad=0.05)
 
             im = ax.imshow(F[bin_,:,:], cmap=colormap)
-            ax.set_title('$\lambda=$'f'{wavelengths[bin_]:.2f}',
+            ax.set_title('$\\lambda=$'f'{wavelengths[bin_]:.2f}',
                 fontsize=fontsize)
             
             cbar = fig.colorbar(im, cax=cax, orientation='vertical')
