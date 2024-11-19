@@ -22,8 +22,8 @@ import numpy as np
 spectrometer, DMD, DMD_initial_memory, camPar = init_2arms()
 #%% Define the AOI of the camera
 # Warning, not all values are allowed for Width and Height (max: 2076x3088 | ex: 768x544)
-camPar.rectAOI.s32X.value      = 1100#550#0 #0#  // X
-camPar.rectAOI.s32Y.value      = 640#380#0#0#800#   // Y
+camPar.rectAOI.s32X.value      = 1110#550#0 #0#  // X
+camPar.rectAOI.s32Y.value      = 650#380#0#0#800#   // Y
 camPar.rectAOI.s32Width.value  = 768#1544#3088#1544 # 3000#3088#         // Width must be multiple of 8
 camPar.rectAOI.s32Height.value = 544 #1038#2076#1730#2000## 1038#  2076   // Height   
 
@@ -36,7 +36,7 @@ camPar = setup_cam(camPar,
     Gain         = 0,     # Gain boundary : [0 100]
     gain_boost   = 'OFF', # set1"ON"to activate gain boost, "OFF" to deactivate
     nGamma       = 1,     # Gamma boundary : [1 - 2.2]
-    ExposureTime = 0.03,# Exposure Time (ms) boudary : [0.013 - 56.221] 
+    ExposureTime = 0.045,# Exposure Time (ms) boudary : [0.013 - 56.221] 
     black_level  = 4)     # lack Level boundary : [0 255]
 
 snapshotVisu(camPar)
@@ -54,15 +54,15 @@ displaySpectro(ava = spectrometer, DMD = DMD, metadata = metadata, spectrometer_
 setup_version            = 'setup_v1.3.1'
 collection_access        = 'public' #'private'#
 Np                       = 64       # Number of pixels in one dimension of the image (image: NpxNp)
-ti                       = 1       # Integration time of the spectrometer   
-zoom                     = 2        # Numerical zoom applied in the DMD
-xw_offset                = 401 #Np*(zoom-1)/(2*zoom),
-yh_offset                = 301 #Np*(zoom-1)/(2*zoom))
+ti                       = 1        # Integration time of the spectrometer   
+zoom                     = 1        # Numerical zoom applied in the DMD
+xw_offset                = 128      # Default = 128
+yh_offset                = 0      # Default = 0
 pattern_compression      = 1
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
-source                   = 'white_LED'#'Thorlabs_White_halogen_lamp'#'White_Zeiss_KL-2500-LCD_lamp'#No-light'#Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#'Bioblock power: II',#'HgAr multilines Source (HG-1 Oceanoptics)'
-object_name              = 'cat2'#'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
-data_folder_name         = '2024-10-18_test_without_dll'#'Patient-69_exvivo_LGG_BU'
+source                   = 'white_LED'#'Bioblock'#'Thorlabs_White_halogen_lamp'#'White_Zeiss_KL-2500-LCD_lamp'#No-light'#Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#'HgAr multilines Source (HG-1 Oceanoptics)'
+object_name              = 'cat'#'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
+data_folder_name         = '2024-11-12_test_new_branch'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
 
 camPar.acq_mode          = 'snapshot'#'video'   # 
@@ -83,7 +83,7 @@ if all_path.aborted == False:
         light_source         = source,
         object               = object_name,
         filter               = 'Diffuser', #+ OD=0.3',#optical density = 0.1''No filter',#'linear colored filter',#'Orange filter (600nm)',#'Dichroic_420nm',#'HighPass_500nm + LowPass_750nm + Dichroic_560nm',#'BandPass filter 560nm Dl=10nm',#'None', # + , #'Nothing',#'Diffuser + HighPass_500nm + LowPass_750nm',##'Microsope objective x40',#'' linear colored filter + OD#0',#'Nothing',#
-        description          = 'last test before to merge the remote branches: main and install_without_lib.'
+        description          = 'test after marging the two branches main and install_without_lib and the new env spas_v1.'
         # description          = 'two positions of the lens 80mm, P1:12cm (zoom=0.5), P2:22cm (zoom=1.5) from the DMD. Dichroic plate (T:>420nm, R:<420nm), HighPass_500nm in front of the cam, GP: Glass Plate, OP: other position, OA: out of anapath',
                         )    
     try: change_patterns(DMD = DMD, acquisition_params = acquisition_parameters, zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset,
@@ -134,15 +134,10 @@ Q = wh.walsh2_matrix(Np)
 GT = reconstruction_hadamard(acquisition_parameters, 'walsh', Q, spectral_data, Np)
 plot_reco_without_NN(acquisition_parameters, GT, all_path)
 #%% Neural Network setup (executed it just one time)
-if Np == 64:
-    img_size_reco = 128
-else:
-    img_size_reco = 64
-    
 network_param = ReconstructionParameters(
     # Reconstruction network    
     M = Np*Np,                  # Number of measurements
-    img_size = img_size_reco,   # Image size of the NN reconstruction
+    img_size = 128,             # Image size of the NN reconstruction
     arch = 'dc-net',            # Main architecture
     denoi = 'unet',             # Image domain denoiser (possibility to do not apply, put : None)
     subs = 'rect',              # Subsampling scheme
@@ -165,17 +160,14 @@ cov_path = Path(cov_folder) / f'Cov_8_{network_param.img_size}x{network_param.im
 model_folder = 'C:/openspyrit/models/'
 model, device = setup_reconstruction(cov_path, model_folder, network_param)
 #%% Neural Network Reconstruction
-# meas = reorder_subsample(spectral_data.T, acquisition_parameters, network_param) # Reorder and subsample
-# reco = reconstruct(model, device, meas) # Reconstruction
 plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, network_param, all_path, cov_path)
-# print('elapsed time = ' + str(round(time.time()-t0)) + ' s')
 #%% transfer data to girder
 transfer_data_2arms(metadata, acquisition_parameters, spectrometer_params, DMD_params, camPar,
                     setup_version, data_folder_name, data_name, collection_access, upload_metadata = 1)
 #%% Draw a ROI
 # Comment data_folder_name & data_name to draw a ROI in the current acquisition, else specify the acquisition name
-# data_folder_name = '2024-09-16_test_without_dll'
-# data_name = 'obj_cat3_source_white_LED_Walsh_im_64x64_ti_1ms_zoom_x1'
+# data_folder_name = '2024-11-05_adaptative_patterns'
+# data_name = 'obj_cat_source_white_LED_Walsh_im_64x64_ti_1ms_zoom_x1'
 mask_index, x_mask_coord, y_mask_coord = extract_ROI_coord(DMD_params, acquisition_parameters, all_path, 
                                                            data_folder_name, data_name, GT, ti, Np)
 #%% Disconnect

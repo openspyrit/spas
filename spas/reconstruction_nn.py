@@ -16,6 +16,7 @@ import math
 import torch
 import numpy as np
 from matplotlib import pyplot as plt
+import pathlib
 
 from spyrit.core.train import load_net   
 from spyrit.core.noise import Poisson   
@@ -88,9 +89,9 @@ def setup_reconstruction(cov_path: str,
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f'Device: {device}')
 
-    if cov_path.endswith('.npy'):
+    if pathlib.Path(cov_path).suffix == '.npy':
         Cov_rec = torch.from_numpy(np.load(cov_path))
-    elif cov_path.endswith('.pt'):
+    elif pathlib.Path(cov_path).suffix == '.pt':
         Cov_rec = torch.load(cov_path)
     else:
         raise RuntimeError('Covariance matrix must be a .npy or .pt file')
