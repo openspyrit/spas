@@ -492,14 +492,14 @@ def _update_sequence(DMD: ALP4,
                 
             patterns[y_offset:y_offset+len_im[0], x_offset:x_offset+len_im[1]] = im_HD  
         
-        if pattern_name == 800:
-            plt.figure()
-            # plt.imshow(pat_c_re)
-            # plt.imshow(pat_mask_all_mat)
-            # plt.imshow(pat_mask_all_mat_DMD)
-            plt.imshow(np.rot90(patterns,2))
-            plt.colorbar()
-            plt.title('pattern n°' + str(pattern_name))
+        # if pattern_name == 800:
+        #     plt.figure()
+        #     # plt.imshow(pat_c_re)
+        #     # plt.imshow(pat_mask_all_mat)
+        #     # plt.imshow(pat_mask_all_mat_DMD)
+        #     plt.imshow(np.rot90(patterns,2))
+        #     plt.colorbar()
+        #     plt.title('pattern n°' + str(pattern_name))
         
         patterns = patterns.ravel()
         

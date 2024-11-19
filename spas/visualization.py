@@ -468,6 +468,7 @@ def displayVid(camPar):
         if first_passage == True:
             maxi = np.max(frame)
             print('maxi = ' + str(maxi))
+            print('press "q" to exit')
             # Creating trackbars for color change 
             cv2.createTrackbar('brightness', window_name, maxi, 510, nothing) 
             first_passage = False

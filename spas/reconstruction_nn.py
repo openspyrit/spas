@@ -95,17 +95,16 @@ def setup_reconstruction(cov_path: str,
     else:
         raise RuntimeError('Covariance matrix must be a .npy or .pt file')
     
-    # H =  walsh2_matrix(network_params.img_size)
+    H =  walsh2_matrix(network_params.img_size)
     
     # Rectangular sampling
     # N.B.: Only for measurements from patterns of size 2**K reconstructed at 
     # size 2**L, with L > K (e.g., measurements are at size 64, reconstructions 
     # at size 128. 
-    Ord = torch.ones((network_params.img_size, network_params.img_size))
-    n_sub = math.ceil(network_params.M**0.5)
-    Ord[:,n_sub:] = 0
-    Ord[n_sub:,:] = 0
-        
+    Ord = torch.zeros(network_params.img_size, network_params.img_size)
+    M_xy = math.ceil(network_params.M**0.5)
+    Ord[:M_xy, :M_xy] = 1
+    
     # Init network     
     Forward = HadamSplit(network_params.M, network_params.img_size, Ord)
     Noise = Poisson(Forward, network_params.N0)
@@ -142,7 +141,8 @@ def setup_reconstruction(cov_path: str,
     net_folder= f'{net_arch}_{net_denoi}_{net_data}/'
     
     net_title = f'{net_arch}_{net_denoi}_{net_data}_{net_order}_{net_suffix}'
-    title = 'C:/openspyrit/models/' + net_folder + net_title
+    title = 'C:/openspyrit/models/' + net_folder + net_title + '.pth'
+    # print(title)
     
     if network_params.denoi is not None:
         load_net(title, model, device, False)
