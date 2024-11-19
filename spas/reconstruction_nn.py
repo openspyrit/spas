@@ -68,12 +68,14 @@ def setup_reconstruction(cov_path: str,
     size 128).
 
     Args:
-        cov_path (str): 
-            Path to the covariance matrix used for reconstruction.
-        model_folder (str): 
-            Folder containing trained models for reconstruction.
-        network_params (ReconstructionParameters): 
-            Parameters used to load the model.
+        cov_path (str): Path to the covariance matrix used for reconstruction.
+        It must be a .npy (numpy) or .pt (pytorch) file. It is converted to 
+        a torch tensor for reconstruction.
+        
+        model_folder (str): Folder containing trained models for reconstruction.
+        It is unused by the current implementation.
+        
+        network_params (ReconstructionParameters): Parameters used to load the model.
 
     Returns:
         Tuple[Union[Pinv_Net, DC2_Net], str]:
@@ -86,33 +88,34 @@ def setup_reconstruction(cov_path: str,
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f'Device: {device}')
 
-    Cov_rec = np.load(cov_path)    
+    if cov_path.endswith('.npy'):
+        Cov_rec = torch.from_numpy(np.load(cov_path))
+    elif cov_path.endswith('.pt'):
+        Cov_rec = torch.load(cov_path)
+    else:
+        raise RuntimeError('Covariance matrix must be a .npy or .pt file')
+    
     H =  walsh2_matrix(network_params.img_size)
     
     # Rectangular sampling
     # N.B.: Only for measurements from patterns of size 2**K reconstructed at 
     # size 2**L, with L > K (e.g., measurements are at size 64, reconstructions 
     # at size 128. 
-    Ord = np.ones((network_params.img_size, network_params.img_size))
-    n_sub = math.ceil(network_params.M**0.5)
-    Ord[:,n_sub:] = 0
-    Ord[n_sub:,:] = 0
-        
+    Ord = torch.zeros(network_params.img_size, network_params.img_size)
+    M_xy = math.ceil(network_params.M**0.5)
+    Ord[:M_xy, :M_xy] = 1
+    
     # Init network     
-    Forward = HadamSplit(network_params.M, 
-                         network_params.img_size, 
-                         Ord)
+    Forward = HadamSplit(network_params.M, network_params.img_size, Ord)
     Noise = Poisson(Forward, network_params.N0)
     Prep = SplitPoisson(network_params.N0, Forward)
-    
-    
+
     if network_params.denoi is None:
         Denoi = torch.nn.Identity()
     else:
         Denoi = Unet()
         
     model = DCNet(Noise, Prep, Cov_rec, Denoi)
-
     
     # Load trained DC-Net
     net_arch = network_params.arch
@@ -138,7 +141,8 @@ def setup_reconstruction(cov_path: str,
     net_folder= f'{net_arch}_{net_denoi}_{net_data}/'
     
     net_title = f'{net_arch}_{net_denoi}_{net_data}_{net_order}_{net_suffix}'
-    title = 'C:/openspyrit/models/' + net_folder + net_title
+    title = 'C:/openspyrit/models/' + net_folder + net_title + '.pth'
+    # print(title)
     
     if network_params.denoi is not None:
         load_net(title, model, device, False)
