@@ -3,47 +3,8 @@ __author__ = 'Guilherme Beneti Martins'
 
 """Acquisition utility functions.
 
-Typical usage example:
-
-# Initialization
-spectrometer, DMD, DMD_initial_memory = init()
-
-# Acquisition
-metadata = MetaData(
-    output_directory=Path('./data/...'),
-    pattern_order_source=Path('./communication/communication.txt'),
-    pattern_source=Path('./Patterns/...),
-    pattern_prefix='Hadamard_64x64'
-    experiment_name='...',
-    light_source='...',
-    object='...',
-    filter='...',
-    description='...')
-
-acquisition_parameters = AcquisitionParameters(
-    pattern_compression=1.0,
-    pattern_dimension_x=64,
-    pattern_dimension_y=64)
-
-spectrometer_params, DMD_params, wavelenghts = setup(
-    spectrometer=spectrometer, 
-    DMD=DMD,
-    DMD_initial_memory=DMD_initial_memory,
-    metadata=metadata, 
-    acquisition_params=acquisition_parameters,
-    integration_time=1.0,)
-
-acquire(
-    spectrometer,
-    DMD, 
-    metadata, 
-    spectrometer_params, 
-    DMD_params, 
-    acquisition_parameters, 
-    wavelenghts)
-
-# Disconnect
-disconnect(spectrometer, DMD)
+    Acquisition module is a generic module that call function in different setup (SPC2D_1arm, SPC2D_2arms, SCP1D and SPIM)
+    
 """
 
 import warnings
@@ -59,7 +20,7 @@ import numpy as np
 from PIL import Image
 ##### DLL for the DMD
 try:
-    from ALP4 import ALP4, ALP_FIRSTFRAME, ALP_LASTFRAME, ALP_BITNUM
+    from ALP4 import ALP4, ALP_FIRSTFRAME, ALP_LASTFRAME
     from ALP4 import ALP_AVAIL_MEMORY, ALP_DEV_DYN_SYNCH_OUT1_GATE, tAlpDynSynchOutGate
     # print('ALP4 is ok in Acquisition file')
 except:
@@ -85,15 +46,10 @@ except:
 
 from matplotlib import pyplot as plt
 from IPython import get_ipython
-from PIL import Image
 import ctypes as ct
-import math
 import logging
 import time
 import threading
-from plotter import Plotter
-
-#from spas.visualization import snapshotVisu
 
 
 def _init_spectrometer() -> Avantes:
@@ -143,7 +99,6 @@ def _init_DMD() -> Tuple[ALP4, int]:
     return DMD, DMD.DevInquire(ALP_AVAIL_MEMORY)
 
 
-
 def init() -> Tuple[Avantes, ALP4, int]:
     """Call functions to initialize spectrometer and DMD.
 
@@ -160,6 +115,7 @@ def init() -> Tuple[Avantes, ALP4, int]:
     
     DMD, DMD_initial_memory = _init_DMD()
     return _init_spectrometer(), DMD, DMD_initial_memory
+
 
 def init_2arms() -> Tuple[Avantes, ALP4, int]:
     """Call functions to initialize spectrometer and DMD.
@@ -178,6 +134,7 @@ def init_2arms() -> Tuple[Avantes, ALP4, int]:
     DMD, DMD_initial_memory = _init_DMD()
     camPar = _init_CAM()
     return _init_spectrometer(), DMD, DMD_initial_memory, camPar
+
 
 def _calculate_timings(integration_time: float = 1, 
                       integration_delay: int = 0, 
@@ -362,9 +319,10 @@ def _setup_DMD(DMD: ALP4,
         DMD=DMD)
 
 
-def _sequence_limits(DMD: ALP4, pattern_compression: int, 
-                    sequence_lenght: int,
-                    pos_neg: bool = True) -> int:
+def _sequence_limits(DMD: ALP4, 
+                     pattern_compression: int, 
+                     sequence_lenght: int,
+                     pos_neg: bool = True) -> int:
     """Set sequence limits based on a sequence already uploaded to DMD.
 
     Args:
@@ -444,8 +402,7 @@ def _update_sequence(DMD: ALP4,
     dmd_height = DMD_params.display_height
     dmd_width = DMD_params.display_width
     len_im = int(dmd_height / zoom)  
-
-    # print(f'Pattern order size: {len(pattern_order)}')   
+  
     t = perf_counter_ns()
 
     # for adaptative patterns into a ROI
@@ -512,10 +469,13 @@ def _update_sequence(DMD: ALP4,
           f'{(perf_counter_ns() - t)/1e+9} s')
 
 
-def _setup_patterns(DMD: ALP4, metadata: MetaData, DMD_params: DMDParameters, 
-                   acquisition_params: AcquisitionParameters,
-                   cov_path: str = None, pattern_to_display: str = 'white', 
-                   loop: bool = False) -> None:
+def _setup_patterns(DMD: ALP4, 
+                    metadata: MetaData, 
+                    DMD_params: DMDParameters, 
+                    acquisition_params: AcquisitionParameters,
+                    cov_path: str = None, 
+                    pattern_to_display: str = 'white', 
+                    loop: bool = False) -> None:
     """Read and send patterns to DMD.
 
     Reads patterns from a file and sends a percentage of them to the DMD,
@@ -591,9 +551,12 @@ def _setup_patterns(DMD: ALP4, metadata: MetaData, DMD_params: DMDParameters,
     DMD_params.update_memory(DMD.DevInquire(ALP_AVAIL_MEMORY))
 
 
-def _setup_patterns_2arms(DMD: ALP4, metadata: MetaData, DMD_params: DMDParameters, 
-                   acquisition_params: AcquisitionParameters, camPar: CAM,
-                   cov_path: str = None) -> None:
+def _setup_patterns_2arms(DMD: ALP4, 
+                          metadata: MetaData, 
+                          DMD_params: DMDParameters, 
+                          acquisition_params: AcquisitionParameters, 
+                          camPar: CAM,
+                          cov_path: str = None) -> None:
     """Read and send patterns to DMD.
 
     Reads patterns from a file and sends a percentage of them to the DMD,
@@ -616,6 +579,13 @@ def _setup_patterns_2arms(DMD: ALP4, metadata: MetaData, DMD_params: DMDParamete
             Acquisition related metadata object. User must partially fill up
             with pattern_compression, pattern_dimension_x, pattern_dimension_y,
             zoom, x and y offest of patterns displayed on the DMD.
+        camPar (CAM):
+            Metadata object of the IDS monochrome camera 
+        cov_path (str): 
+            Path to the covariance matrix used for reconstruction.
+            It must be a .npy (numpy) or .pt (pytorch) file. It is converted to 
+            a torch tensor for reconstruction.
+            
     """
 
     file = np.load(Path(metadata.pattern_order_source))
@@ -699,10 +669,14 @@ def _setup_patterns_2arms(DMD: ALP4, metadata: MetaData, DMD_params: DMDParamete
     # Confirm memory allocated in DMD
     DMD_params.update_memory(DMD.DevInquire(ALP_AVAIL_MEMORY))
 
-def _setup_timings(DMD: ALP4, DMD_params: DMDParameters, picture_time: int, 
-                  illumination_time: int, synch_pulse_delay: int, 
-                  synch_pulse_width: int, trigger_in_delay: int,
-                  add_illumination_time: int) -> None:
+def _setup_timings(DMD: ALP4, 
+                   DMD_params: DMDParameters, 
+                   picture_time: int, 
+                   illumination_time: int, 
+                   synch_pulse_delay: int, 
+                   synch_pulse_width: int, 
+                   trigger_in_delay: int,
+                   add_illumination_time: int) -> None:
     """Setup pattern sequence timings in DMD.
 
     Send previously user-defined plus calculated timings to DMD.
@@ -742,16 +716,7 @@ def _setup_timings(DMD: ALP4, DMD_params: DMDParameters, picture_time: int,
                   triggerInDelay=trigger_in_delay)
 
     DMD_params.update_sequence_parameters(add_illumination_time, DMD=DMD)
-    
-    
-# class mytAlpDynSynchOutGate(ct.Structure):
-#     # For ControlType ALP_DEV_DYN_TRIG_OUT[1..3]_GATE of function AlpDevControlEx
-#     # Configure compiler to not insert padding bytes! (e.g. #pragma pack)
-#     _pack_ = 1
-#     _fields_ = [("Period", ct.c_ubyte),  # Period=1..16 enables output; 0: tri-state
-#                 ("Polarity", ct.c_ubyte),  # 0: active pulse is low, 1: high
-#                 ("Gate", ct.c_ubyte * 16),
-#                 ("byref", ct.c_ubyte * 18)] 
+
 
 def setup(spectrometer: Avantes,
           DMD: ALP4,
@@ -876,6 +841,7 @@ def setup(spectrometer: Avantes,
 
     return spectrometer_params, DMD_params
 
+
 def change_patterns(DMD: ALP4, 
                     acquisition_params: AcquisitionParameters, 
                     zoom: int = 1, 
@@ -907,6 +873,7 @@ def change_patterns(DMD: ALP4,
     if acquisition_params.zoom != zoom or acquisition_params.xw_offset != xw_offset or acquisition_params.yh_offset != yh_offset or force_change == True:
         if (DMD.Seqs):
             DMD.FreeSeq()
+
     
 def setup_2arms(spectrometer: Avantes,
           DMD: ALP4,
@@ -933,6 +900,8 @@ def setup_2arms(spectrometer: Avantes,
             Connected spectrometer (Avantes object).
         DMD (ALP4):
             Connected DMD.
+        camPar (CAM):
+            Metadata object of the IDS monochrome camera 
         DMD_initial_memory (int):
             Initial memory available in DMD after initialization.
         metadata (MetaData):
@@ -1128,7 +1097,7 @@ def _save_acquisition(metadata: MetaData,
 def _save_acquisition_2arms(metadata: MetaData, 
                      DMD_params: DMDParameters, 
                      spectrometer_params: SpectrometerParameters, 
-                     camPar,
+                     camPar: CAM,
                      acquisition_parameters: AcquisitionParameters, 
                      spectral_data: np.ndarray) -> None:
     """Save all acquisition data and metadata.
@@ -1141,6 +1110,8 @@ def _save_acquisition_2arms(metadata: MetaData,
             DMD metadata object with DMD configurations.
         spectrometer_params (SpectrometerParameters):
             Spectrometer metadata object with spectrometer configurations.
+        camPar (CAM):
+            Metadata object of the IDS monochrome camera 
         acquisition_parameters (AcquisitionParameters):
             Acquisition related metadata object. 
         spectral_data (ndarray):
@@ -1159,6 +1130,7 @@ def _save_acquisition_2arms(metadata: MetaData,
                   spectrometer_params,
                   camPar,
                   acquisition_parameters)
+
 
 def _acquire_raw(ava: Avantes, 
             DMD: ALP4,
@@ -1334,6 +1306,7 @@ def _acquire_raw(ava: Avantes,
                              measurement_time,
                              start_measurement_time,
                              saturation_detected)
+
 
 def acquire(ava: Avantes, 
             DMD: ALP4,
@@ -1527,7 +1500,7 @@ def acquire(ava: Avantes,
 
 def _acquire_raw_2arms(ava: Avantes, 
             DMD: ALP4,
-            camPar,
+            camPar: CAM,
             spectrometer_params: SpectrometerParameters, 
             DMD_params: DMDParameters, 
             acquisition_params: AcquisitionParameters,
@@ -1545,6 +1518,8 @@ def _acquire_raw_2arms(ava: Avantes,
             Connected spectrometer (Avantes object).
         DMD (ALP4): 
             Connected DMD.
+        camPar (CAM):
+            Metadata object of the IDS monochrome camera 
         spectrometer_params (SpectrometerParameters): 
             Spectrometer metadata object with spectrometer configurations.
         DMD_params (DMDParameters):
@@ -1673,7 +1648,7 @@ def _acquire_raw_2arms(ava: Avantes,
 
 def acquire_2arms(ava: Avantes, 
             DMD: ALP4,
-            camPar,
+            camPar: CAM,
             metadata: MetaData, 
             spectrometer_params: SpectrometerParameters, 
             DMD_params: DMDParameters, 
@@ -1694,6 +1669,8 @@ def acquire_2arms(ava: Avantes,
             Connected spectrometer (Avantes object).
         DMD (ALP4): 
             Connected DMD.
+        camPar (CAM):
+            Metadata object of the IDS monochrome camera 
         metadata (MetaData): 
             Metadata concerning the experiment, paths, file inputs and file 
             outputs. Must be created and filled up by the user.
@@ -1969,6 +1946,7 @@ def setup_tuneSpectro(spectrometer,
     
     return metadata, spectrometer_params, DMD_params, acquisition_parameters
 
+
 def displaySpectro(ava: Avantes, 
             DMD: ALP4,
             metadata: MetaData, 
@@ -2009,11 +1987,7 @@ def displaySpectro(ava: Avantes,
     
     pixel_amount = (spectrometer_params.stop_pixel - 
                     spectrometer_params.start_pixel + 1)
-    # measurement_time = np.zeros(
-    #     (acquisition_params.pattern_amount))
-    # timestamps = np.zeros(
-    #     ((acquisition_params.pattern_amount - 1)), 
-    #     dtype=np.float32)
+
     spectral_data = np.zeros(
         (acquisition_params.pattern_amount,pixel_amount),
         dtype=np.float64)
@@ -2026,30 +2000,44 @@ def displaySpectro(ava: Avantes,
     (data, spectrum_index, timestamp, time,
         start_measurement_time, saturation_detected) = AcquisitionResults
 
-
     time, timestamp = _calculate_elapsed_time(
         start_measurement_time, time, timestamp)
 
     begin = acquisition_params.pattern_amount
     end = 2 * acquisition_params.pattern_amount
     spectral_data[begin:end] = data
-    # measurement_time[begin:end] = time
-
-    # begin = (acquisition_params.pattern_amount - 1)
-    # end = 2 * (acquisition_params.pattern_amount - 1)
-    # timestamps[begin:end] = timestamp
 
     acquisition_params.acquired_spectra += spectrum_index
 
     acquisition_params.saturation_detected = saturation_detected
 
 
-
-    # acquisition_params.update_timings(timestamps, measurement_time)
-    # Real time between each spectrum acquisition by the spectrometer
-
-
 def check_ueye(func, *args, exp=0, raise_exc=True, txt=None):
+    """Check for bad input value
+    
+    Args:
+    ----------
+    func : TYPE
+        the ueye function.
+    *args : TYPE
+        the input value.
+    exp : TYPE, optional
+        DESCRIPTION. The default is 0.
+    raise_exc : TYPE, optional
+        DESCRIPTION. The default is True.
+    txt : TYPE, optional
+        DESCRIPTION. The default is None.
+
+    Raises
+    ------
+    RuntimeError
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+    """
+    
     ret = func(*args)
     if not txt:
         txt = "{}: Expected {} but ret={}!".format(str(func), exp, ret)
@@ -2061,7 +2049,19 @@ def check_ueye(func, *args, exp=0, raise_exc=True, txt=None):
 
 
 def stopCapt_DeallocMem(camPar):
-    # Stop capture and deallocate camera memory if need to change AOI
+    """Stop capture and deallocate camera memory if need to change AOI
+    
+    Args:
+    ----------
+    camPar (CAM):
+        Metadata object of the IDS monochrome camera 
+
+    Returns:
+    -------
+    camPar (CAM):
+        Metadata object of the IDS monochrome camera 
+    """
+
     if camPar.camActivated == 1:        
         nRet = ueye.is_StopLiveVideo(camPar.hCam, ueye.IS_FORCE_VIDEO_STOP)
         if nRet == ueye.IS_SUCCESS:
@@ -2082,7 +2082,18 @@ def stopCapt_DeallocMem(camPar):
 
 
 def stopCapt_DeallocMem_ExitCam(camPar):
-    # Stop capture and deallocate camera memory if need to change AOI
+    """Stop capture, deallocate camera memory if need to change AOI and disconnect the camera
+    
+    Args:
+    ----------
+    camPar (CAM):
+        Metadata object of the IDS monochrome camera 
+
+    Returns:
+    -------
+    camPar (CAM):
+        Metadata object of the IDS monochrome camera 
+    """
     if camPar.camActivated == 1:        
         nRet = ueye.is_StopLiveVideo(camPar.hCam, ueye.IS_FORCE_VIDEO_STOP)
         if nRet == ueye.IS_SUCCESS:
@@ -2111,6 +2122,9 @@ def stopCapt_DeallocMem_ExitCam(camPar):
 
 
 class ImageBuffer:
+    """A class to allocate buffer in the camera memory
+    """
+    
     pcImageMemory = None
     MemID = None
     width = None
@@ -2119,10 +2133,19 @@ class ImageBuffer:
 
 
 def imageQueue(camPar):
-    #   Create Imagequeue ---------------------------------------------------------
-    # - allocate 3 ore more buffers depending on the framerate
-    # - initialize Imagequeue
-    # ---------------------------------------------------------
+    """Create Imagequeue / Allocate 3 ore more buffers depending on the framerate / Initialize Image queue
+    
+    Args:
+    ----------
+    camPar (CAM):
+        Metadata object of the IDS monochrome camera 
+
+    Returns:
+    -------
+    None.
+
+    """
+
     sleep(1)   # is required (delay of 1s was not optimized!!)
     buffers = []
     for y in range(10):
@@ -2146,6 +2169,22 @@ def imageQueue(camPar):
 
 
 def prepareCam(camPar, metadata):
+    """Prepare the IDS monochrome camera before acquisition
+
+    Args:
+    ----------
+    camPar (CAM):
+        Metadata object of the IDS monochrome camera
+    metadata (MetaData):
+        Metadata concerning the experiment, paths, file inputs and file 
+        outputs. Must be created and filled up by the user.
+
+    Returns:
+    -------
+    camPar (CAM):
+        Metadata object of the IDS monochrome camera
+
+    """
     cam_path = metadata.output_directory + '\\' + metadata.experiment_name + '_video.' + camPar.vidFormat
     strFileName = ueye.c_char_p(cam_path.encode('utf-8'))
     
@@ -2193,39 +2232,12 @@ def prepareCam(camPar, metadata):
             nRet = ueye_tools.israw_OpenFile(camPar.punFileID, strFileName)
             # if nRet == ueye.IS_SUCCESS:
             #     # print('OpenFile success')
-    
-    # nShutterMode = ueye.c_uint(ueye.IS_DEVICE_FEATURE_CAP_SHUTTER_MODE_ROLLING_GLOBAL_START)
-    # nRet = ueye.is_DeviceFeature(camPar.hCam, ueye.IS_DEVICE_FEATURE_CMD_SET_SHUTTER_MODE, nShutterMode, 
-    #                         ueye.sizeof(nShutterMode))
-    # print('shutter mode = ' + str(nShutterMode.value) + ' / enable : ' + str(nRet))
-    
-    # # Read the global flash params
-    # flashParams = ueye.IO_FLASH_PARAMS()
-    # nRet = ueye.is_IO(camPar.hCam, ueye.IS_IO_CMD_FLASH_GET_GLOBAL_PARAMS, flashParams, ueye.sizeof(flashParams))
-    # if (nRet == ueye.IS_SUCCESS):
-    #     nDelay   = flashParams.s32Delay
-    #     print('nDelay = ' + str(nDelay.value))
-    #     nDuration = flashParams.u32Duration
-    #     print('nDuration = ' + str(nDuration.value))
-
-    # flashParams.s32Delay.value = 0
-    # flashParams.u32Duration.value = 40 
-    # # Apply the global flash params and set the flash params to these values
-    # nRet = ueye.is_IO(camPar.hCam, ueye.IS_IO_CMD_FLASH_SET_PARAMS, flashParams, ueye.sizeof(flashParams))
-    
-    
-    # nRet = ueye.is_IO(camPar.hCam, ueye.IS_IO_CMD_FLASH_GET_PARAMS, flashParams, ueye.sizeof(flashParams))
-    # if (nRet == ueye.IS_SUCCESS):
-    #     nDelay   = flashParams.s32Delay
-    #     print('nDelay = ' + str(nDelay.value))
-    #     nDuration = flashParams.u32Duration
-    #     print('nDuration = ' + str(nDuration.value))
             
     # ---------------------------------------------------------
     # Activates the camera's live video mode (free run mode)
     # ---------------------------------------------------------
     nRet = ueye.is_CaptureVideo(camPar.hCam, ueye.IS_DONT_WAIT)
-    # nRet = ueye.is_FreezeVideo(camPar.hCam, ueye.IS_DONT_WAIT)
+
     if nRet != ueye.IS_SUCCESS:
         print("is_CaptureVideo ERROR")
     else:
@@ -2235,6 +2247,20 @@ def prepareCam(camPar, metadata):
     
         
 def runCam_thread(camPar, start_chrono): 
+    """Acquire video with the IDS monochrome camera in a thread
+
+    Parameters:
+    ----------
+    camPar (CAM):
+        Metadata object of the IDS monochrome camera
+    start_chrono : int
+        to save a delay for each acquisition frame of the video.
+
+    Returns:
+    -------
+    None.
+    """
+    
     imageinfo = ueye.UEYEIMAGEINFO()
     current_buffer = ueye.c_mem_p()
     current_id = ueye.int()
@@ -2255,17 +2281,24 @@ def runCam_thread(camPar, start_chrono):
                                 
             check_ueye(ueye.is_UnlockSeqBuf, camPar.hCam, current_id, current_buffer)
         else:
-            # nRet = ueye.is_FreeImageMem (camPar.hCam, current_buffer, current_id)
-            # if nRet != ueye.IS_SUCCESS:
-            #     print('ERROR to free the memory')
-            #     print(nRet)
             print('Thread finished')
             break
-        # else:
-        #     print('thread cam stop correctly')
-        #     break
+
 
 def stopCam(camPar):
+    """To stop the acquisition of the video
+
+    Parameters
+    ----------
+    camPar (CAM):
+        Metadata object of the IDS monochrome camera
+
+    Returns
+    -------
+    camPar (CAM):
+        Metadata object of the IDS monochrome camera
+    """
+    
     if camPar.vidFormat == 'avi':
         ueye_tools.isavi_StopAVI(camPar.hCam)
         ueye_tools.isavi_CloseAVI(camPar.hCam)
@@ -2274,13 +2307,12 @@ def stopCam(camPar):
         ueye_tools.israw_CloseFile(camPar.punFileID)
         ueye_tools.israw_ExitFile(camPar.punFileID)
         camPar.punFileID = ueye.c_uint()
-        
-    # camPar = stopCapt_DeallocMem(camPar)
-    
+
     return camPar
 
 
-def disconnect(ava: Optional[Avantes]=None, DMD: Optional[ALP4]=None):
+def disconnect(ava: Optional[Avantes]=None, 
+               DMD: Optional[ALP4]=None):
     """Disconnect spectrometer and DMD.
 
     Disconnects equipments trying to stop a running pattern sequence (possibly 
@@ -2311,8 +2343,10 @@ def disconnect(ava: Optional[Avantes]=None, DMD: Optional[ALP4]=None):
         print('DMD disconnected')
 
 
-def disconnect_2arms(ava: Optional[Avantes]=None, DMD: Optional[ALP4]=None, camPar=None):
-    """Disconnect spectrometer and DMD.
+def disconnect_2arms(ava: Optional[Avantes]=None, 
+                     DMD: Optional[ALP4]=None, 
+                     camPar=None):
+    """Disconnect spectrometer, DMD and the IDS monochrome camera.
 
     Disconnects equipments trying to stop a running pattern sequence (possibly 
     blocking correct functioning) and trying to free DMD memory to avoid errors
@@ -2323,6 +2357,8 @@ def disconnect_2arms(ava: Optional[Avantes]=None, DMD: Optional[ALP4]=None, camP
             Connected spectrometer (Avantes object). Defaults to None.
         DMD (ALP4, optional): 
             Connected DMD. Defaults to None.
+       camPar (CAM):
+           Metadata object of the IDS monochrome camera 
     """
 
     if ava is not None:
@@ -2366,39 +2402,6 @@ def disconnect_2arms(ava: Optional[Avantes]=None, DMD: Optional[ALP4]=None, camP
             print('Camera disconnected')
         else:
             print('Problem to disconnect camera, need to restart spyder')
-        
-###################### IDS CAM class and definition ###########################        
-# @dataclass_json
-# @dataclass
-# class CAM():
-#     """
-#     Class containing IDS camera configuration
-#     """
-
-#     # hCam: ueye.c_uint
-#     # sInfo: ueye.SENSORINFO
-#     # cInfo: ueye.BOARDINFO
-#     # nBitsPerPixel: ueye.c_int
-#     # m_nColorMode: ueye.c_int
-#     # bytes_per_pixel: int
-#     # rectAOI: ueye.IS_RECT()
-    
-#     # pcImageMemory: ueye.c_mem_p()
-#     # MemID: ueye.int()
-#     # pitch: ueye.INT()
-    
-#     # fps: float
-#     # gain: int
-#     # gainBoost: str
-#     # gamma: float 
-#     # exposureTime: float
-#     # blackLevel = int
-    
-#     class_description: str = 'IDS Camera configuration'
-
-# logging.basicConfig(level=logging.DEBUG,
-#                     format='%(asctime)s.%(msecs)03d %(levelname)s: %(message)s',
-#                     datefmt="%Y-%m-%d %H:%M:%S")
 
 
 def _init_CAM():
