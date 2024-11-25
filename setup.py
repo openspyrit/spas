@@ -6,6 +6,7 @@ with open('README.md') as f:
 setup(
     name='spas',
     version='1.4.0',
+    include_package_data=True,
     description='A python toolbox for acquisition of images based on the single-pixel framework.',
     author='Guilherme Beneti Martins',
     url='https://github.com/openspyrit/spas',
