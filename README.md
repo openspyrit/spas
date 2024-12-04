@@ -8,9 +8,22 @@ SPAS is a companion package to the [SPyRiT](https://github.com/openspyrit/spyrit
 
 
 # Installation
-The SPAS package can be installed on Linux, MacOs and Windows. However, it will be fully functional on Windows only due to DLL dependencies required for harware control.
 
-We recommend using a virtual environment.
+## For users
+The SPAS package can be installed on Linux, MacOs and Windows. 
+
+```powershell
+pip install git+https://github.com/openspyrit/spas.git
+```
+
+Check your installation
+``` python
+from spas import read_metadata
+```
+This functions reads the metadata an existing acquisition (e.g., available on [SPIHIM](https://pilot-warehouse.creatis.insa-lyon.fr/))
+
+## For developers
+The SPAS package can be installed on Linux, MacOs and Windows. However, it will be fully functional on Windows only due to DLL dependencies required for harware control.
 
 * Clone the SPAS repository
 
@@ -58,7 +71,8 @@ https://spas.readthedocs.io/
 
 # Contributors (alphabetical order)
 * Thomas Baudier
-* Nicolas Ducros - [Website](https://www.creatis.insa-lyon.fr/~ducros/WebPage/index.html)
+* Guilherme Beneti-Martin
+* [Nicolas Ducros](https://www.creatis.insa-lyon.fr/~ducros/WebPage/index.html)
 * Laurent Mahieu Williame
 
 # How to cite?
