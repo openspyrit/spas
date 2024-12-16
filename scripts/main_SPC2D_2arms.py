@@ -5,7 +5,6 @@ Hadamard patterns and then, a reconstruction using 1/4 of the patterns
 performed after the acquisition and not in "real-time".
 """
 
-# from spas import *
 from spas.acquisition import init_2arms, setup_cam, AcquisitionParameters, setup_2arms, setup, acquire, acquire_2arms, snapshot, disconnect_2arms, captureVid, displaySpectro, setup_tuneSpectro, change_patterns
 from spas.metadata import MetaData, func_path, save_metadata_2arms
 from spas.reconstruction import reconstruction_hadamard
@@ -19,11 +18,11 @@ import time
 from pathlib import Path
 import numpy as np
 #%% Initialize hardware
-spectrometer, DMD, DMD_initial_memory, camPar = init_2arms()
+spectrometer, DMD, DMD_initial_memory, camPar = init_2arms(dmd_lib_version = '4.2') # possible version : '4.1', '4.2' or '4.3'
 #%% Define the AOI of the camera
 # Warning, not all values are allowed for Width and Height (max: 2076x3088 | ex: 768x544)
-camPar.rectAOI.s32X.value      = 1110#550#0 #0#  // X
-camPar.rectAOI.s32Y.value      = 650#380#0#0#800#   // Y
+camPar.rectAOI.s32X.value      = 1100#550#0 #0#  // X
+camPar.rectAOI.s32Y.value      = 600#380#0#0#800#   // Y
 camPar.rectAOI.s32Width.value  = 768#1544#3088#1544 # 3000#3088#         // Width must be multiple of 8
 camPar.rectAOI.s32Height.value = 544 #1038#2076#1730#2000## 1038#  2076   // Height   
 
@@ -36,7 +35,7 @@ camPar = setup_cam(camPar,
     Gain         = 0,     # Gain boundary : [0 100]
     gain_boost   = 'OFF', # set1"ON"to activate gain boost, "OFF" to deactivate
     nGamma       = 1,     # Gamma boundary : [1 - 2.2]
-    ExposureTime = 0.045,# Exposure Time (ms) boudary : [0.013 - 56.221] 
+    ExposureTime = 1.5,# Exposure Time (ms) boudary : [0.013 - 56.221] 
     black_level  = 4)     # lack Level boundary : [0 255]
 
 snapshotVisu(camPar)
@@ -44,7 +43,7 @@ snapshotVisu(camPar)
 displayVid(camPar)
 #%% Display the spectrum in continuous mode for optical tuning
 pattern_to_display = 'white' #'gray'#'black', 
-ti   = 1 # Integration time of the spectrometer  
+ti   = 6 # Integration time of the spectrometer  
 zoom = 1 # Numerical zoom applied in the DMD
 
 metadata, spectrometer_params, DMD_params, acquisition_parameters = setup_tuneSpectro(spectrometer = spectrometer, DMD = DMD, DMD_initial_memory = DMD_initial_memory,
@@ -60,12 +59,12 @@ xw_offset                = 128      # Default = 128
 yh_offset                = 0      # Default = 0
 pattern_compression      = 1
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
-source                   = 'white_LED'#'Bioblock'#'Thorlabs_White_halogen_lamp'#'White_Zeiss_KL-2500-LCD_lamp'#No-light'#Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#'HgAr multilines Source (HG-1 Oceanoptics)'
-object_name              = 'cat'#'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
-data_folder_name         = '2024-11-12_test_new_branch'#'Patient-69_exvivo_LGG_BU'
+source                   = 'white_LED'#White_Zeiss_lamp'#No-light'#'Bioblock'#'Thorlabs_White_halogen_lamp'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#'HgAr multilines Source (HG-1 Oceanoptics)'
+object_name              = 'cat6'#'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
+data_folder_name         = '2024-12-16_test_numpy_v2'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
 
-camPar.acq_mode          = 'snapshot'#'video'   # 
+camPar.acq_mode          = 'snapshot'# 'video'   #
 camPar.vidFormat         = 'avi'     #'bin'#
 camPar.insert_patterns   = 0         # 0: no insertion / 1: insert white patterns for the camera / In the case of snapshot, put 0 to avoid bad reco
 camPar.gate_period       = 16        # a multiple of the integration time of the spectro, between [2 - 16] (2: insert one white pattern between each pattern)
@@ -83,7 +82,7 @@ if all_path.aborted == False:
         light_source         = source,
         object               = object_name,
         filter               = 'Diffuser', #+ OD=0.3',#optical density = 0.1''No filter',#'linear colored filter',#'Orange filter (600nm)',#'Dichroic_420nm',#'HighPass_500nm + LowPass_750nm + Dichroic_560nm',#'BandPass filter 560nm Dl=10nm',#'None', # + , #'Nothing',#'Diffuser + HighPass_500nm + LowPass_750nm',##'Microsope objective x40',#'' linear colored filter + OD#0',#'Nothing',#
-        description          = 'test after marging the two branches main and install_without_lib and the new env spas_v1.'
+        description          = 'test with pinehole to have a point source'
         # description          = 'two positions of the lens 80mm, P1:12cm (zoom=0.5), P2:22cm (zoom=1.5) from the DMD. Dichroic plate (T:>420nm, R:<420nm), HighPass_500nm in front of the cam, GP: Glass Plate, OP: other position, OA: out of anapath',
                         )    
     try: change_patterns(DMD = DMD, acquisition_params = acquisition_parameters, zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset,
@@ -95,7 +94,7 @@ if all_path.aborted == False:
                                                    x_mask_coord = x_mask_coord, y_mask_coord = y_mask_coord)
         
     spectrometer_params, DMD_params, camPar = setup_2arms(spectrometer = spectrometer, DMD = DMD, camPar = camPar, DMD_initial_memory = DMD_initial_memory, 
-                                                          metadata = metadata, acquisition_params = acquisition_parameters, DMD_output_synch_pulse_delay = 42, 
+                                                          metadata = metadata, acquisition_params = acquisition_parameters, DMD_output_synch_pulse_delay = 0, 
                                                           integration_time = ti)
 
     if DMD_params.patterns != None:
@@ -104,7 +103,7 @@ if all_path.aborted == False:
 else:
     print('setup aborted')
 #%% Acquire
-time.sleep(0)
+# time.sleep(0)
 if camPar.acq_mode == 'video':
     spectral_data = acquire_2arms(
         ava                 = spectrometer,
