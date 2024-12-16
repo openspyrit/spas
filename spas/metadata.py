@@ -124,7 +124,7 @@ class MetaData:
 
         today = datetime.today()
         self.date = '--/--/----' #today.strftime('%d/%m/%Y')            
-        self.time = '--:--:--' #today.strftime('%I:%M:%S %p')
+        self.time = today.strftime('%I:%M:%S %p')
 
         # If parameter is str, turn it into Path
         if isinstance(self.output_directory, str):
@@ -580,7 +580,7 @@ class AcquisitionParameters:
         self.mean_callback_acquisition_time_ms = np.mean(measurement_time)
         self.total_callback_acquisition_time_s = np.sum(measurement_time) / 1000
         self.mean_spectrometer_acquisition_time_ms = np.mean(
-            timestamps, dtype=np.float64)
+            timestamps, dtype=float)
         self.total_spectrometer_acquisition_time_s = np.sum(timestamps) / 1000
 
         self.timestamps = timestamps

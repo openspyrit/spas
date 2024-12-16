@@ -16,7 +16,7 @@ from matplotlib import pyplot as plt
 import ctypes as ct
 import ALP4
 #%% Init
-spectrometer, DMD, DMD_initial_memory = init()
+spectrometer, DMD, DMD_initial_memory = init(dmd_lib_version = '4.2')
 #%% Setup acquisition and send pattern to the DMD
 setup_version = 'setup_v1.3'
 data_folder_name = '2022-06-17_test_oldProg'

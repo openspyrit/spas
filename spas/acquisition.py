@@ -77,8 +77,11 @@ def _init_spectrometer() -> Avantes:
     return ava
 
 
-def _init_DMD() -> Tuple[ALP4, int]:
+def _init_DMD(dmd_lib_version: str = '4.2') -> Tuple[ALP4, int]:
     """Initialize a DMD and clean its allocated memory from a previous use.
+    
+    Args:
+        dmd_lib_version [str]: the version of the DMD library
 
     Returns:
         Tuple[ALP4, int]: Tuple containing initialized DMD object and DMD
@@ -86,21 +89,36 @@ def _init_DMD() -> Tuple[ALP4, int]:
     """
 
     # Initializing DMD
+    stop_init = False
+    if dmd_lib_version == '4.1':
+        print('dmd lib version = ' + dmd_lib_version + ' not installed, please, install it at the location : "openspyrit/spas/alpV41"')
+        stop_init = True
+    elif dmd_lib_version == '4.2':
+        dll_path = Path(__file__).parent.parent.joinpath('lib/alpV42').__str__()
+        DMD = ALP4(version='4.2',libDir=dll_path)
+    elif dmd_lib_version == '4.3':
+        dll_path = Path(__file__).parent.parent.joinpath('lib/alpV43').__str__()
+        DMD = ALP4(version='4.3',libDir=dll_path)
+    else:
+        print('unknown version of dmd library')
+        stop_init = True
+        
+    if stop_init == False:
+        DMD.Initialize(DeviceNum=None)
+    
+        #print(f'DMD initial available memory: {DMD.DevInquire(ALP_AVAIL_MEMORY)}')
+        print('DMD connected')
+    
+        return DMD, DMD.DevInquire(ALP_AVAIL_MEMORY)
+    else:
+        print('DMD initialisation aborted')
 
-    dll_path = Path(__file__).parent.parent.joinpath('lib/alpV42').__str__()
-    DMD = ALP4(version='4.2',libDir=dll_path)
-    # dll_path = Path(__file__).parent.parent.joinpath('lib/alpV43').__str__()
-    # DMD = ALP4(version='4.3',libDir=dll_path)
-    DMD.Initialize(DeviceNum=None)
 
-    #print(f'DMD initial available memory: {DMD.DevInquire(ALP_AVAIL_MEMORY)}')
-    print('DMD connected')
-
-    return DMD, DMD.DevInquire(ALP_AVAIL_MEMORY)
-
-
-def init() -> Tuple[Avantes, ALP4, int]:
+def init(dmd_lib_version: str = '4.2') -> Tuple[Avantes, ALP4, int]:
     """Call functions to initialize spectrometer and DMD.
+    
+    Args:
+        dmd_lib_version [str]: the version of the DMD library
 
     Returns:
         Tuple[Avantes, ALP4, int]: Tuple containing equipments and DMD initial
@@ -113,12 +131,15 @@ def init() -> Tuple[Avantes, ALP4, int]:
                 Initial memory available in DMD after initialization.            
     """
     
-    DMD, DMD_initial_memory = _init_DMD()
+    DMD, DMD_initial_memory = _init_DMD(dmd_lib_version)
     return _init_spectrometer(), DMD, DMD_initial_memory
 
 
-def init_2arms() -> Tuple[Avantes, ALP4, int]:
+def init_2arms(dmd_lib_version: str = '4.2') -> Tuple[Avantes, ALP4, int]:
     """Call functions to initialize spectrometer and DMD.
+    
+    Args:
+        dmd_lib_version [str]: the version of the DMD library
 
     Returns:
         Tuple[Avantes, ALP4, int]: Tuple containing equipments and DMD initial
@@ -131,7 +152,7 @@ def init_2arms() -> Tuple[Avantes, ALP4, int]:
                 Initial memory available in DMD after initialization.            
     """
     
-    DMD, DMD_initial_memory = _init_DMD()
+    DMD, DMD_initial_memory = _init_DMD(dmd_lib_version)
     camPar = _init_CAM()
     return _init_spectrometer(), DMD, DMD_initial_memory, camPar
 
@@ -827,7 +848,7 @@ def setup(spectrometer: Avantes,
         start_pixel,
         stop_pixel)
 
-    acquisition_params.wavelengths = np.asarray(wavelenghts, dtype=np.float32)
+    acquisition_params.wavelengths = np.asarray(wavelenghts, dtype=np.float64)
 
     DMD_params = _setup_DMD(DMD, add_illumination_time, DMD_initial_memory)
 
@@ -1003,7 +1024,7 @@ def setup_2arms(spectrometer: Avantes,
     camPar.gate_period = gate_period
     camPar.int_time_spect = integration_time
 
-    acquisition_params.wavelengths = np.asarray(wavelenghts, dtype=np.float32)
+    acquisition_params.wavelengths = np.asarray(wavelenghts, dtype=np.float64)
 
     DMD_params = _setup_DMD(DMD, add_illumination_time, DMD_initial_memory)
     
@@ -1410,7 +1431,7 @@ def acquire(ava: Avantes,
         (acquisition_params.pattern_amount * repetitions))
     timestamps = np.zeros(
         ((acquisition_params.pattern_amount - 1) * repetitions), 
-        dtype=np.float32)
+        dtype=np.float64)
     spectral_data = np.zeros(
         (acquisition_params.pattern_amount * repetitions,pixel_amount),
         dtype=np.float64)
@@ -1473,8 +1494,7 @@ def acquire(ava: Avantes,
     # Real time between each spectrum acquisition by the spectrometer
     print('Complete acquisition done')
     print('Spectra acquired: {}'.format(acquisition_params.acquired_spectra))      
-    print('Total acquisition time: {} s'.format(acquisition_params.total_spectrometer_acquisition_time_s))
-    print(f'Saving data to {metadata.output_directory}')
+    print('Total acquisition time: {0:.2f} s'.format(acquisition_params.total_spectrometer_acquisition_time_s))
     
     _save_acquisition(metadata, DMD_params, spectrometer_params, 
                         acquisition_params, spectral_data)
@@ -1749,7 +1769,7 @@ def acquire_2arms(ava: Avantes,
         (acquisition_params.pattern_amount * repetitions))
     timestamps = np.zeros(
         ((acquisition_params.pattern_amount - 1) * repetitions), 
-        dtype=np.float32)
+        dtype=np.float64)
     spectral_data = np.zeros(
         (acquisition_params.pattern_amount * repetitions,pixel_amount),
         dtype=np.float64)
@@ -1812,8 +1832,7 @@ def acquire_2arms(ava: Avantes,
     # Real time between each spectrum acquisition by the spectrometer
     print('Complete acquisition done')
     print('Spectra acquired: {}'.format(acquisition_params.acquired_spectra))      
-    print('Total acquisition time: {} s'.format(acquisition_params.total_spectrometer_acquisition_time_s))
-    print(f'Saving data to {metadata.output_directory}')
+    print('Total acquisition time: {0:.2f} s'.format(acquisition_params.total_spectrometer_acquisition_time_s))
     
     # delete acquisition with black pattern (white for the camera)
     if camPar.insert_patterns == 1:
