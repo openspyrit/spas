@@ -61,7 +61,7 @@ class DMDTypes(IntEnum):
 
 @dataclass_json
 @dataclass
-class MetaData_SPC2D:
+class MetaData:
     """ Class containing overall acquisition parameters and description.
 
     Metadata concerning the experiment, paths, file inputs and file outputs.
@@ -124,7 +124,7 @@ class MetaData_SPC2D:
 
         today = datetime.today()
         self.date = '--/--/----' #today.strftime('%d/%m/%Y')            
-        self.time = '--:--:--' #today.strftime('%I:%M:%S %p')
+        self.time = today.strftime('%I:%M:%S %p')
 
         # If parameter is str, turn it into Path
         if isinstance(self.output_directory, str):
@@ -213,42 +213,42 @@ class CAM:
         insert_patterns (int) : 0 => no insertion / 1=> insert white patterns for the camera
         acq_mode (str) : mode of the acquisition => 'video' or 'snapshot' mode
     """
-    
-    hCam: Optional[ueye.c_uint] = None
-    sInfo: Optional[ueye.SENSORINFO] = None
-    cInfo: Optional[ueye.BOARDINFO] = None
-    nBitsPerPixel: Optional[ueye.c_int] = None
-    m_nColorMode: Optional[ueye.c_int] = None
-    bytes_per_pixel: Optional[int] = None
-    rectAOI: Optional[ueye.IS_RECT] = None
-    pcImageMemory: Optional[ueye.c_mem_p] = None
-    MemID: Optional[ueye.c_int] = None
-    pitch: Optional[ueye.c_int] = None
-    fps: Optional[float] = None
-    gain: Optional[int] = None
-    gainBoost: Optional[str] = None
-    gamma: Optional[float] = None
-    exposureTime: Optional[float] = None
-    blackLevel: Optional[int] = None
-    camActivated : Optional[bool] = None
-    pixelClock : Optional[int] = None
-    bandwidth : Optional[float] = None
-    Memory : Optional[bool] = None
-    Exit : Optional[int] = None
-    vidFormat : Optional[str] = None
-    gate_period : Optional[int] = None
-    trigger_mode : Optional[str] = None
-    avi : Optional[ueye.int] = None
-    punFileID : Optional[ueye.c_int] = None
-    timeout : Optional[int] = None
-    time_array : Optional[Union[List[float], str]] = field(default=None, repr=False)
-    int_time_spect : Optional[float] = None
-    black_pattern_num : Optional[int] = None
-    insert_patterns : Optional[int] = None
-    acq_mode : Optional[str] = None
-                   
-    class_description: str = 'IDS camera configuration'
-    
+    if dll_pyueye_installed:
+        hCam: Optional[ueye.c_uint] = None
+        sInfo: Optional[ueye.SENSORINFO] = None
+        cInfo: Optional[ueye.BOARDINFO] = None
+        nBitsPerPixel: Optional[ueye.c_int] = None
+        m_nColorMode: Optional[ueye.c_int] = None
+        bytes_per_pixel: Optional[int] = None
+        rectAOI: Optional[ueye.IS_RECT] = None
+        pcImageMemory: Optional[ueye.c_mem_p] = None
+        MemID: Optional[ueye.c_int] = None
+        pitch: Optional[ueye.c_int] = None
+        fps: Optional[float] = None
+        gain: Optional[int] = None
+        gainBoost: Optional[str] = None
+        gamma: Optional[float] = None
+        exposureTime: Optional[float] = None
+        blackLevel: Optional[int] = None
+        camActivated : Optional[bool] = None
+        pixelClock : Optional[int] = None
+        bandwidth : Optional[float] = None
+        Memory : Optional[bool] = None
+        Exit : Optional[int] = None
+        vidFormat : Optional[str] = None
+        gate_period : Optional[int] = None
+        trigger_mode : Optional[str] = None
+        avi : Optional[ueye.int] = None
+        punFileID : Optional[ueye.c_int] = None
+        timeout : Optional[int] = None
+        time_array : Optional[Union[List[float], str]] = field(default=None, repr=False)
+        int_time_spect : Optional[float] = None
+        black_pattern_num : Optional[int] = None
+        insert_patterns : Optional[int] = None
+        acq_mode : Optional[str] = None
+
+        class_description: str = 'IDS camera configuration'
+
     def undo_readable_class_CAM(self) -> None:
         """Changes the time_array attribute from `str` to `List` of `int`."""
         
@@ -403,9 +403,9 @@ class AcquisitionParameters:
     pattern_compression: float
     pattern_dimension_x: int
     pattern_dimension_y: int
-    zoom: int
-    xw_offset: int
-    yh_offset: int
+    zoom: Optional[int] = field(default=None) 
+    xw_offset: Optional[int] = field(default=None) 
+    yh_offset: Optional[int] = field(default=None) 
     mask_index: Optional[Union[np.ndarray, str]] = field(default=None, 
                                                         repr=False)
     x_mask_coord: Optional[Union[np.ndarray, str]] = field(default=None, 
@@ -580,7 +580,7 @@ class AcquisitionParameters:
         self.mean_callback_acquisition_time_ms = np.mean(measurement_time)
         self.total_callback_acquisition_time_s = np.sum(measurement_time) / 1000
         self.mean_spectrometer_acquisition_time_ms = np.mean(
-            timestamps, dtype=np.float64)
+            timestamps, dtype=float)
         self.total_spectrometer_acquisition_time_s = np.sum(timestamps) / 1000
 
         self.timestamps = timestamps
@@ -926,7 +926,7 @@ class DMDParameters:
           
             
 
-def read_metadata(file_path: str) -> Tuple[MetaData_SPC2D,
+def read_metadata(file_path: str) -> Tuple[MetaData,
                                            AcquisitionParameters,
                                            SpectrometerParameters,
                                            DMDParameters]:
@@ -937,9 +937,9 @@ def read_metadata(file_path: str) -> Tuple[MetaData_SPC2D,
             Name of JSON file containing all metadata.
 
     Returns:
-        Tuple[MetaData_SPC2D, AcquisitionParameters, SpectrometerParameters, 
+        Tuple[MetaData, AcquisitionParameters, SpectrometerParameters, 
         DMDParameters]:
-            saved_metadata (MetaData_SPC2D):
+            saved_metadata (MetaData):
                 Metadata object read from JSON.
             saved_acquisition_params(AcquisitionParameters):
                 AcquisitionParameters object read from JSON.
@@ -955,7 +955,7 @@ def read_metadata(file_path: str) -> Tuple[MetaData_SPC2D,
         
     for object in data:
         if object['class_description'] == 'Metadata':
-            saved_metadata = MetaData_SPC2D.from_dict(object)
+            saved_metadata = MetaData.from_dict(object)
         if object['class_description'] == 'Acquisition parameters':
             saved_acquisition_params = AcquisitionParameters.from_dict(object)
             saved_acquisition_params.undo_readable_pattern_order()
@@ -967,7 +967,7 @@ def read_metadata(file_path: str) -> Tuple[MetaData_SPC2D,
     return (saved_metadata, saved_acquisition_params, 
             saved_spectrometer_params, saved_dmd_params)
 
-def read_metadata_2arms(file_path: str) -> Tuple[MetaData_SPC2D,
+def read_metadata_2arms(file_path: str) -> Tuple[MetaData,
                                            AcquisitionParameters,
                                            SpectrometerParameters,
                                            DMDParameters,
@@ -979,9 +979,9 @@ def read_metadata_2arms(file_path: str) -> Tuple[MetaData_SPC2D,
             Name of JSON file containing all metadata.
 
     Returns:
-        Tuple[MetaData_SPC2D, AcquisitionParameters, SpectrometerParameters, 
+        Tuple[MetaData, AcquisitionParameters, SpectrometerParameters, 
         DMDParameters]:
-            saved_metadata (MetaData_SPC2D):
+            saved_metadata (MetaData):
                 Metadata object read from JSON.
             saved_acquisition_params(AcquisitionParameters):
                 AcquisitionParameters object read from JSON.
@@ -997,7 +997,7 @@ def read_metadata_2arms(file_path: str) -> Tuple[MetaData_SPC2D,
         
     for object in data:
         if object['class_description'] == 'Metadata':
-            saved_metadata = MetaData_SPC2D.from_dict(object)
+            saved_metadata = MetaData.from_dict(object)
         if object['class_description'] == 'Acquisition parameters':
             saved_acquisition_params = AcquisitionParameters.from_dict(object)
             saved_acquisition_params.undo_readable_pattern_order()
@@ -1013,14 +1013,14 @@ def read_metadata_2arms(file_path: str) -> Tuple[MetaData_SPC2D,
     return (saved_metadata, saved_acquisition_params, 
             saved_spectrometer_params, saved_dmd_params, saved_cam_params)
 
-def save_metadata(metadata: MetaData_SPC2D, 
+def save_metadata(metadata: MetaData, 
                   DMD_params: DMDParameters, 
                   spectrometer_params: SpectrometerParameters, 
                   acquisition_parameters: AcquisitionParameters) -> None:
     """Saves metadata to JSON file.
 
     Args:
-        metadata (MetaData_SPC2D):
+        metadata (MetaData):
             Metadata concerning the experiment, paths, file inputs and file
             outputs.
         DMD_params (DMDParameters):
@@ -1045,7 +1045,7 @@ def save_metadata(metadata: MetaData_SPC2D,
 
         json.dump(output_params,output,ensure_ascii=False,indent=4)
         
-def save_metadata_2arms(metadata: MetaData_SPC2D, 
+def save_metadata_2arms(metadata: MetaData, 
                   DMD_params: DMDParameters, 
                   spectrometer_params: SpectrometerParameters, 
                   camPar : CAM,
@@ -1053,7 +1053,7 @@ def save_metadata_2arms(metadata: MetaData_SPC2D,
     """Saves metadata to JSON file.
 
     Args:
-        metadata (MetaData_SPC2D):
+        metadata (MetaData):
             Metadata concerning the experiment, paths, file inputs and file
             outputs.
         DMD_params (DMDParameters):
@@ -1084,19 +1084,21 @@ def save_metadata_2arms(metadata: MetaData_SPC2D,
 @dataclass_json
 @dataclass
 class func_path:
-    def __init__(self, data_folder_name, data_name):        
+    def __init__(self, data_folder_name, data_name, ask_overwrite=False):        
         if not os.path.exists('../data/' + data_folder_name):
             os.makedirs('../data/' + data_folder_name)
         
         if not os.path.exists('../data/' + data_folder_name + '/' + data_name):
             os.makedirs('../data/' + data_folder_name + '/' + data_name)
             aborted = False
-        else:
+        elif ask_overwrite == True:
             res = input('Acquisition already exists, overwrite it ?[y/n]')
             if res == 'n':
                 aborted = True
             else:
                 aborted = False
+        else:
+            aborted = True
                 
         self.aborted = aborted
         self.subfolder_path = '../data/' + data_folder_name + '/' + data_name    

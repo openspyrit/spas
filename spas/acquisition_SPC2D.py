@@ -20,7 +20,7 @@ metadata = MetaData(
     filter='...',
     description='...')
 
-acquisition_parameters = AcquisitionParameters_SPC2D(
+acquisition_parameters = AcquisitionParameters(
     pattern_compression=1.0,
     pattern_dimension_x=64,
     pattern_dimension_y=64)
@@ -73,7 +73,7 @@ except:
     pass
     
 from tqdm import tqdm
-from spas.metadata_SPC2D import DMDParameters, MetaData, AcquisitionParameters_SPC2D
+from spas.metadata_SPC2D import DMDParameters, MetaData, AcquisitionParameters
 from spas.metadata_SPC2D import SpectrometerParameters, save_metadata, CAM, save_metadata_2arms
 from spas.reconstruction_nn import reconstruct_process, plot_recon, ReconstructionParameters
 
@@ -161,7 +161,7 @@ def init() -> Tuple[Avantes, ALP4, int]:
     DMD, DMD_initial_memory = _init_DMD()
     return _init_spectrometer(), DMD, DMD_initial_memory
 
-def init_2arms() -> Tuple[Avantes, ALP4, int]:
+def init_2arms(dmd_lib_version: str = '4.2') -> Tuple[Avantes, ALP4, int]:
     """Call functions to initialize spectrometer and DMD.
 
     Returns:
@@ -402,7 +402,7 @@ def _sequence_limits(DMD: ALP4, pattern_compression: int,
 
 def _update_sequence(DMD: ALP4,
                      DMD_params: DMDParameters,
-                     acquisition_params: AcquisitionParameters_SPC2D,
+                     acquisition_params: AcquisitionParameters,
                      pattern_source: str,
                      pattern_prefix: str,
                      pattern_order: List[int],
@@ -415,7 +415,7 @@ def _update_sequence(DMD: ALP4,
         DMD_params (DMDParameters):
             DMD metadata object to be updated with pattern related data and with
             memory available after patterns are sent to DMD.
-        acquisition_params (AcquisitionParameters_SPC2D):
+        acquisition_params (AcquisitionParameters):
             Acquisition related metadata object. User must partially fill up
             with pattern_compression, pattern_dimension_x, pattern_dimension_y,
             zoom, x and y offest of patterns displayed on the DMD.
@@ -511,7 +511,7 @@ def _update_sequence(DMD: ALP4,
 
 
 def _setup_patterns(DMD: ALP4, metadata: MetaData, DMD_params: DMDParameters, 
-                   acquisition_params: AcquisitionParameters_SPC2D,
+                   acquisition_params: AcquisitionParameters,
                    cov_path: str = None, pattern_to_display: str = 'white', 
                    loop: bool = False) -> None:
     """Read and send patterns to DMD.
@@ -532,7 +532,7 @@ def _setup_patterns(DMD: ALP4, metadata: MetaData, DMD_params: DMDParameters,
         DMD_params (DMDParameters):
             DMD metadata object to be updated with pattern related data and with
             memory available after patterns are sent to DMD.
-        acquisition_params (AcquisitionParameters_SPC2D):
+        acquisition_params (AcquisitionParameters):
             Acquisition related metadata object. User must partially fill up
             with pattern_compression, pattern_dimension_x, pattern_dimension_y,
             zoom, x and y offest of patterns displayed on the DMD.
@@ -590,7 +590,7 @@ def _setup_patterns(DMD: ALP4, metadata: MetaData, DMD_params: DMDParameters,
 
 
 def _setup_patterns_2arms(DMD: ALP4, metadata: MetaData, DMD_params: DMDParameters, 
-                   acquisition_params: AcquisitionParameters_SPC2D, camPar: CAM,
+                   acquisition_params: AcquisitionParameters, camPar: CAM,
                    cov_path: str = None) -> None:
     """Read and send patterns to DMD.
 
@@ -610,7 +610,7 @@ def _setup_patterns_2arms(DMD: ALP4, metadata: MetaData, DMD_params: DMDParamete
         DMD_params (DMDParameters):
             DMD metadata object to be updated with pattern related data and with
             memory available after patterns are sent to DMD.
-        acquisition_params (AcquisitionParameters_SPC2D):
+        acquisition_params (AcquisitionParameters):
             Acquisition related metadata object. User must partially fill up
             with pattern_compression, pattern_dimension_x, pattern_dimension_y,
             zoom, x and y offest of patterns displayed on the DMD.
@@ -755,7 +755,7 @@ def setup(spectrometer: Avantes,
           DMD: ALP4,
           DMD_initial_memory: int, 
           metadata: MetaData,
-          acquisition_params: AcquisitionParameters_SPC2D,
+          acquisition_params: AcquisitionParameters,
           start_pixel: int = 0,
           stop_pixel: Optional[int] = None,
           integration_time: float = 1, 
@@ -782,7 +782,7 @@ def setup(spectrometer: Avantes,
         metadata (MetaData):
             Metadata concerning the experiment, paths, file inputs and file 
             outputs. Must be created and filled up by the user.
-        acquisition_params (AcquisitionParameters_SPC2D):
+        acquisition_params (AcquisitionParameters):
             Acquisition related metadata object. User must partially fill up
             with pattern_compression, pattern_dimension_x, pattern_dimension_y.
         start_pixel (int):
@@ -875,7 +875,7 @@ def setup(spectrometer: Avantes,
     return spectrometer_params, DMD_params
 
 def change_patterns(DMD: ALP4, 
-                    acquisition_params: AcquisitionParameters_SPC2D, 
+                    acquisition_params: AcquisitionParameters, 
                     zoom: int = 1, 
                     xw_offset: int = 0, 
                     yh_offset: int = 0,
@@ -886,7 +886,7 @@ def change_patterns(DMD: ALP4,
     
     DMD (ALP4):
         Connected DMD.
-    acquisition_params (AcquisitionParameters_SPC2D):
+    acquisition_params (AcquisitionParameters):
         Acquisition related metadata object. User must partially fill up
         with pattern_compression, pattern_dimension_x, pattern_dimension_y,
         zoom, x and y offest of patterns displayed on the DMD.    
@@ -911,7 +911,7 @@ def setup_2arms(spectrometer: Avantes,
           camPar: CAM,
           DMD_initial_memory: int, 
           metadata: MetaData,
-          acquisition_params: AcquisitionParameters_SPC2D,
+          acquisition_params: AcquisitionParameters,
           start_pixel: int = 0,
           stop_pixel: Optional[int] = None,
           integration_time: float = 1, 
@@ -936,7 +936,7 @@ def setup_2arms(spectrometer: Avantes,
         metadata (MetaData):
             Metadata concerning the experiment, paths, file inputs and file 
             outputs. Must be created and filled up by the user.
-        acquisition_params (AcquisitionParameters_SPC2D):
+        acquisition_params (AcquisitionParameters):
             Acquisition related metadata object. User must partially fill up
             with pattern_compression, pattern_dimension_x, pattern_dimension_y,
             zoom, x and y offest of patterns displayed on the DMD.
@@ -1092,7 +1092,7 @@ def _calculate_elapsed_time(start_measurement_time: int,
 def _save_acquisition(metadata: MetaData, 
                      DMD_params: DMDParameters, 
                      spectrometer_params: SpectrometerParameters, 
-                     acquisition_parameters: AcquisitionParameters_SPC2D, 
+                     acquisition_parameters: AcquisitionParameters, 
                      spectral_data: np.ndarray) -> None:
     """Save all acquisition data and metadata.
 
@@ -1104,7 +1104,7 @@ def _save_acquisition(metadata: MetaData,
             DMD metadata object with DMD configurations.
         spectrometer_params (SpectrometerParameters):
             Spectrometer metadata object with spectrometer configurations.
-        acquisition_parameters (AcquisitionParameters_SPC2D):
+        acquisition_parameters (AcquisitionParameters):
             Acquisition related metadata object. 
         spectral_data (ndarray):
             1D array with `float` type spectrometer measurements. Array size
@@ -1127,7 +1127,7 @@ def _save_acquisition_2arms(metadata: MetaData,
                      DMD_params: DMDParameters, 
                      spectrometer_params: SpectrometerParameters, 
                      camPar,
-                     acquisition_parameters: AcquisitionParameters_SPC2D, 
+                     acquisition_parameters: AcquisitionParameters, 
                      spectral_data: np.ndarray) -> None:
     """Save all acquisition data and metadata.
 
@@ -1139,7 +1139,7 @@ def _save_acquisition_2arms(metadata: MetaData,
             DMD metadata object with DMD configurations.
         spectrometer_params (SpectrometerParameters):
             Spectrometer metadata object with spectrometer configurations.
-        acquisition_parameters (AcquisitionParameters_SPC2D):
+        acquisition_parameters (AcquisitionParameters):
             Acquisition related metadata object. 
         spectral_data (ndarray):
             1D array with `float` type spectrometer measurements. Array size
@@ -1162,7 +1162,7 @@ def _acquire_raw(ava: Avantes,
             DMD: ALP4,
             spectrometer_params: SpectrometerParameters, 
             DMD_params: DMDParameters, 
-            acquisition_params: AcquisitionParameters_SPC2D,
+            acquisition_params: AcquisitionParameters,
             loop: bool = False
             ) -> NamedTuple:
     """Raw data acquisition.
@@ -1179,7 +1179,7 @@ def _acquire_raw(ava: Avantes,
             Spectrometer metadata object with spectrometer configurations.
         DMD_params (DMDParameters):
             DMD metadata object with DMD configurations.
-        acquisition_params (AcquisitionParameters_SPC2D): 
+        acquisition_params (AcquisitionParameters): 
             Acquisition related metadata object.
         loop (bool):
             if True, projet continuously the pattern, see the AlpProjStartCont function
@@ -1344,7 +1344,7 @@ def acquire(ava: Avantes,
             metadata: MetaData, 
             spectrometer_params: SpectrometerParameters, 
             DMD_params: DMDParameters, 
-            acquisition_params: AcquisitionParameters_SPC2D,
+            acquisition_params: AcquisitionParameters,
             repetitions: int = 1,
             verbose: bool = False,
             reconstruct: bool = False,
@@ -1368,7 +1368,7 @@ def acquire(ava: Avantes,
             Spectrometer metadata object with spectrometer configurations.
         DMD_params (DMDParameters):
             DMD metadata object with DMD configurations.
-        acquisition_params (AcquisitionParameters_SPC2D): 
+        acquisition_params (AcquisitionParameters): 
             Acquisition related metadata object.
         wavelengths (List[float]): 
             List of float corresponding to the wavelengths associated with
@@ -1564,7 +1564,7 @@ def setup_tuneSpectro(spectrometer,
         metadata (MetaData):
             Metadata concerning the experiment, paths, file inputs and file 
             outputs. Must be created and filled up by the user.
-        acquisition_params (AcquisitionParameters_SPC2D):
+        acquisition_params (AcquisitionParameters):
             Acquisition related metadata object. User must partially fill up
             with pattern_compression, pattern_dimension_x, pattern_dimension_y.
         pattern_to_display (string):
@@ -1604,8 +1604,8 @@ def setup_tuneSpectro(spectrometer,
 
     metadata = MetaData(
         output_directory     = '',#all_path.subfolder_path,
-        pattern_order_source = 'C:/openspyrit/spas/stats/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz',
-        pattern_source       = 'C:/openspyrit/spas/Patterns/Zoom_x' + str(zoom) + '/' + scan_mode + '_' + str(Np) + 'x' + str(Np),
+        pattern_order_source = 'C:/Users/chiliaeva/spyrit/spas/stats/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz',
+        pattern_source       = 'C:/Users/chiliaeva/spyrit/spas/Patterns/' + scan_mode + '_' + str(Np) + 'x' + str(Np),
         pattern_prefix       = scan_mode + '_' + str(Np) + 'x' + str(Np),
         experiment_name      = data_name,
         light_source         = source,
@@ -1614,7 +1614,7 @@ def setup_tuneSpectro(spectrometer,
         description          = ''
                         )
         
-    acquisition_parameters = AcquisitionParameters_SPC2D(
+    acquisition_parameters = AcquisitionParameters(
         pattern_compression = 1,
         pattern_dimension_x = 1,
         pattern_dimension_y = 1,
@@ -1642,7 +1642,7 @@ def displaySpectro(ava: Avantes,
             metadata: MetaData, 
             spectrometer_params: SpectrometerParameters, 
             DMD_params: DMDParameters, 
-            acquisition_params: AcquisitionParameters_SPC2D,
+            acquisition_params: AcquisitionParameters,
             reconstruction_params: ReconstructionParameters = None
             ):
     """Perform a continousely acquisition on the spectrometer for optical tuning.
@@ -1663,7 +1663,7 @@ def displaySpectro(ava: Avantes,
             Spectrometer metadata object with spectrometer configurations.
         DMD_params (DMDParameters):
             DMD metadata object with DMD configurations.
-        acquisition_params (AcquisitionParameters_SPC2D): 
+        acquisition_params (AcquisitionParameters): 
             Acquisition related metadata object.
         wavelengths (List[float]): 
             List of float corresponding to the wavelengths associated with
@@ -1949,7 +1949,7 @@ def _acquire_raw_2arms(ava: Avantes,
             camPar,
             spectrometer_params: SpectrometerParameters, 
             DMD_params: DMDParameters, 
-            acquisition_params: AcquisitionParameters_SPC2D,
+            acquisition_params: AcquisitionParameters,
             metadata,
             repetition,
             repetitions
@@ -1968,7 +1968,7 @@ def _acquire_raw_2arms(ava: Avantes,
             Spectrometer metadata object with spectrometer configurations.
         DMD_params (DMDParameters):
             DMD metadata object with DMD configurations.
-        acquisition_params (AcquisitionParameters_SPC2D): 
+        acquisition_params (AcquisitionParameters): 
             Acquisition related metadata object.
 
     Returns:
@@ -2096,7 +2096,7 @@ def acquire_2arms(ava: Avantes,
             metadata: MetaData, 
             spectrometer_params: SpectrometerParameters, 
             DMD_params: DMDParameters, 
-            acquisition_params: AcquisitionParameters_SPC2D,
+            acquisition_params: AcquisitionParameters,
             repetitions: int = 1,
             verbose: bool = False,
             reconstruct: bool = False,
@@ -2120,7 +2120,7 @@ def acquire_2arms(ava: Avantes,
             Spectrometer metadata object with spectrometer configurations.
         DMD_params (DMDParameters):
             DMD metadata object with DMD configurations.
-        acquisition_params (AcquisitionParameters_SPC2D): 
+        acquisition_params (AcquisitionParameters): 
             Acquisition related metadata object.
         wavelengths (List[float]): 
             List of float corresponding to the wavelengths associated with
@@ -2633,7 +2633,7 @@ def captureVid(camPar):
     
     return camPar
  
-def setup_cam_ids(camPar, pixelClock, fps, Gain, gain_boost, nGamma, ExposureTime, black_level):
+def setup_cam(camPar, pixelClock, fps, Gain, gain_boost, nGamma, ExposureTime, black_level):
     """
     Set and read the camera parameters
     

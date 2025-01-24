@@ -5,9 +5,9 @@ Hadamard patterns and then, a reconstruction using 1/4 of the patterns
 performed after the acquisition and not in "real-time".
 """
 
-from spas.acquisition_SPC2D import init_2arms, setup_cam_ids, AcquisitionParameters_SPC2D, setup_2arms, setup, acquire, acquire_2arms, snapshot, disconnect_2arms, captureVid, displaySpectro, setup_tuneSpectro, change_patterns
-from spas.metadata_SPC2D import MetaData_SPC2D, func_path, save_metadata_2arms
-from spas.reconstruction_SPC2D import reconstruction_hadamard_2D
+from spas.acquisition_SPC2D import init_2arms, setup_cam, AcquisitionParameters, setup_2arms, setup, acquire, acquire_2arms, snapshot, disconnect_2arms, captureVid, displaySpectro, setup_tuneSpectro, change_patterns
+from spas.metadata_SPC2D import MetaData, func_path, save_metadata_2arms
+from spas.reconstruction_SPC2D import reconstruction_hadamard
 from spas.reconstruction_nn import ReconstructionParameters, setup_reconstruction, reorder_subsample
 from spas.noise import load_noise
 from spas.visualization import snapshotVisu, displayVid, plot_reco_without_NN, plot_reco_with_NN, extract_ROI_coord
@@ -29,7 +29,7 @@ camPar.rectAOI.s32Height.value = 544#1038#2076#1730#2000## 1038#  2076   // Heig
 camPar = captureVid(camPar)
 #%% Set Camera Parameters 
 # It is advice to execute this cell twice to take into account the parameter changement
-camPar = setup_cam_ids(camPar, 
+camPar = setup_cam(camPar, 
     pixelClock   = 474,   # Allowed values : [118, 237, 474] (MHz)
     fps          = 220,   # FrameRate boundary : [1 - No value(depend of the AOI size)]
     Gain         = 0,     # Gain boundary : [0 100]
@@ -73,7 +73,7 @@ all_path = func_path(data_folder_name, data_name, ask_overwrite = True)
 if 'mask_index' not in locals(): mask_index = [];  x_mask_coord = []; y_mask_coord = [] # execute "mask_index = []" to not apply the mask
 
 if all_path.aborted == False:
-    metadata = MetaData_SPC2D(
+    metadata = MetaData(
         output_directory     = all_path.subfolder_path,
         pattern_order_source = 'C:/openspyrit/spas/stats/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz',
         pattern_source       = 'C:/openspyrit/spas/Patterns/' + scan_mode + '_' + str(Np) + 'x' + str(Np),
@@ -89,7 +89,7 @@ if all_path.aborted == False:
                          force_change = False)
     except: pass
           
-    acquisition_parameters = AcquisitionParameters_SPC2D(pattern_compression = pattern_compression, pattern_dimension_x = Np, pattern_dimension_y = Np, 
+    acquisition_parameters = AcquisitionParameters(pattern_compression = pattern_compression, pattern_dimension_x = Np, pattern_dimension_y = Np, 
                                                    zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, mask_index = mask_index, 
                                                    x_mask_coord = x_mask_coord, y_mask_coord = y_mask_coord)
         
@@ -130,7 +130,7 @@ elif camPar.acq_mode == 'snapshot':
     save_metadata_2arms(metadata, DMD_params, spectrometer_params, camPar, acquisition_parameters)
 #%% Hadamard Reconstruction
 Q = wh.walsh2_matrix(Np)
-GT = reconstruction_hadamard_2D(acquisition_parameters, 'walsh', Q, spectral_data, Np)
+GT = reconstruction_hadamard(acquisition_parameters, 'walsh', Q, spectral_data, Np)
 plot_reco_without_NN(acquisition_parameters, GT, all_path)
 #%% Neural Network setup (executed it just one time)
 network_param = ReconstructionParameters(
