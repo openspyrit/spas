@@ -75,8 +75,8 @@ if 'mask_index' not in locals(): mask_index = [];  x_mask_coord = []; y_mask_coo
 if all_path.aborted == False:
     metadata = MetaData(
         output_directory     = all_path.subfolder_path,
-        pattern_order_source = 'C:/Users/chiliaeva/spyrit/spas/stats/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz',
-        pattern_source       = 'C:/Users/chiliaeva/spyrit/spas/Patterns/' + scan_mode + '_' + str(Np) + 'x' + str(Np),
+        pattern_order_source = 'C:/openspyrit/spas/stats/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz',
+        pattern_source       = 'C:/openspyrit/spas/Patterns/' + scan_mode + '_' + str(Np) + 'x' + str(Np),
         pattern_prefix       = scan_mode + '_' + str(Np) + 'x' + str(Np),
         experiment_name      = data_name,
         light_source         = source,
