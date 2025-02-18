@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+Queue# -*- coding: utf-8 -*-
 __author__ = 'Guilherme Beneti Martins'
 
 """Acquisition utility functions.
@@ -34,8 +34,8 @@ except:
     pass
     
 from tqdm import tqdm
-from spas.metadata import DMDParameters, MetaData, AcquisitionParameters
-from spas.metadata import SpectrometerParameters, save_metadata, CAM, save_metadata_2arms
+from spas.metadata_SPC2D import DMDParameters, MetaData, AcquisitionParameters
+from spas.metadata_SPC2D import SpectrometerParameters, save_metadata, CAM, save_metadata_2arms
 from spas.reconstruction_nn import reconstruct_process, plot_recon, ReconstructionParameters
 
 # DLL for the IDS CAMERA
