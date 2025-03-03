@@ -6,7 +6,7 @@ performed after the acquisition and not in "real-time".
 """
 
 from spas.acquisition_SPC2D import init_2arms, setup_cam, AcquisitionParameters, setup_2arms, setup, acquire, acquire_2arms, snapshot, disconnect_2arms, captureVid, displaySpectro, setup_tuneSpectro, change_patterns
-from spas.metadata_SPC2D import MetaData, func_path, save_metadata_2arms
+from spas.metadata import MetaData, func_path, save_metadata_2arms
 from spas.reconstruction import reconstruction_hadamard
 from spas.reconstruction_nn import ReconstructionParameters, setup_reconstruction, reorder_subsample
 from spas.noise import load_noise
