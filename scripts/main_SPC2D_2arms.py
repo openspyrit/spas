@@ -5,26 +5,23 @@ Hadamard patterns and then, a reconstruction using 1/4 of the patterns
 performed after the acquisition and not in "real-time".
 """
 
-from spas.acquisition_SPC2D import init_2arms, setup_cam, AcquisitionParameters, setup_2arms, setup, acquire, acquire_2arms, snapshot, disconnect_2arms, captureVid, displaySpectro, setup_tuneSpectro, change_patterns
+from spas.acquisition_SPC2D import init_2arms, setup_cam, AcquisitionParameters, setup_2arms, acquire, acquire_2arms, snapshot, disconnect_2arms, captureVid, displaySpectro, setup_tuneSpectro, change_patterns
 from spas.metadata_SPC2D import MetaData, func_path, save_metadata_2arms
 from spas.reconstruction import reconstruction_hadamard
-from spas.reconstruction_nn import ReconstructionParameters, setup_reconstruction, reorder_subsample
-from spas.noise import load_noise
+from spas.reconstruction_nn import ReconstructionParameters, setup_reconstruction
 from spas.visualization import snapshotVisu, displayVid, plot_reco_without_NN, plot_reco_with_NN, extract_ROI_coord
 from spas.transfer_data_to_girder import transfer_data_2arms
 import spyrit.misc.walsh_hadamard as wh
-from spas import reconstruct
 import time
 from pathlib import Path
-import numpy as np
 #%% Initialize hardware
 spectrometer, DMD, DMD_initial_memory, camPar = init_2arms(dmd_lib_version = '4.2') # possible version : '4.1', '4.2' or '4.3'
 #%% Define the AOI of the camera
 # Warning, not all values are allowed for Width and Height (max: 2076x3088 | ex: 768x544)
-camPar.rectAOI.s32X.value      = 1100#  // X
-camPar.rectAOI.s32Y.value      = 640#   // Y
+camPar.rectAOI.s32X.value      = 1120#550#0 #0#  // X
+camPar.rectAOI.s32Y.value      = 750#380#0#0#800#   // Y
 camPar.rectAOI.s32Width.value  = 768#1544#3088#1544 # 3000#3088#         // Width must be multiple of 8
-camPar.rectAOI.s32Height.value = 544#1038#2076#1730#2000## 1038#  2076   // Height   
+camPar.rectAOI.s32Height.value = 544 #1038#2076#1730#2000## 1038#  2076   // Height   
 
 camPar = captureVid(camPar)
 #%% Set Camera Parameters 
@@ -35,7 +32,7 @@ camPar = setup_cam(camPar,
     Gain         = 0,     # Gain boundary : [0 100]
     gain_boost   = 'OFF', # set1"ON"to activate gain boost, "OFF" to deactivate
     nGamma       = 1,     # Gamma boundary : [1 - 2.2]
-    ExposureTime = .65,# Exposure Time (ms) boudary : [0.013 - 56.221] 
+    ExposureTime = 0.1,# Exposure Time (ms) boudary : [0.013 - 56.221] 
     black_level  = 4)     # lack Level boundary : [0 255]
 
 snapshotVisu(camPar)
@@ -54,14 +51,14 @@ setup_version            = 'setup_v1.3.1'
 collection_access        = 'public' #'private'#
 Np                       = 64       # Number of pixels in one dimension of the image (image: NpxNp)
 ti                       = 1        # Integration time of the spectrometer   
-zoom                     = 2        # Numerical zoom applied in the DMD
-xw_offset                = 428      # Default = 128
-yh_offset                = 26      # Default = 0
+zoom                     = 1        # Numerical zoom applied in the DMD
+xw_offset                = 128      # Default = 128
+yh_offset                = 0      # Default = 0
 pattern_compression      = 1
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
 source                   = 'white_LED'#White_Zeiss_lamp'#No-light'#'Bioblock'#'Thorlabs_White_halogen_lamp'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#'HgAr multilines Source (HG-1 Oceanoptics)'
-object_name              = 'cat_roi_fh'#'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
-data_folder_name         = '2025-01-16_myFirstAcq2'#'Patient-69_exvivo_LGG_BU'
+object_name              = 'cat3'#'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
+data_folder_name         = '2025-03-21_test_after_splitting_v1_VS_v2'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
 
 camPar.acq_mode          = 'snapshot'# 'video'   #
@@ -81,8 +78,8 @@ if all_path.aborted == False:
         experiment_name      = data_name,
         light_source         = source,
         object               = object_name,
-        filter               = 'Diffuser', #+ OD=0.3',''No filter',#'linear colored filter',#'Orange filter (600nm)',#'Dichroic_420nm',#'HighPass_500nm + LowPass_750nm + Dichroic_560nm',#'BandPass filter 560nm Dl=10nm',#'None', # + , #'Nothing',#'Diffuser + HighPass_500nm + LowPass_750nm',##'Microsope objective x40',#'' linear colored filter + OD#0',#'Nothing',#
-        description          = 'test with pinehole to have a point source'
+        filter               = 'Diffuser', #+ OD=0.3',#optical density = 0.1''No filter',#'linear colored filter',#'Orange filter (600nm)',#'Dichroic_420nm',#'HighPass_500nm + LowPass_750nm + Dichroic_560nm',#'BandPass filter 560nm Dl=10nm',#'None', # + , #'Nothing',#'Diffuser + HighPass_500nm + LowPass_750nm',##'Microsope objective x40',#'' linear colored filter + OD#0',#'Nothing',#
+        description          = 'test with the renaming of the modules acquisition and metadata, and we want to check if everythong is ok'
         # description          = 'two positions of the lens 80mm, P1:12cm (zoom=0.5), P2:22cm (zoom=1.5) from the DMD. Dichroic plate (T:>420nm, R:<420nm), HighPass_500nm in front of the cam, GP: Glass Plate, OP: other position, OA: out of anapath',
                         )    
     try: change_patterns(DMD = DMD, acquisition_params = acquisition_parameters, zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset,
@@ -129,7 +126,7 @@ elif camPar.acq_mode == 'snapshot':
     
     save_metadata_2arms(metadata, DMD_params, spectrometer_params, camPar, acquisition_parameters)
 #%% Hadamard Reconstruction
-Q = wh.walsh2_matrix(Np)
+Q = wh.walsh_matrix_2d(Np)
 GT = reconstruction_hadamard(acquisition_parameters, 'walsh', Q, spectral_data, Np)
 plot_reco_without_NN(acquisition_parameters, GT, all_path)
 #%% Neural Network setup (executed it just one time)
@@ -165,8 +162,8 @@ transfer_data_2arms(metadata, acquisition_parameters, spectrometer_params, DMD_p
                     setup_version, data_folder_name, data_name, collection_access, upload_metadata = 1)
 #%% Draw a ROI
 # Comment data_folder_name & data_name to draw a ROI in the current acquisition, else specify the acquisition name
-data_folder_name = '2025-01-16_myFirstAcq'
-data_name = 'obj_cat_source_white_LED_Walsh_im_64x64_ti_1ms_zoom_x1'
+# data_folder_name = '2024-11-05_adaptative_patterns'
+# data_name = 'obj_cat_source_white_LED_Walsh_im_64x64_ti_1ms_zoom_x1'
 mask_index, x_mask_coord, y_mask_coord = extract_ROI_coord(DMD_params, acquisition_parameters, all_path, 
                                                            data_folder_name, data_name, GT, ti, Np)
 #%% Disconnect

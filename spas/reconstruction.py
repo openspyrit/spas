@@ -2,7 +2,7 @@
 __author__ = 'Guilherme Beneti Martins'
 
 import numpy as np
-from spas.metadata import AcquisitionParameters
+from spas.metadata_SPC2D import AcquisitionParameters
 
 def reconstruction_hadamard(acquisition_parameters: AcquisitionParameters,
                             mode: str,

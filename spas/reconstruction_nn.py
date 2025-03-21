@@ -10,7 +10,7 @@ reconstructions and plots using multiprocessing features.
 
 from dataclasses import InitVar, dataclass, field
 from time import perf_counter_ns, sleep
-from typing import Tuple, Union
+from typing import Tuple, Union, OrderedDict
 from multiprocessing import Queue
 import math
 import torch
@@ -18,18 +18,16 @@ import numpy as np
 from matplotlib import pyplot as plt
 import pathlib
 
-from spyrit.core.train import load_net   
-from spyrit.core.noise import Poisson   
-from spyrit.core.meas import HadamSplit   
-from spyrit.core.prep import SplitPoisson   
-from spyrit.core.recon import PinvNet, DCNet, TikhonovMeasurementPriorDiag    
+from spyrit.core.train import load_net     
+from spyrit.core.meas import HadamSplit2d   
+from spyrit.core.prep import Rerange, UnsplitRescaleEstim 
+from spyrit.core.recon import PinvNet, DCNet    
 from spyrit.core.nnet import Unet   
 from spyrit.misc.sampling import Permutation_Matrix, reorder
 from spyrit.misc.statistics import Cov2Var
-from spyrit.misc.walsh_hadamard import walsh2_matrix
 
 from spas.noise import noiseClass
-from spas.metadata import AcquisitionParameters
+from spas.metadata_SPC2D import AcquisitionParameters
 
 @dataclass
 class ReconstructionParameters:
@@ -96,27 +94,12 @@ def setup_reconstruction(cov_path: str,
     else:
         raise RuntimeError('Covariance matrix must be a .npy or .pt file')
     
-    H =  walsh2_matrix(network_params.img_size)
+    # divide by 4 because the measurement covariance has been computed on images
+    # with values in [-1, 1] (total span 2) whereas our image is in [0, 1] (total
+    # span 1). The covariance is thus 2^2 = 4 times larger than expacted.
+    Cov_rec /= 4
     
-    # Rectangular sampling
-    # N.B.: Only for measurements from patterns of size 2**K reconstructed at 
-    # size 2**L, with L > K (e.g., measurements are at size 64, reconstructions 
-    # at size 128. 
-    Ord = torch.zeros(network_params.img_size, network_params.img_size)
-    M_xy = math.ceil(network_params.M**0.5)
-    Ord[:M_xy, :M_xy] = 1
-    
-    # Init network     
-    Forward = HadamSplit(network_params.M, network_params.img_size, Ord)
-    Noise = Poisson(Forward, network_params.N0)
-    Prep = SplitPoisson(network_params.N0, Forward)
-
-    if network_params.denoi is None:
-        Denoi = torch.nn.Identity()
-    else:
-        Denoi = Unet()
-        
-    model = DCNet(Noise, Prep, Cov_rec, Denoi)
+    # H =  walsh2_matrix(network_params.img_size)
     
     # Load trained DC-Net
     net_arch = network_params.arch
@@ -145,8 +128,32 @@ def setup_reconstruction(cov_path: str,
     title = 'C:/openspyrit/models/' + net_folder + net_title + '.pth'
     # print(title)
     
+    # Rectangular sampling
+    # N.B.: Only for measurements from patterns of size 2**K reconstructed at 
+    # size 2**L, with L > K (e.g., measurements are at size 64, reconstructions 
+    # at size 128. 
+    Ord = torch.zeros(network_params.img_size, network_params.img_size)
+    M_xy = math.ceil(network_params.M**0.5)
+    Ord[:M_xy, :M_xy] = 1
+    
+    # Init network     
+    meas_op = HadamSplit2d(network_params.img_size, network_params.M, Ord)
+    # Noise = Poisson(Forward, network_params.N0)
+    # Prep = SplitPoisson(network_params.N0, Forward)
+    prep_op = UnsplitRescaleEstim(meas_op, use_fast_pinv=True)
+
+    if network_params.denoi is None:
+        denoiser = torch.nn.Identity()
+    else:
+        rerange = Rerange((0, 1), (-1, 1))
+        denoiser = OrderedDict(
+        {"rerange": rerange, "denoi": Unet(), "rerange_inv": rerange.inverse()})
+        denoiser = torch.nn.Sequential(denoiser)
+        
     if network_params.denoi is not None:
-        load_net(title, model, device, False)
+        load_net(title, denoiser, device, False)  
+        
+    model = DCNet(meas_op, prep_op, Cov_rec, denoiser, device=device)
     
     model.eval()                    # Mandantory when batchNorm is used  
 
@@ -247,11 +254,10 @@ def reconstruct(model: Union[PinvNet, DCNet],
     #     method. Defaults to None.
     
     proportion = spectral_data.shape[0]//batches # Amount of wavelengths per batch
-    img_size = model.Acq.meas_op.h
+    img_size = model.acqu.meas_shape[0]
     recon = np.zeros((spectral_data.shape[0], img_size, img_size))
     start = perf_counter_ns()
 
-    # model.PreP.set_expe()
     model.prep.set_expe()
     model.to(device)                  
             

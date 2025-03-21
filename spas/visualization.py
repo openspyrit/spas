@@ -14,7 +14,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from spas.plot_spec_to_rgb_image import plot_spec_to_rgb_image
 from spas.noise import noiseClass
 from spas.reconstruction_nn import reorder_subsample, reconstruct
-from spas.metadata import DMDParameters, read_metadata
+from spas.metadata_SPC2D import DMDParameters, read_metadata
 import time
 # Libraries for the IDS CAMERA
 try:
