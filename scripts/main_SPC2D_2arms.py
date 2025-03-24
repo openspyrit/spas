@@ -57,8 +57,8 @@ yh_offset                = 0      # Default = 0
 pattern_compression      = 1
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
 source                   = 'white_LED'#White_Zeiss_lamp'#No-light'#'Bioblock'#'Thorlabs_White_halogen_lamp'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#'HgAr multilines Source (HG-1 Oceanoptics)'
-object_name              = 'cat3'#'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
-data_folder_name         = '2025-03-21_test_after_splitting_v1_VS_v2'#'Patient-69_exvivo_LGG_BU'
+object_name              = 'cat'#'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
+data_folder_name         = '2025-03-24_test_after_splitting_v1_VS_v2'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
 
 camPar.acq_mode          = 'snapshot'# 'video'   #

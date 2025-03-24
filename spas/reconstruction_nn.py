@@ -258,7 +258,7 @@ def reconstruct(model: Union[PinvNet, DCNet],
     recon = np.zeros((spectral_data.shape[0], img_size, img_size))
     start = perf_counter_ns()
 
-    model.prep.set_expe()
+    # model.prep.set_expe()
     model.to(device)                  
             
     with torch.no_grad():
@@ -295,7 +295,9 @@ def reconstruct(model: Union[PinvNet, DCNet],
                                                 dtype = torch.float,
                                                 device = device)
         
-            recon_torch = model.reconstruct_expe(spectral_data_torch)#,
+            #recon_torch = model.reconstruct_expe(spectral_data_torch)#,
+            recon_torch = model.reconstruct(spectral_data_torch)
+            
                 #len(lambda_indices), 1, model.n, model.n, C, s, K)
                 
             recon[lambda_indices,:,:] = recon_torch.cpu().detach().numpy().squeeze()

@@ -553,7 +553,7 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path):
 def plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, network_param, all_path, cov_path):
 
     reorder_spectral_data = reorder_subsample(spectral_data.T, acquisition_parameters, network_param, cov_path)
-    reco = reconstruct(model, device, reorder_spectral_data) # Reconstruction
+    reco = reconstruct(model, device, reorder_spectral_data[:, np.newaxis, :]) # Reconstruction # add a dimension for the spyrit V3 new dim = [2048, 1 , 8192]
     reco = reco.T
     reco = np.rot90(reco, 3, axes=(0,1))
 
@@ -565,7 +565,7 @@ def plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, netw
 
     ############### spatial view, wavelength bin #############
     meas_bin, wavelengths_bin, _ = spectral_binning(reorder_spectral_data, acquisition_parameters.wavelengths, 530, 730, 8)
-    rec = reconstruct(model, device, meas_bin)
+    rec = reconstruct(model, device, meas_bin[:, np.newaxis, :]) # add a dimension for the spyrit V3 new dim = [8, 1 , 8192]
     rec = np.rot90(rec, 2, axes=(1,2))
     
     # plt.figure()
@@ -575,7 +575,7 @@ def plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, netw
     
     ############### spatial view, one wavelength #############
     meas_bin_1w, wavelengths_bin, _ = spectral_slicing(reorder_spectral_data, acquisition_parameters.wavelengths, 530, 730, 8)
-    rec = reconstruct(model, device, meas_bin_1w) # Reconstruction
+    rec = reconstruct(model, device, meas_bin_1w[:, np.newaxis, :]) # Reconstruction
     rec = np.rot90(rec, 2, axes=(1,2))
     
     # plt.figure()
@@ -587,7 +587,7 @@ def plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, netw
     sum_wave = np.zeros((1, reorder_spectral_data.shape[1]))
     moy = np.sum(reorder_spectral_data, axis=0)
     sum_wave[0, :] = moy
-    rec_sum = reconstruct(model, device, sum_wave)
+    rec_sum = reconstruct(model, device, sum_wave[:, np.newaxis, :])
     rec_sum = rec_sum[0, :, :]
     rec_sum = np.rot90(rec_sum, 2) 
                  
