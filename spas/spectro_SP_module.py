@@ -5,106 +5,163 @@ Created on Tue Mar  4 09:14:44 2025
 
 @author: mahieu
 """
-# from spas import spectro_SP_lib
 
-# from spas.spectro_SP_lib import open_serial, close_serial, grating
-# from spas.spectro_SP_lib import query_echo, query_unit, query_position, query_grating, query_speed, query_size
-# from spas.spectro_SP_lib import cmd_unit, cmd_size, cmd_speed, cmd_step, cmd_goto, cmd_selectGrating, cmd_reset, cmd_scan
-
-from spas.spectro_SP_lib import Spectro_SP, grating
+from spas.spectro_SP_lib import Spectrograph, grating
 
 from dataclasses_json import dataclass_json
 from dataclasses import dataclass, InitVar
 from typing import Optional
 
 
-def init_spectro_SP():
-    spectro_SP = Spectro_SP()
-    spectro_SP.serial_port = 10#Spectro_SP.open_serial(comm_port = 'COM3')
-    print('Spetrograph SP connected')
+def init_spectrograph(model : str = 'CM110'):
+    """Initialize the communication with the spectrograph.
     
-    return spectro_SP
+    Args:
+        model of the spectrograph [str]: the version of the DMD library
+
+    Returns:
+        spectrograph (obj): 
+            An object containing the serial port communication object and all functions that control the spectrograph..
+    """
+    if model == 'CM110':
+        spectrograph = Spectrograph()
+        spectrograph.serial_port = Spectrograph.open_serial(Spectrograph, comm_port = 'COM10')
+        print('Spetrograph SP connected')
+        
+        return spectrograph
+    else:
+        print('Error, the model of the spectrograph must be : CM110. For another spectrograph, change the package that import the function init_spectrograph')
 
 
 @dataclass_json
 @dataclass
-class Spectro_SP_parameters():
-    """Class containing the spectrograph Spectral Products configurations and status.
-
-    Further information: spectro_SP_lib.py.
+class SpectrographParameters:
+    """Class containing the spectrograph Spectral Products parameters. Further information into spectro_SP_lib.py.
 
     Attributes:
-        add_illumination_time_us (int):
+        spectrograph (obj):
+            An object containing the serial port communication object and all functions that control the spectrograph.
     """
-    
-    def __init__(self, serial_port):
-        self.serial_port = serial_port
-        print('__init__')
-    
-    serial_port: object
+
     unit: Optional[str] = None
     position: Optional[int] = None
     grating: Optional[grating] = None
-    speed: Optional[int] = None
-    size: Optional[int] = None
-    print('set to None')
+    # speed: Optional[int] = None
+    # size: Optional[int] = None
         
-    # spectro_SP: InitVar[Spectro_SP] = None
+    spectrograph: InitVar[Spectrograph] = None
 
     class_description: str = 'spectrograph SP parameters'
 
 
-    def __post_init__(self):
+    def __post_init__(self, spectrograph: Optional[Spectrograph] = None):
         """ Post initialization of attributes.
 
-        Receives a DMD object and directly asks it for its configurations and
-        status, then sets the majority of SpectrometerParameters's attributes.
-        During reconstruction from JSON, DMD is set to None and the function
+        Receives a spectrograph object and directly asks it for its configurations, 
+        then sets the SpectrographParameters's attributes.
+        During reconstruction from JSON, spectrograph is set to None and the function
         does nothing, letting initialization for the standard __init__ function.
 
         Args:
-            DMD (ALP4.ALP4, optional): 
-                Connected DMD. Defaults to None.
+            spectrograph (Spectrograph, optional): 
+                Defaults to None.
         """
-        # if spectro_SP == None:
-        #     print('la')
-        #     pass
-        # else:
-        #     pass
-        
-        # self.serial_port = object#Spectro_SP.query_unit(serial_port, print_unit = True)
-        # serial_port = Spectro_SP.open_serial()
-        print('sp= ' + str(self.serial_port))
-        
-        self.unit     = 'nm' # Spectro_SP.query_unit(Spectro_SP.serial_port, print_unit = True)
-        self.position = 0 # Spectro_SP.query_position(Spectro_SP.serial_port, print_position = True)
-        self.grating  = 1 # Spectro_SP.query_grating(Spectro_SP.serial_port, grating, print_grating_info = True)
-        self.speed    = 3000 # Spectro_SP.query_speed(Spectro_SP.serial_port, print_speed = True)
-        self.size     = 10 # Spectro_SP.query_size(Spectro_SP.serial_port, print_size = True)
-        print('ici')
+        if spectrograph is None:
+            pass
+        else:
+            self.unit     = Spectrograph.query_unit(spectrograph)
+            self.position = Spectrograph.query_position(spectrograph)
+            self.grating  = Spectrograph.query_grating(spectrograph, grating)
+            # self.speed    = Spectrograph.query_speed(spectrograph, print_speed = False)
+            # self.size     = Spectrograph.query_size(spectrograph, print_size = False)
             
 
-def setup_spectro_SP(Spectro_SP_params : Spectro_SP_parameters,
-                    spectro_SP: object,
-                    position: int = 600,
-                    print_position: bool = True,
-                    unit: str = 'nm',
-                    print_unit: bool = True,                   
-                    grating_nbr: int = 1,
-                    print_select: bool = True,
-                    speed: int = 3000,
-                    print_speed: bool = True,
-                    size: int = 10,
-                    print_size: bool = True):
+def setup_spectrograph(spectrograph: object,
+                       grating_nbr: int = 1, print_select: bool = False,
+                       position: int = 600,  print_position: bool = False,
+                       unit: str = 'nm',     print_unit: bool = False):
+    """ Setup the spectrograph to tune the cameras
+    Parameters
+    ----------
+    spectrograph (obj):
+        The class containing the serial port communication object and all functions that control the spectrograph.
+    grating_nbr (int):
+        the number of the selected grating. The default is 1.
+    print_select (bool):
+        a boolean to print or not the slected grating. The default is False.
+    position (int). The default is 600:
+        the position of the central wavelength of the grating
+    print_position : bool, optional
+        a boolean to print or not the position of the central wavenlength of the grating. The default is False.
+    unit (str):
+        the unit of the wavelength. The default is 'nm'.
+    print_unit : bool, optional
+        a boolean to print or not the unit of the position. The default is False.
+
+    Returns
+    -------
+    SpectrographParameters (obj)
+        the metadata containing the spectrograph parameters.
+
+    """        
+    current_grating  = Spectrograph.query_grating(spectrograph, grating)
+    if current_grating.current_grating_nbr == grating_nbr:
+        print(str(current_grating.grooves) + ' gr/mm grating already selectionned. Nothing to do')
+    else:    
+        Spectrograph.cmd_selectGrating(spectrograph, grating = current_grating, grating_nbr = grating_nbr, print_select = print_select)
+        # new_grating = Spectrograph.query_grating(spectrograph, grating)
     
-    Spectro_SP.cmd_goto(spectro_SP.serial_port, position = position, unit = 'nm', print_position = print_position)
-    Spectro_SP.cmd_unit(spectro_SP.serial_port, unit = unit, print_unit = print_unit)
-    Spectro_SP.cmd_size(spectro_SP.serial_port, size = size, print_size = print_size)
-    Spectro_SP.cmd_speed(spectro_SP.serial_port, speed = speed, print_speed = print_speed)
-    Spectro_SP.cmd_selectGrating(spectro_SP.serial_port, grating_nbr = grating_nbr, print_select = print_select)
+    current_unit  = Spectrograph.query_unit(spectrograph)
+    if current_unit == unit:
+        print('unit already set to : ' + unit + '. Nothing to do')
+    else: 
+        Spectrograph.cmd_unit(spectrograph, unit = unit, print_unit = print_unit)   
+        # new_unit = Spectrograph.query_unit(spectrograph, print_unit)
+    
+    current_position = Spectrograph.query_position(spectrograph)
+    if current_position == position:
+        print('position already set to : ' + str(position) + ' '  + unit + '. Nothing to do')
+    else:
+        first_pass = True
+        while True:
+            current_position = Spectrograph.query_position(spectrograph)
+            if current_position == position:
+                if print_position == True:
+                    print('current position set to : ' + str(position) + ' ' + unit)
+                    
+                break
+            else:
+                if first_pass == True:
+                    Spectrograph.cmd_goto(spectrograph, position = position)
+                    first_pass == False
+                    
+    return SpectrographParameters(spectrograph = spectrograph)
     
     
 
+def disconnect_spectrograph(spectrograph, goto_zero : bool = False):
+    """ disconnect the spectrograph by releasing the RS232 communication port
+
+    Parameters
+    ----------
+    spectrograph (obj):
+        The class containing the serial port communication object and all functions that control the spectrograph.
+    goto_zero (bool):
+        a boolean to send the grating at home. The default is False.
+
+    Returns
+    -------
+    None. Simply displays (in the "close_serial" function) whether the RS232 communication port has been successfully released.
+
+    """
+    if goto_zero == True:
+        Spectrograph.cmd_reset(spectrograph)
+                
+    Spectrograph.close_serial(spectrograph.serial_port)
+
+
+# unit     = Spectrograph.query_unit(spectrograph, print_unit = True)
+# position = Spectrograph.query_position(spectrograph, print_position = True)
 
 
 # #%% Query functions

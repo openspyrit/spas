@@ -1,25 +1,57 @@
 """
-Example of an acquisition followed by a reconstruction using 100 % of the
-Hadamard patterns and then, a reconstruction using 1/4 of the patterns 
-(subsampled) with a DenoiCompNet model and a noise model. Reconstructions are 
-performed after the acquisition and not in "real-time".
+The main software to acquire in 1D an hyperspectral cube with the single pixel camera
 """
 
-from spas.acquisition_SPIM1D import init, setup_cam, AcquisitionParameters, setup_2arms, setup, acquire, acquire_2arms, snapshot, disconnect_2arms, captureVid, displaySpectro, setup_tuneSpectro
-from DMD_module import change_patterns
+
+#%% new packages
+from spas.DMD_module import init_DMD, disconnect_DMD, change_patterns 
+from spas.spectro_SP_module import init_spectrograph, disconnect_spectrograph, setup_spectrograph, SpectrographParameters
+from spas.cam_Ximea_module import init_cam_spat, init_cam_spec, disconnect_cam, setup_cam, display_cam
+
+#%% old packages
+from spas.acquisition_SPC1D import init, setup_cam, AcquisitionParameters, setup_2arms, acquire, acquire_2arms, snapshot, disconnect_2arms, captureVid, displaySpectro, setup_tuneSpectro
+
 from spas.metadata_SPC2D import MetaData, func_path, save_metadata_2arms
 from spas.reconstruction import reconstruction_hadamard
-from spas.reconstruction_nn import ReconstructionParameters, setup_reconstruction, reorder_subsample
-from spas.noise import load_noise
-from spas.visualization import snapshotVisu, displayVid, plot_reco_without_NN, plot_reco_with_NN, extract_ROI_coord
+from spas.reconstruction_nn import ReconstructionParameters, setup_reconstruction
+from spas.visualization import snapshotVisu, plot_reco_without_NN, plot_reco_with_NN, extract_ROI_coord
 from spas.transfer_data_to_girder import transfer_data_2arms
 import spyrit.misc.walsh_hadamard as wh
-from spas import reconstruct
 import time
 from pathlib import Path
-import numpy as np
 #%% Initialize hardware
 spectrometer, DMD, DMD_initial_memory, camPar = init(dmd_lib_version = '4.2') # possible version : '4.1', '4.2' or '4.3'
+#%% Initialize hardware
+DMD, DMD_initial_memory = init_DMD(dmd_lib_version = '4.2')
+spectrograph = init_spectrograph(model = 'CM110')
+cam_spat = init_cam_spat(SN = 'BRCID2503000')
+cam_spec = init_cam_spec(SN = 'BRMID2503000')
+#%% setup the Spectrograph
+SpectrographParameters = setup_spectrograph(spectrograph,
+                                            grating_nbr =    2, print_select   = True,   # Arg:  1 (High Resoluton), 2 (Low Resoluton)
+                                            position    =  600, print_position = True,
+                                            unit        = 'nm', print_unit     = True)    # Arg: 'A', 'nm', 'µm'
+#%% setup Spatial Camera
+cam_spat_parameters = setup_cam(cam_spat, 
+                                cameras_nbr = 2,
+                                expos_time  = 1,        # [0.001 - 1000] ms
+                                gain        = 10,       # [0 - 18.07] dB
+                                auto_wb     = True,
+                                width       = 1280,     # [32 - 1280]
+                                height      = 864,      # [4 - 864]
+                                offsetX     = 0,
+                                offsetY     = 0)
+
+#%% display spatial camera
+display_cam(cam_spat)
+#%% Disconnect
+disconnect_DMD(DMD)
+disconnect_spectrograph(spectrograph, goto_zero = False)
+disconnect_cam(cam_spat)
+disconnect_cam(cam_spec)
+#%% below, old prog
+
+
 #%% Define the AOI of the camera
 # Warning, not all values are allowed for Width and Height (max: 2076x3088 | ex: 768x544)
 camPar.rectAOI.s32X.value      = 1100#  // X
@@ -55,9 +87,9 @@ setup_version            = 'setup_v1.3.1'
 collection_access        = 'public' #'private'#
 Np                       = 64       # Number of pixels in one dimension of the image (image: NpxNp)
 ti                       = 1        # Integration time of the spectrometer   
-zoom                     = 2        # Numerical zoom applied in the DMD
-xw_offset                = 428      # Default = 128
-yh_offset                = 26      # Default = 0
+zoom                     = 1        # Numerical zoom applied in the DMD
+xw_offset                = 128      # Default = 128
+yh_offset                = 0      # Default = 0
 pattern_compression      = 1
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
 source                   = 'white_LED'#White_Zeiss_lamp'#No-light'#'Bioblock'#'Thorlabs_White_halogen_lamp'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#'HgAr multilines Source (HG-1 Oceanoptics)'
@@ -172,6 +204,8 @@ mask_index, x_mask_coord, y_mask_coord = extract_ROI_coord(DMD_params, acquisiti
                                                            data_folder_name, data_name, GT, ti, Np)
 #%% Disconnect
 disconnect_2arms(spectrometer, DMD, camPar)
+#%% Disconnect
+disconnect_DMD
 
 
 

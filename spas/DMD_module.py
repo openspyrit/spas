@@ -17,9 +17,10 @@ from tqdm import tqdm
 
 ##### DLL for the DMD
 try:
-    from ALP4 import ALP4, ALP_FIRSTFRAME, ALP_LASTFRAME
+    import ALP4
+    from ALP4 import ALP_FIRSTFRAME, ALP_LASTFRAME
     from ALP4 import ALP_AVAIL_MEMORY, ALP_DEV_DYN_SYNCH_OUT1_GATE, tAlpDynSynchOutGate
-    # print('ALP4 is ok in Acquisition file')
+    print('ALP4 is imported')
 except:
     class ALP4:
         pass
@@ -45,10 +46,10 @@ def init_DMD(dmd_lib_version: str = '4.2') -> Tuple[ALP4, int]:
         stop_init = True
     elif dmd_lib_version == '4.2':
         dll_path = Path(__file__).parent.parent.joinpath('lib/alpV42').__str__()
-        DMD = ALP4(version='4.2',libDir=dll_path)
+        DMD = ALP4.ALP4(version='4.2',libDir=dll_path)
     elif dmd_lib_version == '4.3':
         dll_path = Path(__file__).parent.parent.joinpath('lib/alpV43').__str__()
-        DMD = ALP4(version='4.3',libDir=dll_path)
+        DMD = ALP4.ALP4(version='4.3',libDir=dll_path)
     else:
         print('unknown version of dmd library')
         stop_init = True
@@ -311,7 +312,7 @@ def calculate_timings(integration_time: float = 1,
     return synch_pulse_width, illumination_time, picture_time
 
 
-def setup_DMD(DMD: ALP4, 
+def setup_DMD(DMD: ALP4.ALP4, 
               add_illumination_time: int,
               initial_memory: int
               ) -> DMDParameters:
@@ -342,7 +343,7 @@ def setup_DMD(DMD: ALP4,
         DMD=DMD)
 
 
-def _sequence_limits(DMD: ALP4, 
+def _sequence_limits(DMD: ALP4.ALP4, 
                      pattern_compression: int, 
                      sequence_lenght: int,
                      pos_neg: bool = True) -> int:
@@ -381,7 +382,7 @@ def _sequence_limits(DMD: ALP4,
     return frames
 
 
-def _update_sequence(DMD: ALP4,
+def _update_sequence(DMD: ALP4.ALP4,
                      DMD_params: DMDParameters,
                      acquisition_params: AcquisitionParameters,
                      pattern_source: str,
@@ -492,7 +493,7 @@ def _update_sequence(DMD: ALP4,
           f'{(perf_counter_ns() - t)/1e+9} s')
 
 
-def setup_patterns(DMD: ALP4, 
+def setup_patterns(DMD: ALP4.ALP4, 
                     metadata: MetaData, 
                     DMD_params: DMDParameters, 
                     acquisition_params: AcquisitionParameters,
@@ -574,7 +575,7 @@ def setup_patterns(DMD: ALP4,
     DMD_params.update_memory(DMD.DevInquire(ALP_AVAIL_MEMORY))
 
 
-def setup_timings(DMD: ALP4, 
+def setup_timings(DMD: ALP4.ALP4, 
                    DMD_params: DMDParameters, 
                    picture_time: int, 
                    illumination_time: int, 
@@ -623,7 +624,7 @@ def setup_timings(DMD: ALP4,
     DMD_params.update_sequence_parameters(add_illumination_time, DMD=DMD)
 
 
-def change_patterns(DMD: ALP4, 
+def change_patterns(DMD: ALP4.ALP4, 
                     acquisition_params: AcquisitionParameters, 
                     zoom: int = 1, 
                     xw_offset: int = 0, 
@@ -656,7 +657,7 @@ def change_patterns(DMD: ALP4,
             DMD.FreeSeq()
 
 
-def disconnect_DMD(DMD: ALP4):
+def disconnect_DMD(DMD: ALP4.ALP4):
     if DMD is not None:       
         # Stop the sequence display
         try:
@@ -670,6 +671,8 @@ def disconnect_DMD(DMD: ALP4):
             
         except:
             print('probelm to Halt the DMD')   
+    else:
+        print("DMD doesn't exist")
 
 
 
