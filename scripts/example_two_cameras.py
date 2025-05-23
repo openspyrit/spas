@@ -25,6 +25,50 @@ camera_data_rate = int(interface_data_rate / CAMERAS_ON_SAME_CONTROLLER)
 cam_spat.set_limit_bandwidth(camera_data_rate)
 cam_spec.set_limit_bandwidth(camera_data_rate)
 
+# get data format
+data_format_spat = cam_spat.get_imgdataformat()
+data_format_spec = cam_spec.get_imgdataformat()
+
+# set data format
+cam_spat.set_imgdataformat('XI_RGB48')
+cam_spec.set_imgdataformat('XI_RAW16')
+
+
+# get bit depth
+sensor_bit_depth_spat = cam_spat.get_sensor_bit_depth()
+sensor_bit_depth_spec = cam_spec.get_sensor_bit_depth()
+
+
+# get output data format
+output_bit_depth_spat = cam_spat.get_output_bit_depth()
+output_bit_depth_spec = cam_spec.get_output_bit_depth()
+
+# set output data format
+cam_spat.set_output_bit_depth('XI_BPP_10') 
+cam_spec.set_output_bit_depth('XI_BPP_10') 
+
+
+# get image data bit depth
+image_data_bit_depth_spat = cam_spat.get_image_data_bit_depth()
+image_data_bit_depth_spec = cam_spec.get_image_data_bit_depth()
+
+# set image data bit depth
+cam_spat.set_image_data_bit_depth('XI_BPP_16') # 'XI_BPP_8'
+cam_spec.set_image_data_bit_depth('XI_BPP_10')
+
+
+# get output data packing
+output_bit_packing_spat = cam_spat.is_output_bit_packing() 
+output_bit_packing_spec = cam_spec.is_output_bit_packing() 
+
+# enable output data packing
+cam_spat.enable_output_bit_packing()
+cam_spec.enable_output_bit_packing()
+
+# # disable output data packing
+# cam_spat.disable_output_bit_packing()
+# cam_spec.disable_output_bit_packing()
+
 #print device serial numbers
 SN_cam_spat = cam_spat.get_device_sn()
 SN_cam_spec = cam_spec.get_device_sn()
@@ -32,9 +76,9 @@ print('Spatial camera serial number: ' + str(SN_cam_spat))
 print('Spectral camera serial number: ' + str(SN_cam_spec))
 
 #settings
-cam_spat.set_exposure(2000)
+cam_spat.set_exposure(500)
 print('cam_spat: Exposure was set to %i us' %cam_spat.get_exposure())
-cam_spec.set_exposure(1000)
+cam_spec.set_exposure(500)
 print('cam_spec: Exposure was set to %i us' %cam_spec.get_exposure())
 
 # set the image data format of the spatial cam as a color
@@ -85,22 +129,29 @@ cam_spat.stop_acquisition()
 print('cam_spec: Stopping acquisition...')
 cam_spec.stop_acquisition()
 #%%print image data and metadata
-print('cam_spat: image (' + str(img_spat.width) + 'x' + str(img_spat.height) + ') received from camera.')
-print('First 10 pixels: ' + str(data_spat[:10]) + '\n')
+# print('cam_spat: image (' + str(img_spat.width) + 'x' + str(img_spat.height) + ') received from camera.')
+# print('First 10 pixels: ' + str(data_spat[:10]) + '\n')
 
 # print('cam_spec: image (' + str(img_spec.width) + 'x' + str(img_spec.height) + ') received from camera.')
 # print('First 10 pixels: ' + str(data_spec[:10]))
 # print('\n')
 
-plt.figure()
-plt.imshow(data_spat)
-plt.colorbar()
-plt.title('spatial cam')
+# plt.figure()
+# plt.imshow(data_spat, color_continuous_scale='RdBu_r', origin='lower')
+# plt.colorbar()
+# plt.title('spatial cam')
 
-plt.figure()
-plt.imshow(data_spec)
-plt.colorbar()
-plt.title('spectral cam')
+import plotly.express as px
+fig = px.imshow(data_spat, color_continuous_scale='RdBu_r', origin='lower')
+fig.show()
+
+fig = px.imshow(data_spat, zmin=50, zmax=200)
+fig.show()
+
+# plt.figure()
+# plt.imshow(data_spec)
+# plt.colorbar()
+# plt.title('spectral cam')
 
 #stop data acquisition
 print('cam_spat: Stopping acquisition...')
@@ -109,18 +160,18 @@ print('cam_spec: Stopping acquisition...')
 cam_spec.stop_acquisition()
 
 #%% find max
-import numpy as np
+# import numpy as np
 
-def set_zero(sample, d, val):
-    """Set all max value along dimension d in matrix sample to value val."""
-    argmax_idxs = sample.argmax(d)
-    idxs = [np.indices(argmax_idxs.shape)[j].flatten() for j in range(len(argmax_idxs.shape))]
-    idxs.insert(d, argmax_idxs.flatten())
-    sample[idxs] = val
-    return sample
+# def set_zero(sample, d, val):
+#     """Set all max value along dimension d in matrix sample to value val."""
+#     argmax_idxs = sample.argmax(d)
+#     idxs = [np.indices(argmax_idxs.shape)[j].flatten() for j in range(len(argmax_idxs.shape))]
+#     idxs.insert(d, argmax_idxs.flatten())
+#     sample[idxs] = val
+#     return sample
 
-maxi = np.max(data_spat)
-set_zero(data_spat, d = 0, val = 255)
+# maxi = np.max(data_spat)
+# set_zero(data_spat, d = 0, val = 255)
 #%% stop communication
 cam_spat.close_device()
 cam_spec.close_device()

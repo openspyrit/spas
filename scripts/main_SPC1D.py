@@ -4,52 +4,147 @@ The main software to acquire in 1D an hyperspectral cube with the single pixel c
 
 
 #%% new packages
-from spas.DMD_module import init_DMD, disconnect_DMD, change_patterns 
-from spas.spectro_SP_module import init_spectrograph, disconnect_spectrograph, setup_spectrograph, SpectrographParameters
-from spas.cam_Ximea_module import init_cam_spat, init_cam_spec, disconnect_cam, setup_cam, display_cam
+from spas.DMD_module import init_DMD, disconnect_DMD, change_patterns, setup_DMD, play_one_pattern
+from spas.spectro_SP_module import init_spectrograph, disconnect_spectrograph, setup_spectrograph
+from spas.cam_Ximea_module import init_cam_spat, init_cam_spec, disconnect_cam, setup_cam, snapshot_cam, display_cam
+from spas.acquisition_SPC1D import AcquisitionParameters, func_path, setup_acqui
 
+# from matplotlib import pyplot as plt
 #%% old packages
-from spas.acquisition_SPC1D import init, setup_cam, AcquisitionParameters, setup_2arms, acquire, acquire_2arms, snapshot, disconnect_2arms, captureVid, displaySpectro, setup_tuneSpectro
+# from spas.acquisition_SPC1D import init, setup_cam, AcquisitionParameters, setup_2arms, acquire, acquire_2arms, snapshot, disconnect_2arms, captureVid, displaySpectro, setup_tuneSpectro
 
-from spas.metadata_SPC2D import MetaData, func_path, save_metadata_2arms
-from spas.reconstruction import reconstruction_hadamard
-from spas.reconstruction_nn import ReconstructionParameters, setup_reconstruction
-from spas.visualization import snapshotVisu, plot_reco_without_NN, plot_reco_with_NN, extract_ROI_coord
-from spas.transfer_data_to_girder import transfer_data_2arms
-import spyrit.misc.walsh_hadamard as wh
-import time
-from pathlib import Path
+# from spas.metadata_SPC2D import MetaData, func_path, save_metadata_2arms
+# from spas.reconstruction import reconstruction_hadamard
+# from spas.reconstruction_nn import ReconstructionParameters, setup_reconstruction
+# from spas.visualization import snapshotVisu, plot_reco_without_NN, plot_reco_with_NN, extract_ROI_coord
+# from spas.transfer_data_to_girder import transfer_data_2arms
+# import spyrit.misc.walsh_hadamard as wh
+# import time
+# from pathlib import Path
 #%% Initialize hardware
-spectrometer, DMD, DMD_initial_memory, camPar = init(dmd_lib_version = '4.2') # possible version : '4.1', '4.2' or '4.3'
+# spectrometer, DMD, DMD_initial_memory, camPar = init(dmd_lib_version = '4.2') # possible version : '4.1', '4.2' or '4.3'
 #%% Initialize hardware
 DMD, DMD_initial_memory = init_DMD(dmd_lib_version = '4.2')
 spectrograph = init_spectrograph(model = 'CM110')
 cam_spat = init_cam_spat(SN = 'BRCID2503000')
 cam_spec = init_cam_spec(SN = 'BRMID2503000')
 #%% setup the Spectrograph
-SpectrographParameters = setup_spectrograph(spectrograph,
-                                            grating_nbr =    2, print_select   = True,   # Arg:  1 (High Resoluton), 2 (Low Resoluton)
-                                            position    =  600, print_position = True,
-                                            unit        = 'nm', print_unit     = True)    # Arg: 'A', 'nm', 'µm'
+Spectrograph_Parameters = setup_spectrograph(spectrograph,
+                                             grating_nbr =    2, print_select   = True,   # Arg:  1 (High Resoluton), 2 (Low Resoluton)
+                                             position    =  550, print_position = True,
+                                             unit        = 'nm', print_unit     = True)    # Arg: 'A', 'nm', 'µm'
 #%% setup Spatial Camera
-cam_spat_parameters = setup_cam(cam_spat, 
-                                cameras_nbr = 2,
-                                expos_time  = 1,        # [0.001 - 1000] ms
+cam_spat_Parameters = setup_cam(cam = cam_spat, 
+                                cameras_nbr = 2,        # number of camera 
+                                expos_time  = 0.04,     # [0.001 - 1000] ms
+                                frame_rate  = 4000,     # maximum is applied, depending of the exposure time 
                                 gain        = 10,       # [0 - 18.07] dB
-                                auto_wb     = True,
-                                width       = 1280,     # [32 - 1280]
-                                height      = 864,      # [4 - 864]
+                                auto_wb     = True,     # auto white balance: [True or False]
+                                gammaY      = 0,        # [0.3 - 1]                                
+                                width       = 768,     # [32 - 1280]
+                                height      = 576,      # [4 - 864]
+                                offsetX     = 256,
+                                offsetY     = 225)
+#%% get a snapshot of the spatial camera
+play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_Parameters, pattern_to_display = 'black') # white, black or gray
+data = snapshot_cam(cam = cam_spat, data_format = 8) # data_format accepted: 8 or 16 bits
+DMD.Halt()
+#%% display spatial camera in continous mode
+display_cam(cam = cam_spat)
+#%% setup Spectral Camera
+cam_spec_Parameters = setup_cam(cam = cam_spec, 
+                                cameras_nbr = 2,
+                                expos_time  = 8,       # [0.001 - 1000] ms
+                                frame_rate  = 4000,      # maximum is applied, depending of the exposure time 
+                                gain        = 18,        # [0 - 18.07] dB
+                                auto_wb     = False,     # to be take off, there is no white balance !!!
+                                gammaY      = 0.3,       # [0.3 - 1]                                
+                                width       = 1280,      # [32 - 1280]
+                                height      = 864,       # [4 - 864]
                                 offsetX     = 0,
-                                offsetY     = 0)
+                                offsetY     = 0,
+                                binningX    = 1,         # [1, 2, 4, 8 & 16]
+                                binningY    = 1)         # [1, 2, 4, 8 & 16]
+#%% get a snapshot of the spectral camera
+play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_Parameters, pattern_to_display = 'white') # white, black or gray
+data = snapshot_cam(cam = cam_spec, data_format = 16, binX = 4, binY = 4, disp_bin_effect = True) # data_format accepted: 8 or 16 bits
+DMD.Halt()
+#%% display spectral camera in continous mode
+play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_Parameters, pattern_to_display = 'white') # white, black or gray
+display_cam(cam = cam_spec)
+DMD.Halt()
+#%% setup acquisition
+setup_version            = 'setup_v2.0'
+collection_access        = 'public' #'private'#
+Np                       = 64       # Number of pixels in one dimension of the image (image: NpxNp)
+ti                       = cam_spec_Parameters.exposure_time_μs / 1000        # Integration time of the spectrometer   
+zoom                     = 1        # Numerical zoom applied in the DMD
+xw_offset                = 128      # Default = 128
+yh_offset                = 0      # Default = 0
+pattern_compression      = 1
+scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
+source                   = 'white_LED'#White_Zeiss_lamp'#No-light'#'Bioblock'#'Thorlabs_White_halogen_lamp'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#'HgAr multilines Source (HG-1 Oceanoptics)'
+object_name              = 'cat_roi_fh'#'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
+data_folder_name         = '2025-05-19_myFirstAcq'#'Patient-69_exvivo_LGG_BU'
+data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
 
-#%% display spatial camera
-display_cam(cam_spat)
+# camPar.acq_mode          = 'snapshot'# 'video'   #
+# camPar.vidFormat         = 'avi'     #'bin'#
+# camPar.insert_patterns   = 0         # 0: no insertion / 1: insert white patterns for the camera / In the case of snapshot, put 0 to avoid bad reco
+# camPar.gate_period       = 16        # a multiple of the integration time of the spectro, between [2 - 16] (2: insert one white pattern between each pattern)
+# camPar.black_pattern_num = 1         # insert the picture number (in the pattern_source folder) of the pattern you want to insert
+
+all_path = func_path(data_folder_name, data_name, ask_overwrite = True)
+if 'mask_index' not in locals(): mask_index = [];  x_mask_coord = []; y_mask_coord = [] # execute "mask_index = []" to not apply the mask
+
+if all_path.aborted == False:
+    AcquisitionParameters.output_directory     = all_path.subfolder_path,
+    AcquisitionParameters.pattern_order_source = 'C:/openspyrit/spas/stats/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz',
+    AcquisitionParameters.pattern_source       = 'C:/openspyrit/spas/Patterns/' + scan_mode + '_' + str(Np) + 'x' + str(Np),
+    AcquisitionParameters.pattern_prefix       = scan_mode + '_' + str(Np) + 'x' + str(Np),
+    AcquisitionParameters.experiment_name      = data_name,
+    AcquisitionParameters.light_source         = source,
+    AcquisitionParameters.object               = object_name,
+    AcquisitionParameters.filter               = 'Diffuser', #+ OD=0.3',''No filter',#'linear colored filter',#'Orange filter (600nm)',#'Dichroic_420nm',#'HighPass_500nm + LowPass_750nm + Dichroic_560nm',#'BandPass filter 560nm Dl=10nm',#'None', # + , #'Nothing',#'Diffuser + HighPass_500nm + LowPass_750nm',##'Microsope objective x40',#'' linear colored filter + OD#0',#'Nothing',#
+    AcquisitionParameters.description          = 'V2 SPAS in construction'
+                            
+    try: 
+        change_patterns(DMD = DMD, acquisition_params = AcquisitionParameters, zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset,
+                         force_change = False) 
+        print('here')
+        
+    except: pass
+          
+    acquisition_parameters = AcquisitionParameters(pattern_compression = pattern_compression, pattern_dimension_x = Np, pattern_dimension_y = Np, 
+                                                   zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, mask_index = mask_index, 
+                                                   x_mask_coord = x_mask_coord, y_mask_coord = y_mask_coord)
+        
+    spectrometer_params, DMD_params, camPar = setup_acqui(spectrometer = spectrometer, DMD = DMD, camPar = camPar, DMD_initial_memory = DMD_initial_memory, 
+                                                          metadata = metadata, acquisition_params = acquisition_parameters, DMD_output_synch_pulse_delay = 0, 
+                                                          integration_time = ti)
+
+    if DMD_params.patterns != None:
+        print('Total expected acq time  : ' + str(int(acquisition_parameters.pattern_amount*(ti+0.356)/1000 // 60)) + ' min ' + 
+              str(round(acquisition_parameters.pattern_amount*(ti+0.356)/1000 % 60)) + ' s')
+else:
+    print('setup aborted')
+
+#%% Acquire
+
+#%% Hadamard Reconstruction
+
 #%% Disconnect
 disconnect_DMD(DMD)
 disconnect_spectrograph(spectrograph, goto_zero = False)
 disconnect_cam(cam_spat)
 disconnect_cam(cam_spec)
 #%% below, old prog
+
+
+
+
+
+
 
 
 #%% Define the AOI of the camera

@@ -35,7 +35,7 @@ def init_spectrograph(model : str = 'CM110'):
 
 @dataclass_json
 @dataclass
-class SpectrographParameters:
+class Spectrograph_Parameters:
     """Class containing the spectrograph Spectral Products parameters. Further information into spectro_SP_lib.py.
 
     Attributes:
@@ -135,7 +135,7 @@ def setup_spectrograph(spectrograph: object,
                     Spectrograph.cmd_goto(spectrograph, position = position)
                     first_pass == False
                     
-    return SpectrographParameters(spectrograph = spectrograph)
+    return Spectrograph_Parameters(spectrograph = spectrograph)
     
     
 

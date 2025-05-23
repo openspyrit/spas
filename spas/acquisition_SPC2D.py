@@ -793,7 +793,7 @@ def setup(spectrometer: Avantes,
             0 us.
         add_illumination_time (int):
             Extra time in microseconds to account for the spectrometer's 
-            "dead time". Default is 365 us.
+            "dead time". Default is 356 us.
         dark_phase_time (int):
             Time in microseconds taken by the DMD mirrors to completely tilt. 
             Minimum time for XGA type DMD is 44 us. Default is 44 us.
