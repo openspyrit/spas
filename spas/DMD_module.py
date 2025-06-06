@@ -15,6 +15,7 @@ from dataclasses_json import dataclass_json
 import numpy as np
 from tqdm import tqdm
 import warnings
+import ctypes as ct
 
 ##### DLL for the DMD
 try:
@@ -201,6 +202,7 @@ class DMDParameters:
                 Connected DMD. Defaults to None.
         """
         if DMD == None:
+            print('Warning, DMD is None')
             pass
 
         else:
@@ -214,13 +216,16 @@ class DMDParameters:
             elif polarity == 2007:
                 self.synch_polarity = 'Low'
 
+            print('polarity set to : ' + str(polarity))
+
             edge = DMD.DevInquire(ALP4.ALP_TRIGGER_EDGE)
             if edge == 2008:
                 self.trigger_edge = 'Falling'
             elif edge == 2009:
                 self.trigger_edge = 'Rising'
                 
-           # synch_polarity_OUT1 = 
+            print('trigger edge set to : ' + str(edge))    
+            # synch_polarity_OUT1 = 
                 
             self.type = DMDTypes(DMD.DevInquire(ALP4.ALP_DEV_DMDTYPE))
 
@@ -731,15 +736,15 @@ def setup_DMD(DMD: ALP4,
     #     if not path.exists():
     #         path.mkdir()
 
-    if dark_phase_time + add_illumination_time < 350:
+    if dark_phase_time + add_illumination_time < 0:
         raise ValueError(f'Sum of dark phase and additional illumination time '
                          f'is {dark_phase_time + add_illumination_time}.'
-                         f' Must be greater than 350 µs.')
+                         f' Must be greater than 270 µs.')
 
-    elif dark_phase_time + add_illumination_time < 400:
+    elif dark_phase_time + add_illumination_time < 314:
         warnings.warn(f'Sum of dark phase and additional illumination time '
                       f'is {dark_phase_time + add_illumination_time}.'
-                      f' It is recomended to choose at least 400 µs.')
+                      f' It is recomended to choose at least 314 µs.')
 
     synch_pulse_width, illumination_time, picture_time = calculate_timings(
         integration_time, 
@@ -747,6 +752,14 @@ def setup_DMD(DMD: ALP4,
         add_illumination_time, 
         DMD_output_synch_pulse_delay, 
         dark_phase_time)
+    
+    Gate = tAlpDynSynchOutGate()
+    Gate.byref[0] = ct.c_ubyte(1)     # Period [1 to 16] (it is a multiple of the trig period which go to the spectro)
+    Gate.byref[1] = ct.c_ubyte(1)   # Polarity => 0: active pulse is low, 1: high
+    Gate.byref[2] = ct.c_ubyte(1)   # Gate1 ok to send TTL 
+    Gate.byref[3] = ct.c_ubyte(0)   # Gate2 do not send TTL
+    Gate.byref[4] = ct.c_ubyte(0)   # Gate3 do not send TTL
+    DMD.DevControlEx(ALP_DEV_DYN_SYNCH_OUT1_GATE, Gate)
 
     # acquisition_params.wavelengths = np.asarray(np.zeros(1280), dtype=np.float64)
 
@@ -799,13 +812,16 @@ def play_one_pattern(DMD, DMD_initial_memory, cam_Par,
     AcquisitionParameters.mask_index = mask_index
     AcquisitionParameters.x_mask_coord = x_mask_coord
     AcquisitionParameters.y_mask_coord = y_mask_coord
-    AcquisitionParameters.pattern_order_source = 'C:/openspyrit/spas/stats/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz'
+    AcquisitionParameters.pattern_order_source = 'C:/openspyrit/spas/stats/2D/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz'
     AcquisitionParameters.pattern_source       = 'C:/openspyrit/spas/Patterns/2D/' + scan_mode + '_' + str(Np) + 'x' + str(Np)
     AcquisitionParameters.pattern_prefix       = scan_mode + '_' + str(Np) + 'x' + str(Np)
     
     loop = True
-    setup_DMD(DMD = DMD, DMD_initial_memory = DMD_initial_memory, acquisition_params = AcquisitionParameters, integration_time = ti, pattern_to_display = pattern_to_display, loop = loop)    
+    print('before setup_DMD')
+    DMD_params = setup_DMD(DMD = DMD, DMD_initial_memory = DMD_initial_memory, acquisition_params = AcquisitionParameters, integration_time = ti, pattern_to_display = pattern_to_display, loop = loop)    
     DMD.Run(loop=loop) # if loop=False : Run the whole sequence only once, if loop=True : Run continuously one pattern 
+    
+    return DMD_params
     
 def disconnect_DMD(DMD: ALP4.ALP4):
     if DMD is not None:       

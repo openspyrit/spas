@@ -292,10 +292,21 @@ def setup_cam(cam: object, cameras_nbr: int = 2, expos_time: float = 1, frame_ra
     exposure_time_get = cam.get_exposure()
     print('exposure time set to : ' + str(exposure_time_get / 1000) + ' ms')
     ######################### get the frame rate ##############################
-    frame_rate = cam.get_framerate()
-    print('frame rate is deduced to : ' + str(frame_rate))
-    print('warning, at this moment, the frame rate cannot be set')
+    current_frame_rate = cam.get_framerate()
+    print('frame rate is deduced to : ' + str(current_frame_rate))
+    print('!!! warning, at this moment, the frame rate cannot be set')
+    # cam.set_framerate(frame_rate)
+    # current_frame_rate = cam.get_framerate()
+    # print('new frame rate set to : ' + str(current_frame_rate))
+    ########### set the image data format to 8 bit to display it ##############
+    if cam.get_device_name().decode(encoding) == 'CB013CG-LX-X8G3':
+        cam.set_imgdataformat('XI_RGB24')
+        # print('image data format set to : ' + cam.get_imgdataformat() + ' for the color camera')
+    elif cam.get_device_name().decode(encoding) == 'CB013MG-LX-X8G3':
+        cam.set_imgdataformat('XI_RAW8')
+        # print('image data format set to : ' + cam.get_imgdataformat() + ' for the monochrome camera')
     ####################### setting the data rate #############################
+    cam.set_limit_bandwidth_mode('XI_ON')
     CAMERAS_ON_SAME_CONTROLLER = cameras_nbr
     #set interface data rate
     interface_data_rate = cam.get_limit_bandwidth()
@@ -315,13 +326,13 @@ def setup_cam(cam: object, cameras_nbr: int = 2, expos_time: float = 1, frame_ra
     camera_data_rate = int(max_data_rate_cam / CAMERAS_ON_SAME_CONTROLLER)
    
     cam.set_limit_bandwidth(camera_data_rate)
-    ########### set the image data format to 8 bit to display it ##############
-    if cam.get_device_name().decode(encoding) == 'CB013CG-LX-X8G3':
-        cam.set_imgdataformat('XI_RGB24')
-        # print('image data format set to : ' + cam.get_imgdataformat() + ' for the color camera')
-    elif cam.get_device_name().decode(encoding) == 'CB013MG-LX-X8G3':
-        cam.set_imgdataformat('XI_RAW8')
-        # print('image data format set to : ' + cam.get_imgdataformat() + ' for the monochrome camera')
+    ########################## set buffer #####################################
+    cam.set_buffer_policy('XI_BP_SAFE')
+    cam.set_acq_buffer_size(int(cam.get_acq_buffer_size_maximum()/5)) # divide by 5 because if higher, we lose triggers
+    print('buffer size = ' + str(cam.get_acq_buffer_size()))
+    cam.set_buffers_queue_size(cam.get_buffers_queue_size_maximum()) 
+    buffers_queue_size = cam.get_buffers_queue_size()
+    print('buffers queue size  = ' + str(buffers_queue_size ))
     ########################## setting gain ###################################
     gain_min = cam.get_gain_minimum()
     gain_max = cam.get_gain_maximum()
@@ -358,7 +369,7 @@ def setup_cam(cam: object, cameras_nbr: int = 2, expos_time: float = 1, frame_ra
         print('gammaY is above the maximum, it is set to : ' + str(round(gammaY_max, 2)))
         
     cam.set_gammaY(gammaY)    
-    ########### set the image data format to 10 bit to save it ##############
+    ########### set the image data format to 10 bit to save it ################
     if cam.get_device_name().decode(encoding) == 'CB013CG-LX-X8G3':
         cam.set_imgdataformat('XI_RGB48')
         # print('image data format set to : ' + cam.get_imgdataformat() + ' for the color camera')
@@ -366,7 +377,13 @@ def setup_cam(cam: object, cameras_nbr: int = 2, expos_time: float = 1, frame_ra
         cam.set_imgdataformat('XI_RAW16')
         # print('the exposure time is above the maximum value, it is set to ' + str(cam.get_exposure_maximum()))
         
-    
+    ################# acquire waiting an internal trigger #####################
+    gpi_mode = 'XI_GPI_TRIGGER'
+    cam.set_gpi_mode(gpi_mode)
+    trigger_source = 'XI_TRG_EDGE_RISING'
+    cam.set_trigger_source(trigger_source)
+    trigger_selector = 'XI_TRG_SEL_FRAME_START'
+    cam.set_trigger_selector(trigger_selector)
     
     return cam_Parameters(cam = cam)
         
@@ -440,10 +457,12 @@ def snapshot_cam(cam, data_format: int = 8, binX: int = 1, binY: int = 1, disp_b
     
     Sig = np.max(data[round(data.shape[0]/2 - 100):round(data.shape[0]/2 + 100), round(data.shape[1]/2 - 100):round(data.shape[1]/2 + 100)])
     noise = np.std(data[round(50/(data.shape[0]/cam.get_height())):round(150/(data.shape[0]/cam.get_height())), round(data.shape[1]/2 - 100):round(data.shape[1]/2 + 100)].flatten())
+    maxi = np.max(data)
     print('Original :')
-    print('     Sig = ' + str(Sig))
+    print('     max   = ' + str(maxi))
+    print('     Sig   = ' + str(Sig))
     print('     Noise = ' + str(noise))
-    print('     SNR = ' + str(Sig/noise))
+    print('     SNR   = ' + str(Sig/noise))
     
     if disp_bin_effect == True:
         plt.figure()

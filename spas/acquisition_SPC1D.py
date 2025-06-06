@@ -162,7 +162,15 @@ class AcquisitionParameters:
     timestamps: Optional[Union[List[float], str]] = field(default=None, repr=False)
     measurement_time: Optional[Union[List[float], str]] = field(default=None, repr=False)
     
-    pattern_order_source: Optional[Union[np.ndarray, str]] = field(default=None, repr=False)
+    output_directory: Optional[str] = field(default=None)  
+    pattern_order_source: Optional[str] = field(default=None)    
+    pattern_source: Optional[str] = field(default=None)  
+    pattern_prefix: Optional[str] = field(default=None)  
+    experiment_name: Optional[str] = field(default=None)  
+    light_source: Optional[str] = field(default=None)  
+    object: Optional[str] = field(default=None)  
+    filter: Optional[str] = field(default=None)  
+    description: Optional[str] = field(default=None)  
 
     class_description: str = 'Acquisition parameters'
 
@@ -362,145 +370,145 @@ def _calculate_elapsed_time(start_measurement_time: int,
     return measurement_time, timestamps
 
 
-def setup_acqui(DMD: ALP4,
-          camPar: CAM,
-          DMD_initial_memory: int, 
-          metadata: MetaData,
-          acquisition_params: AcquisitionParameters,
-          start_pixel: int = 0,
-          stop_pixel: Optional[int] = None,
-          integration_time: float = 1, 
-          integration_delay: int = 0,
-          DMD_output_synch_pulse_delay: int = 0, 
-          add_illumination_time: int = 356,
-          dark_phase_time: int = 44,
-          DMD_trigger_in_delay: int = 0          
-          ) -> Tuple[SpectrometerParameters, DMDParameters]:
-    """Setup everything needed to start an acquisition.
+# def setup_acqui(DMD: ALP4,
+#           #camPar: CAM,
+#           DMD_initial_memory: int, 
+#           #metadata: MetaData,
+#           acquisition_params: AcquisitionParameters,
+#           start_pixel: int = 0,
+#           stop_pixel: Optional[int] = None,
+#           integration_time: float = 1, 
+#           integration_delay: int = 0,
+#           DMD_output_synch_pulse_delay: int = 0, 
+#           add_illumination_time: int = 356,
+#           dark_phase_time: int = 44,
+#           DMD_trigger_in_delay: int = 0          
+#           ):# -> Tuple[SpectrometerParameters, DMDParameters]:
+#     """Setup everything needed to start an acquisition.
 
-    Sets all parameters for DMD, spectrometer, DMD patterns and DMD timings.
-    Must be called before every acquisition.
+#     Sets all parameters for DMD, spectrometer, DMD patterns and DMD timings.
+#     Must be called before every acquisition.
 
-    Args:
-        spectrometer (Avantes):
-            Connected spectrometer (Avantes object).
-        DMD (ALP4):
-            Connected DMD.
-        camPar (CAM):
-            Metadata object of the IDS monochrome camera 
-        DMD_initial_memory (int):
-            Initial memory available in DMD after initialization.
-        metadata (MetaData):
-            Metadata concerning the experiment, paths, file inputs and file 
-            outputs. Must be created and filled up by the user.
-        acquisition_params (AcquisitionParameters):
-            Acquisition related metadata object. User must partially fill up
-            with pattern_compression, pattern_dimension_x, pattern_dimension_y,
-            zoom, x and y offest of patterns displayed on the DMD.
-        start_pixel (int):
-            Initial pixel data received from spectrometer. Default is 0.
-        stop_pixel (int, optional):
-            Last pixel data received from spectrometer. Default is None if it
-            should be determined from the amount of available pixels in the
-            spectrometer.
-        integration_time (float):
-            Spectrometer exposure time during one scan in miliseconds. Default
-            is 1 ms.
-        integration_delay (int):
-            Parameter used to start the integration time not immediately after 
-            the measurement request (or on an external hardware trigger), but 
-            after a specified delay. Unit is based on internal FPGA clock cycle.
-            Default is 0 us.
-        DMD_output_synch_pulse_delay (int):
-            Time in microseconds between start of the frame synch output pulse 
-            and the start of the pattern display (in master mode). Default is
-            0 us.
-        add_illumination_time (int):
-            Extra time in microseconds to account for the spectrometer's 
-            "dead time". Default is 365 us.
-        dark_phase_time (int):
-            Time in microseconds taken by the DMD mirrors to completely tilt. 
-            Minimum time for XGA type DMD is 44 us. Default is 44 us.
-        DMD_trigger_in_delay (int):
-            Time in microseconds between the incoming trigger edge and the start
-            of the pattern display on DMD (slave mode). Default is 0 us.
+#     Args:
+#         spectrometer (Avantes):
+#             Connected spectrometer (Avantes object).
+#         DMD (ALP4):
+#             Connected DMD.
+#         camPar (CAM):
+#             Metadata object of the IDS monochrome camera 
+#         DMD_initial_memory (int):
+#             Initial memory available in DMD after initialization.
+#         metadata (MetaData):
+#             Metadata concerning the experiment, paths, file inputs and file 
+#             outputs. Must be created and filled up by the user.
+#         acquisition_params (AcquisitionParameters):
+#             Acquisition related metadata object. User must partially fill up
+#             with pattern_compression, pattern_dimension_x, pattern_dimension_y,
+#             zoom, x and y offest of patterns displayed on the DMD.
+#         start_pixel (int):
+#             Initial pixel data received from spectrometer. Default is 0.
+#         stop_pixel (int, optional):
+#             Last pixel data received from spectrometer. Default is None if it
+#             should be determined from the amount of available pixels in the
+#             spectrometer.
+#         integration_time (float):
+#             Spectrometer exposure time during one scan in miliseconds. Default
+#             is 1 ms.
+#         integration_delay (int):
+#             Parameter used to start the integration time not immediately after 
+#             the measurement request (or on an external hardware trigger), but 
+#             after a specified delay. Unit is based on internal FPGA clock cycle.
+#             Default is 0 us.
+#         DMD_output_synch_pulse_delay (int):
+#             Time in microseconds between start of the frame synch output pulse 
+#             and the start of the pattern display (in master mode). Default is
+#             0 us.
+#         add_illumination_time (int):
+#             Extra time in microseconds to account for the spectrometer's 
+#             "dead time". Default is 365 us.
+#         dark_phase_time (int):
+#             Time in microseconds taken by the DMD mirrors to completely tilt. 
+#             Minimum time for XGA type DMD is 44 us. Default is 44 us.
+#         DMD_trigger_in_delay (int):
+#             Time in microseconds between the incoming trigger edge and the start
+#             of the pattern display on DMD (slave mode). Default is 0 us.
     
-    Raises:
-        ValueError: Sum of dark phase and additional illumination time is lower
-        than 400 us.
+#     Raises:
+#         ValueError: Sum of dark phase and additional illumination time is lower
+#         than 400 us.
 
-    Returns:
-        Tuple[SpectrometerParameters, DMDParameters, List]: Tuple containing DMD
-        and spectrometer relate metadata, as well as wavelengths.
-            spectrometer_params (SpectrometerParameters):
-                Spectrometer metadata object with spectrometer configurations.
-            DMD_params (DMDParameters):
-                DMD metadata object with DMD configurations.
-    """
+#     Returns:
+#         Tuple[SpectrometerParameters, DMDParameters, List]: Tuple containing DMD
+#         and spectrometer relate metadata, as well as wavelengths.
+#             spectrometer_params (SpectrometerParameters):
+#                 Spectrometer metadata object with spectrometer configurations.
+#             DMD_params (DMDParameters):
+#                 DMD metadata object with DMD configurations.
+#     """
 
-    path = Path(metadata.output_directory)
-    if not path.exists():
-        path.mkdir()
+#     path = Path(metadata.output_directory)
+#     if not path.exists():
+#         path.mkdir()
     
-    if dark_phase_time + add_illumination_time < 350:
-        raise ValueError(f'Sum of dark phase and additional illumination time '
-                         f'is {dark_phase_time + add_illumination_time}.'
-                         f' Must be greater than 350 µs.')
+#     if dark_phase_time + add_illumination_time < 350:
+#         raise ValueError(f'Sum of dark phase and additional illumination time '
+#                          f'is {dark_phase_time + add_illumination_time}.'
+#                          f' Must be greater than 350 µs.')
 
-    elif dark_phase_time + add_illumination_time < 400:
-        warnings.warn(f'Sum of dark phase and additional illumination time '
-                      f'is {dark_phase_time + add_illumination_time}.'
-                      f' It is recomended to choose at least 400 µs.')
+#     elif dark_phase_time + add_illumination_time < 400:
+#         warnings.warn(f'Sum of dark phase and additional illumination time '
+#                       f'is {dark_phase_time + add_illumination_time}.'
+#                       f' It is recomended to choose at least 400 µs.')
     
-    synch_pulse_width, illumination_time, picture_time = _calculate_timings(
-        integration_time, 
-        integration_delay, 
-        add_illumination_time, 
-        DMD_output_synch_pulse_delay, 
-        dark_phase_time)
+#     synch_pulse_width, illumination_time, picture_time = _calculate_timings(
+#         integration_time, 
+#         integration_delay, 
+#         add_illumination_time, 
+#         DMD_output_synch_pulse_delay, 
+#         dark_phase_time)
 
-    spectrometer_params, wavelenghts = _setup_spectrometer(
-        spectrometer, 
-        integration_time, 
-        integration_delay,
-        start_pixel,
-        stop_pixel)
+#     spectrometer_params, wavelenghts = _setup_spectrometer(
+#         spectrometer, 
+#         integration_time, 
+#         integration_delay,
+#         start_pixel,
+#         stop_pixel)
     
-    if camPar.gate_period > 16:
-        gate_period = 16
-        print('Warning, gate period is ' + str(camPar.gate_period) + ' >  than the max: 16.')
-        print('Try to increase the FPS of the camera, or the integration time of the spectrometer.')
-        print('Check the Pixel clock which must be = 474 MHz')
-        print('Otherwise some frames will be lost.')
-    elif camPar.gate_period <1:
-        print('Warning, gate period is ' + str(camPar.gate_period) + ' <  than the min: 1.')
-        gate_period = 1
-    else:
-        gate_period = camPar.gate_period
+#     if camPar.gate_period > 16:
+#         gate_period = 16
+#         print('Warning, gate period is ' + str(camPar.gate_period) + ' >  than the max: 16.')
+#         print('Try to increase the FPS of the camera, or the integration time of the spectrometer.')
+#         print('Check the Pixel clock which must be = 474 MHz')
+#         print('Otherwise some frames will be lost.')
+#     elif camPar.gate_period <1:
+#         print('Warning, gate period is ' + str(camPar.gate_period) + ' <  than the min: 1.')
+#         gate_period = 1
+#     else:
+#         gate_period = camPar.gate_period
     
-    camPar.gate_period = gate_period    
-    Gate = tAlpDynSynchOutGate()
-    Gate.byref[0] = ct.c_ubyte(gate_period)     # Period [1 to 16] (it is a multiple of the trig period which go to the spectro)
-    Gate.byref[1] = ct.c_ubyte(1)   # Polarity => 0: active pulse is low, 1: high
-    Gate.byref[2] = ct.c_ubyte(1)   # Gate1 ok to send TTL 
-    Gate.byref[3] = ct.c_ubyte(0)   # Gate2 do not send TTL
-    Gate.byref[4] = ct.c_ubyte(0)   # Gate3 do not send TTL
-    DMD.DevControlEx(ALP_DEV_DYN_SYNCH_OUT1_GATE, Gate)
-    camPar.gate_period = gate_period
-    camPar.int_time_spect = integration_time
+#     camPar.gate_period = gate_period    
+#     Gate = tAlpDynSynchOutGate()
+#     Gate.byref[0] = ct.c_ubyte(gate_period)     # Period [1 to 16] (it is a multiple of the trig period which go to the spectro)
+#     Gate.byref[1] = ct.c_ubyte(1)   # Polarity => 0: active pulse is low, 1: high
+#     Gate.byref[2] = ct.c_ubyte(1)   # Gate1 ok to send TTL 
+#     Gate.byref[3] = ct.c_ubyte(0)   # Gate2 do not send TTL
+#     Gate.byref[4] = ct.c_ubyte(0)   # Gate3 do not send TTL
+#     DMD.DevControlEx(ALP_DEV_DYN_SYNCH_OUT1_GATE, Gate)
+#     camPar.gate_period = gate_period
+#     camPar.int_time_spect = integration_time
 
-    acquisition_params.wavelengths = np.asarray(wavelenghts, dtype=np.float64)
+#     acquisition_params.wavelengths = np.asarray(wavelenghts, dtype=np.float64)
 
-    DMD_params = _setup_DMD(DMD, add_illumination_time, DMD_initial_memory)
+#     DMD_params = _setup_DMD(DMD, add_illumination_time, DMD_initial_memory)
     
-    _setup_patterns_2arms(DMD=DMD, metadata=metadata, DMD_params=DMD_params, 
-                    acquisition_params=acquisition_params, camPar=camPar)
+#     _setup_patterns_2arms(DMD=DMD, metadata=metadata, DMD_params=DMD_params, 
+#                     acquisition_params=acquisition_params, camPar=camPar)
 
-    _setup_timings(DMD, DMD_params, picture_time, illumination_time, 
-                   DMD_output_synch_pulse_delay, synch_pulse_width, 
-                   DMD_trigger_in_delay, add_illumination_time)
+#     _setup_timings(DMD, DMD_params, picture_time, illumination_time, 
+#                    DMD_output_synch_pulse_delay, synch_pulse_width, 
+#                    DMD_trigger_in_delay, add_illumination_time)
 
-    return spectrometer_params, DMD_params, camPar
+#     return spectrometer_params, DMD_params, camPar
 
 def _save_acquisition_2arms(# metadata: MetaData, 
                      DMD_params,#: DMD_mod.DMDParameters, 
@@ -763,35 +771,35 @@ def acquire_2arms(
                 Units in milliseconds.
     """
 
-    if reconstruct == True:
-        print('Creating reconstruction processes')
+    # if reconstruct == True:
+    #     print('Creating reconstruction processes')
 
-        # Creating a Queue for sending spectral data to reconstruction process
-        queue_to_recon = Queue()
+    #     # Creating a Queue for sending spectral data to reconstruction process
+    #     queue_to_recon = Queue()
 
-        # Creating a Queue for sending reconstructed images to plot
-        queue_reconstructed = Queue()
+    #     # Creating a Queue for sending reconstructed images to plot
+    #     queue_reconstructed = Queue()
 
-        sleep_time = (acquisition_params.pattern_amount * 
-                    DMD_params.picture_time_us/1e+6)
+    #     sleep_time = (acquisition_params.pattern_amount * 
+    #                 DMD_params.picture_time_us/1e+6)
 
-        # Creating reconstruction process
-        recon_process = Process(target=reconstruct_process, 
-                    args=(reconstruction_params.model,
-                        reconstruction_params.device, 
-                        queue_to_recon,
-                        queue_reconstructed,
-                        reconstruction_params.batches, 
-                        reconstruction_params.noise,
-                        sleep_time))
+    #     # Creating reconstruction process
+    #     recon_process = Process(target=reconstruct_process, 
+    #                 args=(reconstruction_params.model,
+    #                     reconstruction_params.device, 
+    #                     queue_to_recon,
+    #                     queue_reconstructed,
+    #                     reconstruction_params.batches, 
+    #                     reconstruction_params.noise,
+    #                     sleep_time))
 
-        # Creating plot process
-        plot_process = Process(target=plot_recon, 
-                        args=(queue_reconstructed, sleep_time))
+    #     # Creating plot process
+    #     plot_process = Process(target=plot_recon, 
+    #                     args=(queue_reconstructed, sleep_time))
 
-        # Starting processes
-        recon_process.start()
-        plot_process.start()
+    #     # Starting processes
+    #     recon_process.start()
+    #     plot_process.start()
         
     # pixel_amount = (spectrometer_params.stop_pixel - 
     #                 spectrometer_params.start_pixel + 1)
@@ -903,24 +911,53 @@ def acquire_2arms(
     # return spectral_data
 
 class func_path:
-    def __init__(self, data_folder_name, data_name, ask_overwrite=False):        
-        if not os.path.exists('../data/' + data_folder_name):
-            os.makedirs('../data/' + data_folder_name)
+    """
+    A class that contain all the path to save the data
+    
+    Args:
+        None
         
-        if not os.path.exists('../data/' + data_folder_name + '/' + data_name):
-            os.makedirs('../data/' + data_folder_name + '/' + data_name)
+    Return:
+        None
+    """
+    
+    subfolder_path: str
+    aborted: bool
+    raw_data_path: str
+    overview_path: str
+    data_name: str
+    data_path: str
+    had_reco_path: str
+    fig_had_reco_path: str
+    nn_reco_path: str
+    fig_nn_reco_path: str
+    
+    def __init__(self, data_folder_name, data_name, ask_overwrite=False):        
+        if not os.path.exists('../../data/' + data_folder_name):
+            os.makedirs('../../data/' + data_folder_name)
+        
+        self.subfolder_path = '../../data/' + data_folder_name + '/' + data_name
+        if not os.path.exists(self.subfolder_path):
+            os.makedirs(self.subfolder_path)
             aborted = False
         elif ask_overwrite == True:
             res = input('Acquisition already exists, overwrite it ?[y/n]')
             if res == 'n':
                 aborted = True
+            elif res == 'y':
+                aborted = False
             else:
+                print('')
                 aborted = False
         else:
             aborted = True
                 
         self.aborted = aborted
-        self.subfolder_path = '../data/' + data_folder_name + '/' + data_name    
+                   
+        self.raw_data_path = self.subfolder_path + '/raw_data'
+        if not os.path.exists(self.raw_data_path):
+            os.makedirs(self.raw_data_path)
+
         self.overview_path = self.subfolder_path + '/overview'
         if not os.path.exists(self.overview_path):
             os.makedirs(self.overview_path)
@@ -929,8 +966,6 @@ class func_path:
         self.data_path = self.subfolder_path + '/'# + data_name
         self.had_reco_path = self.data_path + 'had_reco.npz'         
         self.fig_had_reco_path = self.overview_path + '/'# + data_name   
-        # self.pathIDSsnapshot = Path(self.data_path + '_IDScam_before_acq.npy')
-        # self.pathIDSsnapshot_overview = self.overview_path + '/' + data_name + '_IDScam_before_acq.png'
         self.nn_reco_path = self.data_path + 'nn_reco.npz'
         self.fig_nn_reco_path = self.overview_path + '/'# + data_name 
 
