@@ -46,6 +46,8 @@ class Spectrograph_Parameters:
     unit: Optional[str] = None
     position: Optional[int] = None
     grating: Optional[grating] = None
+    slit_width: Optional[int] = None
+    slit_height: Optional[int] = 4000
     # speed: Optional[int] = None
     # size: Optional[int] = None
         
@@ -72,6 +74,7 @@ class Spectrograph_Parameters:
             self.unit     = Spectrograph.query_unit(spectrograph)
             self.position = Spectrograph.query_position(spectrograph)
             self.grating  = Spectrograph.query_grating(spectrograph, grating)
+            self.slit_width = Spectrograph.slit_width
             # self.speed    = Spectrograph.query_speed(spectrograph, print_speed = False)
             # self.size     = Spectrograph.query_size(spectrograph, print_size = False)
             
@@ -79,7 +82,8 @@ class Spectrograph_Parameters:
 def setup_spectrograph(spectrograph: object,
                        grating_nbr: int = 1, print_select: bool = False,
                        position: int = 600,  print_position: bool = False,
-                       unit: str = 'nm',     print_unit: bool = False):
+                       unit: str = 'nm',     print_unit: bool = False,
+                       slit_width: int = 300):
     """ Setup the spectrograph to tune the cameras
     Parameters
     ----------
@@ -97,6 +101,8 @@ def setup_spectrograph(spectrograph: object,
         the unit of the wavelength. The default is 'nm'.
     print_unit : bool, optional
         a boolean to print or not the unit of the position. The default is False.
+    slit_width (int):
+        the width of the slit in µm.
 
     Returns
     -------
@@ -105,36 +111,40 @@ def setup_spectrograph(spectrograph: object,
 
     """        
     current_grating  = Spectrograph.query_grating(spectrograph, grating)
-    if current_grating.current_grating_nbr == grating_nbr:
-        print(str(current_grating.grooves) + ' gr/mm grating already selectionned. Nothing to do')
+    if current_grating.current_grating_nbr == grating_nbr: 
+        if print_select:
+            print(str(current_grating.grooves) + ' gr/mm grating already selectionned. Nothing to do')
     else:    
         Spectrograph.cmd_selectGrating(spectrograph, grating = current_grating, grating_nbr = grating_nbr, print_select = print_select)
         # new_grating = Spectrograph.query_grating(spectrograph, grating)
     
     current_unit  = Spectrograph.query_unit(spectrograph)
     if current_unit == unit:
-        print('unit already set to : ' + unit + '. Nothing to do')
+        if print_unit:
+            print('unit already set to : ' + unit + '. Nothing to do')
     else: 
         Spectrograph.cmd_unit(spectrograph, unit = unit, print_unit = print_unit)   
         # new_unit = Spectrograph.query_unit(spectrograph, print_unit)
     
     current_position = Spectrograph.query_position(spectrograph)
     if current_position == position:
-        print('position already set to : ' + str(position) + ' '  + unit + '. Nothing to do')
+        if print_position:
+            print('position already set to : ' + str(position) + ' '  + unit + '. Nothing to do')
     else:
         first_pass = True
         while True:
             current_position = Spectrograph.query_position(spectrograph)
             if current_position == position:
                 if print_position == True:
-                    print('current position set to : ' + str(position) + ' ' + unit)
-                    
+                    print('current position set to : ' + str(position) + ' ' + unit)                    
                 break
             else:
                 if first_pass == True:
                     Spectrograph.cmd_goto(spectrograph, position = position)
                     first_pass == False
-                    
+    
+    Spectrograph.slit_width = slit_width            
+    
     return Spectrograph_Parameters(spectrograph = spectrograph)
     
     

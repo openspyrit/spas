@@ -475,6 +475,10 @@ def _update_sequence(DMD: ALP4.ALP4,
                 first_pass = False
                 
             patterns[y_offset:y_offset+len_im[0], x_offset:x_offset+len_im[1]] = im_HD  
+            
+            patterns_inside = patterns[:, 128:patterns.shape[1] - 128]
+            patterns_inside = patterns_inside.T
+            patterns[:,128:patterns.shape[1] - 128 ] = patterns_inside
         
         # if pattern_name == 0:
         #     from matplotlib import pyplot as plt
@@ -537,7 +541,7 @@ def setup_patterns(DMD: ALP4.ALP4,
         elif pattern_to_display == 'black':
             pattern_order = np.array(pattern_order[1:2], dtype=np.int16)
         elif pattern_to_display == 'gray':
-            index = int(np.where(pattern_order == 1953)[0])
+            index = int(np.where(pattern_order == 4)[0])#
             print(index)
             pattern_order = np.array(pattern_order[index:index+1], dtype=np.int16)
         
@@ -806,8 +810,8 @@ def play_one_pattern(DMD, DMD_initial_memory, cam_Par,
     AcquisitionParameters.pattern_dimension_x = Np
     AcquisitionParameters.pattern_dimension_y = Np
     AcquisitionParameters.zoom = 1
-    AcquisitionParameters.xw_offset = 128
-    AcquisitionParameters.yh_offset = 0
+    AcquisitionParameters.xw_offset = 128#+192#-50-50-30
+    AcquisitionParameters.yh_offset = 0#+192#-50
     if 'mask_index' not in locals(): mask_index = [];  x_mask_coord = []; y_mask_coord = [] # execute "mask_index = []" to not apply the mask
     AcquisitionParameters.mask_index = mask_index
     AcquisitionParameters.x_mask_coord = x_mask_coord

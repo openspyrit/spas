@@ -328,7 +328,7 @@ def setup_cam(cam: object, cameras_nbr: int = 2, expos_time: float = 1, frame_ra
     cam.set_limit_bandwidth(camera_data_rate)
     ########################## set buffer #####################################
     cam.set_buffer_policy('XI_BP_SAFE')
-    cam.set_acq_buffer_size(int(cam.get_acq_buffer_size_maximum()/5)) # divide by 5 because if higher, we lose triggers
+    cam.set_acq_buffer_size(int(cam.get_acq_buffer_size_maximum()/4)) # divide by 4 because if higher, we lose triggers, to set max, you need too wait 2.6s between star_acquisition and receive the first trig (DMD.run), to set max/2 => wait 1.5s, max/4 => wait 1s
     print('buffer size = ' + str(cam.get_acq_buffer_size()))
     cam.set_buffers_queue_size(cam.get_buffers_queue_size_maximum()) 
     buffers_queue_size = cam.get_buffers_queue_size()
@@ -550,7 +550,7 @@ def display_cam(cam):
         
         first_passage2 = True
         data_center_old = 0
-        
+        maxii = 0
         while True:
             time.sleep(t_wait) # Sleep for 1 seconds
             
@@ -558,6 +558,11 @@ def display_cam(cam):
             cam.get_image(img)
             
             data = img.get_image_data_numpy()
+            
+            maxi = np.max(data)
+            if maxi != maxii:
+                print("max = " + str(maxi))
+                maxii = maxi
             
             if np.max(data) == 255 and first_passage2 == True:
                 print('saturation detected')

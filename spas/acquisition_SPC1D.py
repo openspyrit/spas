@@ -171,7 +171,12 @@ class AcquisitionParameters:
     object: Optional[str] = field(default=None)  
     filter: Optional[str] = field(default=None)  
     description: Optional[str] = field(default=None)  
-
+    
+    NRepetitions: Optional[int] = field(default=None) 
+    NAverages: Optional[int] = field(default=None) 
+    Lc: Optional[Union[List[int], str]] = field(default=None, repr=False)
+    receive_last_trig:Optional[bool] = field(default=False, repr=False)
+    
     class_description: str = 'Acquisition parameters'
 
 
@@ -252,6 +257,15 @@ class AcquisitionParameters:
         else:
             print('y_mask_coord not present in metadata.'
             ' Reading data in legacy mode.')
+            
+        if self.Lc:
+            self.Lc = (
+                self.Lc.strip('[').strip(']').split(', '))
+            self.Lc = to_float(self.Lc)
+            self.Lc = np.asarray(self.Lc)
+        else:
+            print('Lc not present in metadata.'
+            ' Reading data in legacy mode.')
         
     @staticmethod
     def readable_pattern_order(acquisition_params_dict: dict) -> dict:
@@ -300,6 +314,9 @@ class AcquisitionParameters:
         
         readable_dict['y_mask_coord'] = _hard_coded_conversion(
             readable_dict['y_mask_coord'])
+        
+        readable_dict['Lc'] = _hard_coded_conversion(
+            readable_dict['Lc'])
 
         return readable_dict
 
@@ -704,6 +721,47 @@ def _acquire_raw_2arms(
                              start_measurement_time,
                              saturation_detected)
 
+# def acquire(DMD: ALP4,
+#             DMD_params: DMDParameters,
+#             cam_spat: xiapi,
+#             cam_spat_params: cam_Parameters,
+#             cam_spec: xiapi,
+#             cam_spec_params: cam_Parameters,
+#             spectrograph        = spectrograph,
+#             spectrograph_params = spectrograph_params,
+#             acquisition_params  = acquisition_params):
+#     """
+    
+
+#     Parameters
+#     ----------
+#     DMD : ALP4
+#         DESCRIPTION.
+#     DMD_params : DMDParameters
+#         DESCRIPTION.
+#     cam_spat : xiapi
+#         DESCRIPTION.
+#     cam_spat_params : cam_Parameters
+#         DESCRIPTION.
+#     cam_spec : xiapi
+#         DESCRIPTION.
+#     cam_spec_params : cam_Parameters
+#         DESCRIPTION.
+#     spectrograph : TYPE, optional
+#         DESCRIPTION. The default is spectrograph.
+#     spectrograph_params : TYPE, optional
+#         DESCRIPTION. The default is spectrograph_params.
+#     acquisition_params : TYPE, optional
+#         DESCRIPTION. The default is acquisition_params.
+
+#     Returns
+#     -------
+#     None.
+
+#     """
+    
+#     pass
+
 
 def acquire_2arms(
             DMD: ALP4,
@@ -950,7 +1008,7 @@ class func_path:
                 print('')
                 aborted = False
         else:
-            aborted = True
+            aborted = False
                 
         self.aborted = aborted
                    
