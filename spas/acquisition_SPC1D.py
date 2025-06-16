@@ -27,6 +27,7 @@ try:
 except:
     class ALP4:
         pass
+from ximea import xiapi
 # ##### DLL for the spectrometer Avantes 
 # try:
 #     from msl.equipment import EquipmentRecord, ConnectionRecord, Backend
@@ -55,6 +56,10 @@ import time
 import threading
 from dataclasses import dataclass, field
 from dataclasses_json import dataclass_json
+import pickle
+from progress.bar import Bar
+from spas.spectro_SP_module import setup_spectrograph
+from spas.cam_Ximea_module import counter_trigger
 
 # from spas.DMD_module import  DMDParameters
 # import spas.DMD_module as DMD_mod
@@ -721,252 +726,179 @@ def _acquire_raw_2arms(
                              start_measurement_time,
                              saturation_detected)
 
-# def acquire(DMD: ALP4,
-#             DMD_params: DMDParameters,
-#             cam_spat: xiapi,
-#             cam_spat_params: cam_Parameters,
-#             cam_spec: xiapi,
-#             cam_spec_params: cam_Parameters,
-#             spectrograph        = spectrograph,
-#             spectrograph_params = spectrograph_params,
-#             acquisition_params  = acquisition_params):
-#     """
-    
+def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iLc: int = 1, NA: int = 1, first_acqui: bool = True): 
+    """Acquire video with the Ximea camera in a thread
 
-#     Parameters
-#     ----------
-#     DMD : ALP4
-#         DESCRIPTION.
-#     DMD_params : DMDParameters
-#         DESCRIPTION.
-#     cam_spat : xiapi
-#         DESCRIPTION.
-#     cam_spat_params : cam_Parameters
-#         DESCRIPTION.
-#     cam_spec : xiapi
-#         DESCRIPTION.
-#     cam_spec_params : cam_Parameters
-#         DESCRIPTION.
-#     spectrograph : TYPE, optional
-#         DESCRIPTION. The default is spectrograph.
-#     spectrograph_params : TYPE, optional
-#         DESCRIPTION. The default is spectrograph_params.
-#     acquisition_params : TYPE, optional
-#         DESCRIPTION. The default is acquisition_params.
-
-#     Returns
-#     -------
-#     None.
-
-#     """
-    
-#     pass
-
-
-def acquire_2arms(
-            DMD: ALP4,
-            # camPar: CAM,
-            metadata: MetaData, 
-            DMD_params,#: DMD_mod.DMDParameters, 
-            acquisition_params: AcquisitionParameters,
-            repetitions: int = 1,
-            verbose: bool = False,
-            reconstruct: bool = False,
-            reconstruction_params: ReconstructionParameters = None
-            ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Perform a complete acquisition.
-
-    Performs single or multiple acquisitions using the same setup configurations
-    previously chosen.
-    Finnaly saves all acqusition related data and metadata.
-
-    Args:
-        ava (Avantes): 
-            Connected spectrometer (Avantes object).
-        DMD (ALP4): 
-            Connected DMD.
-        camPar (CAM):
-            Metadata object of the IDS monochrome camera 
-        metadata (MetaData): 
-            Metadata concerning the experiment, paths, file inputs and file 
-            outputs. Must be created and filled up by the user.
-        spectrometer_params (SpectrometerParameters): 
-            Spectrometer metadata object with spectrometer configurations.
-        DMD_params (DMDParameters):
-            DMD metadata object with DMD configurations.
-        acquisition_params (AcquisitionParameters): 
-            Acquisition related metadata object.
-        wavelengths (List[float]): 
-            List of float corresponding to the wavelengths associated with
-            spectrometer's start and stop pixels.
-        repetitions (int):
-            Number of times the acquisition will be repeated with the same
-            configurations. Default is 1, a single acquisition.
-        verbose (bool):
-            Chooses if data concerning each acquisition should be printed to
-            user. If False, only overall data regarding all repetitions is 
-            printed. Default is False.
-        reconstruct (bool): 
-            If True, will perform reconstruction alongside acquisition using
-            multiprocessing.
-        reconstruction_params (ReconstructionParameters):
-            Object containing parameters of the neural network to be loaded for
-            reconstruction.
-
+    Parameters:
+    ----------
+    cam (obj): 
+        a object to drive the Ximea camera
+    acquisition_params (class):
+        the class of the acquisition parameters
+    NR (int):
+        the increment of the number of repetitions (default = 1)
+    iLc (int):
+        the increment of the central wavenlength and grating number (default = 1)
+    NA (int):
+        the increment of the number of averages (default = 1)
+    first_acqui (bool):
+        a boolean to start the video acquistion just at the first call. (default = True)
+        
     Returns:
-        Tuple[ndarray, ndarray, ndarray]: Tuple containig spectral data and
-        measurement timings.
-            spectral_data (ndarray):
-                2D array of `float` of size (pattern_amount x pixel_amount)
-                containing measurements received from the spectrometer for each
-                pattern of a sequence. 
-            timestamps (np.ndarray): 
-                1D array with `float` type elapsed time between each measurement
-                made by the spectrometer based on its internal clock. 
-                Units in milliseconds.
-            measurement_time (np.ndarray): 
-                1D array with `float` type elapsed times between each callback.
-                Units in milliseconds.
+    -------
+        None.
     """
 
-    # if reconstruct == True:
-    #     print('Creating reconstruction processes')
-
-    #     # Creating a Queue for sending spectral data to reconstruction process
-    #     queue_to_recon = Queue()
-
-    #     # Creating a Queue for sending reconstructed images to plot
-    #     queue_reconstructed = Queue()
-
-    #     sleep_time = (acquisition_params.pattern_amount * 
-    #                 DMD_params.picture_time_us/1e+6)
-
-    #     # Creating reconstruction process
-    #     recon_process = Process(target=reconstruct_process, 
-    #                 args=(reconstruction_params.model,
-    #                     reconstruction_params.device, 
-    #                     queue_to_recon,
-    #                     queue_reconstructed,
-    #                     reconstruction_params.batches, 
-    #                     reconstruction_params.noise,
-    #                     sleep_time))
-
-    #     # Creating plot process
-    #     plot_process = Process(target=plot_recon, 
-    #                     args=(queue_reconstructed, sleep_time))
-
-    #     # Starting processes
-    #     recon_process.start()
-    #     plot_process.start()
+    img = xiapi.Image()
+    arm = cam.arm
+    file_name = arm + '_NR_' + str(NR) + '_Gr_' + str(acquisition_params.Lc[iLc][1]) + '_Lc_' + str(acquisition_params.Lc[iLc][0]) + 'nm_NA_' + str(NA) + '_NS_'
+    ####################### start data acquisition ############################
+    if first_acqui:
+        # print('Starting ' + arm + ' data acquisition...\n')
+        cam.start_acquisition()
         
-    # pixel_amount = (spectrometer_params.stop_pixel - 
-    #                 spectrometer_params.start_pixel + 1)
-    measurement_time = np.zeros(
-        (acquisition_params.pattern_amount * repetitions))
-    timestamps = np.zeros(
-        ((acquisition_params.pattern_amount - 1) * repetitions), 
-        dtype=np.float64)
-    # spectral_data = np.zeros(
-    #     (acquisition_params.pattern_amount * repetitions,pixel_amount),
-    #     dtype=np.float64)
+    start_chrono = time.time()
+    i = 0
+    while True: 
+        counter_time = time.time() - start_chrono
+        if i >= acquisition_params.pattern_amount:# total_iter:
+            acquisition_params.receive_last_trig = True
+            print('\n iteration reach (' + arm + ') : ' + str(i) + ' in the thread \n')
+            break
+        elif counter_time > math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4:
+            print('delay > ' + str(math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4) + 's in the thread \n')
+            break        
+        else:
+            ############## get data and pass them from cameras to img #################
+            cam.get_image(img)
+            ################### get image data as numpy array #########################
+            data_np = img.get_image_data_numpy()#(invert_rgb_order = True)  
+            ################### write raw data in files #######################
+            with open(all_path.raw_data_path + '/' + file_name + str(i) + '.pkl', 'wb') as outp:
+                pickle.dump(data_np, outp, pickle.HIGHEST_PROTOCOL)
 
-    acquisition_params.acquired_spectra = 0
-    print()
+            # # time_stmp = (img.tsSec) + ((img.tsUSec)/1000000)
+            # print('i: ' + str(i) + '-->  Time Stamp: ' + str(time_stmp - time_stmp_0))           
+            
+            i = i + 1
+            acquisition_params.receive_last_trig = False
 
-    for repetition in range(repetitions):
-        if verbose:
-            print(f"Acquisition {repetition}")
-
-        AcquisitionResults = _acquire_raw_2arms(DMD, 
-            DMD_params, acquisition_params, metadata, repetition, repetitions)
+def acquire(DMD: ALP4,
+            DMD_params,
+            cam_spat: xiapi,
+            cam_spat_params,
+            cam_spec: xiapi,
+            cam_spec_params,
+            spectrograph,
+            spectrograph_params,
+            acquisition_params,
+            all_path,
+            verbose):
+    """
     
-        (data, spectrum_index, timestamp, time,
-            start_measurement_time, saturation_detected) = AcquisitionResults
 
-        print('Acquisition number : ' + str(repetition) + ' finished')
+    Parameters
+    ----------
+    DMD : ALP4
+        DESCRIPTION.
+    DMD_params : DMDParameters
+        DESCRIPTION.
+    cam_spat : xiapi
+        DESCRIPTION.
+    cam_spat_params : cam_Parameters
+        DESCRIPTION.
+    cam_spec : xiapi
+        DESCRIPTION.
+    cam_spec_params : cam_Parameters
+        DESCRIPTION.
+    spectrograph : TYPE, optional
+        DESCRIPTION. The default is spectrograph.
+    spectrograph_params : TYPE, optional
+        DESCRIPTION. The default is spectrograph_params.
+    acquisition_params : TYPE, optional
+        DESCRIPTION. The default is acquisition_params.
 
-        if reconstruct == True:
-            queue_to_recon.put(data.T)
-            print('Data sent')
+    Returns
+    -------
+    None.
 
-        time, timestamp = _calculate_elapsed_time(
-            start_measurement_time, time, timestamp)
-
-        begin = repetition * acquisition_params.pattern_amount
-        end = (repetition + 1) * acquisition_params.pattern_amount
-        # spectral_data[begin:end] = data
-        measurement_time[begin:end] = time
-
-        begin = repetition * (acquisition_params.pattern_amount - 1)
-        end = (repetition + 1) * (acquisition_params.pattern_amount - 1)
-        timestamps[begin:end] = timestamp
-
-        acquisition_params.acquired_spectra += spectrum_index
-
-        acquisition_params.saturation_detected = saturation_detected
+    """
     
-        if saturation_detected is True:
-            print('!!!!!!!!!! Saturation detected in the spectro !!!!!!!!!!')
-        # Print data for each repetition
-        if (verbose):
-            print('Spectra acquired: {}'.format(spectrum_index))
-            print('Mean callback acquisition time: {} ms'.format(
-               np.mean(time)))
-            print('Total callback acquisition time: {} s'.format(
-                np.sum(time)/1000))
-            print('Mean spectrometer acquisition time: {} ms'.format(
-                np.mean(timestamp)))
-            print('Total spectrometer acquisition time: {} s'.format(
-                np.sum(timestamp)/1000))
-    
-            # Print shape of acquisition matrix for one repetition    
-            print(f'Partial acquisition matrix dimensions:'
-                  f'{data.shape}')
-            print()
-    
-    acquisition_params.update_timings(timestamps, measurement_time)
-    # Real time between each spectrum acquisition by the spectrometer
-    print('Complete acquisition done')
-    print('Spectra acquired: {}'.format(acquisition_params.acquired_spectra))      
-    print('Total acquisition time: {0:.2f} s'.format(acquisition_params.total_spectrometer_acquisition_time_s))
-    
-    # # delete acquisition with black pattern (white for the camera)
-    # if camPar.insert_patterns == 1:
-    #     black_pattern_index = np.where(acquisition_params.patterns_wp == -1)
-    #     # print('index of white patterns :')
-    #     # print(black_pattern_index[0:38])
-    #     if acquisition_params.patterns_wp.shape == acquisition_params.patterns.shape:
-    #         acquisition_params.patterns = np.delete(acquisition_params.patterns, black_pattern_index)
-    #     spectral_data = np.delete(spectral_data, black_pattern_index, axis = 0)
-    #     acquisition_params.timestamps = np.delete(acquisition_params.timestamps, black_pattern_index[1:])
-    #     acquisition_params.measurement_time = np.delete(acquisition_params.measurement_time, black_pattern_index)
-    #     acquisition_params.acquired_spectra = len(acquisition_params.patterns)
-    
-    _save_acquisition_2arms(#metadata, 
-                            DMD_params, 
-                            #spectrometer_params, camPar, 
-                            acquisition_params, 
-                            # spectral_data
-                            )
+    first_acqui = True
 
-    # Joining processes and closing queues
-    if reconstruct == True:
-        queue_to_recon.put('kill') # Sends a message to stop reconstruction
-        recon_process.join()
-        queue_to_recon.close()
-        plot_process.join()
-        queue_reconstructed.close()
-        
-    # maxi = np.amax(spectral_data[0,:])
-    # print('------------------------------------------------')
-    # print('maximum in the spectrum = ' + str(maxi))
-    # print('------------------------------------------------')
-    # if maxi >= 65535:
-    #     print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-    #     print('!!!!! warning, spectrum saturation !!!!!!!!')
-    #     print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+    total_loop = acquisition_params.NRepetitions * acquisition_params.NAverages * len(acquisition_params.Lc)
+    total_iter = acquisition_params.pattern_amount * total_loop
 
-    # return spectral_data
+
+    bar = Bar('Processing', max = total_loop)
+    verbose = False
+    first_acqui = True
+    boucle = 0
+    for NR in range(acquisition_params.NRepetitions):#tqdm(range(acquisition_params.NRepetitions)):
+        for iLc in range(len(acquisition_params.Lc)):#tqdm(range(len(acquisition_params.Lc))):
+            setup_spectrograph(spectrograph,
+                               grating_nbr =  acquisition_params.Lc[iLc][1], print_select   = False,
+                               position    =  acquisition_params.Lc[iLc][0], print_position = False)
+            for NA in range(acquisition_params.NAverages):#tqdm(range(acquisition_params.NAverages)):
+                if verbose:
+                    boucle = boucle + 1
+                    print('-----------------------------------------')
+                    print('loop = ' + str(boucle) + ' / ' + str(acquisition_params.NRepetitions * len(acquisition_params.Lc) * acquisition_params.NAverages))
+                    
+                    print('[NR = ' + str(NR + 1) + '/' + str(acquisition_params.NRepetitions) + ' --- Lc = ' + str(iLc + 1) + '/' + str(len(acquisition_params.Lc)) + ' --- NA = ' + str(NA + 1) + '/' + str(acquisition_params.NAverages) + ']')
+                
+                bar.next()
+                
+                x = threading.Thread(target = runCam_thread, args=(cam_spat, acquisition_params, DMD_params, all_path, NR, iLc, NA, first_acqui))
+                x.start()
+
+                x1 = threading.Thread(target = runCam_thread, args=(cam_spec, acquisition_params, DMD_params, all_path, NR, iLc, NA, first_acqui))
+                x1.start()
+
+                if first_acqui:
+                    time.sleep(1)
+                
+                DMD.Run(loop=False)
+                
+                first_pass = True
+                start_chrono = time.time()
+                while(True):
+                    if first_pass == True:
+                        time.sleep(math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6))
+                        first_pass = False
+                        
+                    time.sleep(0.1)
+                    counter_time = time.time() - start_chrono
+                    
+                    if acquisition_params.receive_last_trig:
+                        print('iteration reachs ' + str(acquisition_params.pattern_amount) + ' in the main loop \n')
+                        break
+                    elif counter_time > math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 5:
+                        print('delay > ' + str(math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6 + 5)) + 's in the main loop \n')
+                        break
+                        
+                DMD.Halt()
+                first_acqui = False
+
+    print('\n----------- COUNTERS SPATIAL CAM -----------') # reading counters
+    counter_trig = counter_trigger(cam_spat)
+    print('Transport skipped frames: ', counter_trig[0])
+    print('API skipped frames      : ', counter_trig[1])
+    print('Transferred frames      : ', str(counter_trig[2]) + ' / ' + str(total_iter))
+
+    print('\n----------- COUNTERS SPECTRAL CAM -----------') # reading counters
+    counter_trig = counter_trigger(cam_spec)
+    print('Transport skipped frames: ', counter_trig[0])
+    print('API skipped frames      : ', counter_trig[1])
+    print('Transferred frames      : ', str(counter_trig[2]) + ' / ' + str(total_iter))
+    print('\n')
+                
+    time.sleep(1)
+    cam_spat.stop_acquisition()
+    cam_spec.stop_acquisition()
+
+    bar.finish()
+
 
 class func_path:
     """

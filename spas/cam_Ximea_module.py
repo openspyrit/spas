@@ -658,7 +658,22 @@ def display_cam(cam):
             print('the exposure time is above the maximum value, it is set to ' + str(cam.get_exposure_maximum()))
         
         
-        
+def counter_trigger(cam):
+    """
+    Arg:
+        cam (obj): 
+            a object to drive the Ximea camera
+    Returns:
+        a tuple containing counter of the trigger skipped and received
+    """
+    cam.set_counter_selector('XI_CNT_SEL_TRANSPORT_SKIPPED_FRAMES')
+    transport_skipped_trig = cam.get_counter_value()
+    cam.set_counter_selector('XI_CNT_SEL_API_SKIPPED_FRAMES')
+    api_skipped_trig = cam.get_counter_value()
+    cam.set_counter_selector('XI_CNT_SEL_TRANSPORT_TRANSFERRED_FRAMES')
+    transported_frames = cam.get_counter_value()
+    
+    return [transport_skipped_trig, api_skipped_trig, transported_frames]        
         
         
         
