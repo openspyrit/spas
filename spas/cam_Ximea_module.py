@@ -11,7 +11,7 @@ import time
 import numpy as np
 from matplotlib import pyplot as plt
 from typing import Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, InitVar
 from dataclasses_json import dataclass_json
 
 
@@ -90,7 +90,9 @@ class cam_Parameters:
     """
     
     """
+    print('ici')
     arm: Optional[str] = None
+    print('là')
     exposure_time_µs: Optional[int] = None
     frame_rate: Optional[float] = None
     gain: Optional[float] = None
@@ -110,13 +112,46 @@ class cam_Parameters:
     output_bit_depth: Optional[str] = None
     image_data_bit_depth: Optional[str] = None
     
+    cam: InitVar[xiapi.Camera] = None
     
-    class_description: str = 'CAMERA parameters'
+    class_description: str = None
     
-    def __init__(self, cam):
+    # def __init__(self, cam: Optional[xiapi.Camera] = None):
+    #     if cam == None:
+    #         print('cam_par is None in __init__()')
+    #         pass
+    #     else:
+    #         print('cam is not None in __init__()')
+    #         print('lalalala')
+    #         self.arm = cam.arm
+    #         self.exposure_time_µs = cam.get_exposure()
+    #         self.gain = round(cam.get_framerate(), 2)
+    #         self.gain = round(cam.get_gain(), 2)
+    #         if cam.get_device_name().decode(encoding) == 'CB013CG-LX-X8G3':
+    #             self.is_auto_wb = cam.is_auto_wb() 
+    #             self.wb_red = round(cam.get_wb_kr(), 2)
+    #             self.wb_green = round(cam.get_wb_kg(), 2)
+    #             self.wb_blue= round(cam.get_wb_kb(), 2)
+    #         self.gammaY = round(cam.get_gammaY(), 2)
+    #         self.gammaC = round(cam.get_gammaC(), 2)
+    #         self.width  = cam.get_width()
+    #         self.height = cam.get_height()
+    #         self.offsetX  = cam.get_offsetX()
+    #         self.offsetY = cam.get_offsetY()
+    #         self.binningX = cam.get_binning_horizontal()
+    #         self.binningY = cam.get_binning_vertical()
+    #         self.sensor_bit_depth = cam.get_sensor_bit_depth()
+    #         self.output_bit_depth = cam.get_output_bit_depth()
+    #         self.image_data_bit_depth = cam.get_image_data_bit_depth()
+            
+    #         self.class_description = cam.arm + ' camera parameters' 
+    
+    def __post_init__(self, cam: Optional[xiapi.Camera] = None):
         if cam == None:
-            print('cam is None in init of the class: cam_Parameters')
+            print('cam_par is None in __post_init__()')
+            pass
         else:
+            print('cam is not None in __post_init__()')
             self.arm = cam.arm
             self.exposure_time_µs = cam.get_exposure()
             self.gain = round(cam.get_framerate(), 2)
@@ -138,6 +173,8 @@ class cam_Parameters:
             self.output_bit_depth = cam.get_output_bit_depth()
             self.image_data_bit_depth = cam.get_image_data_bit_depth()
             
+            self.class_description = cam.arm + ' camera parameters'   
+            
             
             
             
@@ -151,9 +188,9 @@ class cam_Parameters:
     #         self.exposure_time_µs = cam.get_exposure()   
         
 
-def setup_cam(cam: object, cameras_nbr: int = 2, expos_time: float = 1, frame_rate: int = 3700, gain: float = 0, black_level: int = 4, 
+def setup_cam(cam: xiapi.Camera, cameras_nbr: int = 2, expos_time: float = 1, frame_rate: int = 3700, gain: float = 0, black_level: int = 4, 
               auto_wb: bool = True, gammaY: float = 0.3, width: int = 1280, height: int = 864, offsetX: int = 0, offsetY: int = 0, 
-              binningX: int = 1, binningY: int = 1):
+              binningX: int = 1, binningY: int = 1, snapshot: bool = False):
     """
     setup the Ximea camera
 
@@ -187,6 +224,8 @@ def setup_cam(cam: object, cameras_nbr: int = 2, expos_time: float = 1, frame_ra
         the binning in the width direction. The default is 1.
     binningY : int, optional
         the binning in the height direction. The default is 1.
+    snapshot: bool
+        if false => acquire video, if True => acquire an image. default is False.
 
     Returns
     -------
@@ -196,7 +235,6 @@ def setup_cam(cam: object, cameras_nbr: int = 2, expos_time: float = 1, frame_ra
     ########################### setting binning ###############################
     possible_bin_values = [1, 2, 4, 8, 16]
     if binningX in possible_bin_values:
-        print('ok')
         cam.set_binning_horizontal(binningX) 
         print('binning X set to : ' + str(cam.get_binning_horizontal()))
     else:
@@ -384,6 +422,8 @@ def setup_cam(cam: object, cameras_nbr: int = 2, expos_time: float = 1, frame_ra
     cam.set_trigger_source(trigger_source)
     trigger_selector = 'XI_TRG_SEL_FRAME_START'
     cam.set_trigger_selector(trigger_selector)
+    ################♠ acquisition mode ########################################
+    cam.snapshot = snapshot
     
     return cam_Parameters(cam = cam)
         

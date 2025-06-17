@@ -48,6 +48,7 @@ class Spectrograph_Parameters:
     grating: Optional[grating] = None
     slit_width: Optional[int] = None
     slit_height: Optional[int] = 4000
+    resol_th: Optional[float] = None
     # speed: Optional[int] = None
     # size: Optional[int] = None
         
@@ -71,12 +72,60 @@ class Spectrograph_Parameters:
         if spectrograph is None:
             pass
         else:
-            self.unit     = Spectrograph.query_unit(spectrograph)
-            self.position = Spectrograph.query_position(spectrograph)
-            self.grating  = Spectrograph.query_grating(spectrograph, grating)
+            self.unit       = Spectrograph.query_unit(spectrograph)
+            self.position   = Spectrograph.query_position(spectrograph)
+            self.grating    = Spectrograph.query_grating(spectrograph, grating)
             self.slit_width = Spectrograph.slit_width
+            self.resol_th   = self.slit_width * 10 / self.grating.grooves
             # self.speed    = Spectrograph.query_speed(spectrograph, print_speed = False)
             # self.size     = Spectrograph.query_size(spectrograph, print_size = False)
+    
+    # def undo_readable_class_spectro(self):
+    #     """Changes the time_array attribute from `str` to `List` of `int`."""
+        
+    #     print('icicicici')
+        
+    #     for item in self.keys():
+    #         print(item)
+    #         if item.find("grating"):
+    #             print('grating found')
+    #             sub_item = item[8:]
+    #             self.item.sub_item = 'd'
+    #         else:
+    #             # sp = Spectrograph_Parameters.from_dict(item)
+    #             # print(sp)
+    #             pass
+        
+    #     # def to_float(str_arr):
+    #     #     arr = []
+    #     #     for s in str_arr:
+    #     #         try:
+    #     #             num = float(s)
+    #     #             arr.append(num)
+    #     #         except ValueError:
+    #     #             pass
+    #     #     return arr        
+    
+    
+    @staticmethod
+    def readable_class_spectro(spectro_params_dict: dict) -> dict:
+        # pass
+        """Turns class "grating into a readable dictionary
+        """
+        
+        readable_spectro_dict = {}
+        readable_spectro_dict_temp = spectro_params_dict
+        for item in readable_spectro_dict_temp:
+            stri = str(type(readable_spectro_dict_temp[item]))
+            # print('----- item : ' + item)
+            if item == 'grating':                  
+                for sub_item in readable_spectro_dict_temp[item]().__dict__:
+                    # print('---------- subitem = ' + sub_item)
+                    readable_spectro_dict[item + '.' + sub_item] = getattr(readable_spectro_dict_temp[item], sub_item)#.value
+            else:
+                readable_spectro_dict[item] = readable_spectro_dict_temp[item]
+                            
+        return readable_spectro_dict
             
 
 def setup_spectrograph(spectrograph: object,

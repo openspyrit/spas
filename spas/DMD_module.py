@@ -202,7 +202,7 @@ class DMDParameters:
                 Connected DMD. Defaults to None.
         """
         if DMD == None:
-            print('Warning, DMD is None')
+            print('DMD is None')
             pass
 
         else:

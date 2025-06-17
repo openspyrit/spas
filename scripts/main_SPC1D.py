@@ -17,7 +17,7 @@ import os
 os.chdir('C:\\openspyrit\\spas\\scripts')
 # from matplotlib import pyplot as plt
 import spyrit.misc.walsh_hadamard as wh
-from spas.reconstruction import reconstruction_hadamard_1D
+# from spas.reconstruction import reconstruction_hadamard_1D
 import time
 #%% old packages
 # from spas.visualization import snapshotVisu, plot_reco_without_NN, plot_reco_with_NN, extract_ROI_coord
@@ -36,15 +36,16 @@ spectrograph_params = setup_spectrograph(spectrograph,
 #%% setup Spatial Camera
 cam_spat_params = setup_cam(cam = cam_spat, 
                             cameras_nbr = 2,        # number of camera 
-                            expos_time  = 0.025,     # [0.001 - 1000] ms
+                            expos_time  = 0.02,     # [0.001 - 1000] ms
                             frame_rate  = 4000,     # maximum is applied, depending of the exposure time 
                             gain        = 0,       # [0 - 18.07] dB
                             auto_wb     = True,     # auto white balance: [True or False]
-                            gammaY      = 0.31,        # [0.3 - 1]                                
-                            width       = 768,     # [32 - 1280]
+                            gammaY      = 0.31,     # [0.3 - 1]                                
+                            width       = 768,      # [32 - 1280]
                             height      = 576,      # [4 - 864]
                             offsetX     = 286,
-                            offsetY     = 235)
+                            offsetY     = 235,
+                            snapshot    = True)    # if false => acquire video, if True => acquire an image 
 #%% get a snapshot of the spatial camera
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'black') # white, black or gray
 data = snapshot_cam(cam = cam_spat, data_format = 8) # data_format accepted: 8 or 16 bits
@@ -56,16 +57,17 @@ DMD.Halt()
 #%% setup Spectral Camera
 cam_spec_params = setup_cam(cam = cam_spec, 
                             cameras_nbr = 2,
-                            expos_time  = 1,       # [0.001 - 1000] ms
+                            expos_time  = 1,         # [0.001 - 1000] ms
                             frame_rate  = 4000,      # maximum is applied, depending of the exposure time 
-                            gain        = 14,        # [0 - 18.07] dB
-                            gammaY      = 0.31,       # [0.3 - 1]                                
+                            gain        = 10,        # [0 - 18.07] dB
+                            gammaY      = 0.31,      # [0.3 - 1]                                
                             width       = 1280,      # [32 - 1280]
                             height      = 864,       # [4 - 864]
                             offsetX     = 0,
                             offsetY     = 0,
                             binningX    = 1,         # [1, 2, 4, 8 & 16]
-                            binningY    = 1)         # [1, 2, 4, 8 & 16]
+                            binningY    = 1,         # [1, 2, 4, 8 & 16]
+                            snapshot    = False)     # if false => acquire video, if True => acquire an image    
 #%% get a snapshot of the spectral camera
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'white') # white, black or gray
 data = snapshot_cam(cam = cam_spec, data_format = 16, binX = 4, binY = 4, disp_bin_effect = True) # data_format accepted: 8 or 16 bits
@@ -81,7 +83,7 @@ Np                       = 128      # Number of pixels in one dimension of the i
 ti                       = cam_spec_params.exposure_time_μs / 1000        # Integration time of the spectrometer  
 NAverages                = 1 # Number of avegare (the acquisition is accumulated before moving the grating)
 NRepetitions             = 1 # Number of repetitions (grating change after that, the acquisition is repetided)
-Lc                       = [(550, 2)]#, (600, 2)]#, (400, 1)] # a vector containig the central wavelength following by the grating number
+Lc                       = [(550, 2)]#, (600, 2), (400, 1)] # a vector containig the central wavelength following by the grating number
 zoom                     = 1        # Numerical zoom applied in the DMD
 xw_offset                = 128#+192# - 130     # Default = 128
 yh_offset                = 0#+192# - 50        # Default = 0
@@ -89,8 +91,8 @@ pattern_compression      = 1
 pattern_dim              = '1D'
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
 source                   = 'white_LED'#White_Zeiss_lamp'#No-light'#'Bioblock'#'Thorlabs_White_halogen_lamp'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#'HgAr multilines Source (HG-1 Oceanoptics)'
-object_name              = 'USAF11'   #'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
-data_folder_name         = '2025-06-13_test'#'Patient-69_exvivo_LGG_BU'
+object_name              = 'USAF3'   #'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
+data_folder_name         = '2025-06-16_test'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
 
 all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
@@ -113,9 +115,12 @@ if all_path.aborted == False:
                                                pattern_order_source = pattern_order_source, pattern_source = pattern_source, pattern_prefix = pattern_prefix, 
                                                experiment_name = experiment_name, light_source = light_source, object = object, filter = filter, 
                                                NAverages = NAverages, NRepetitions = NRepetitions, Lc = Lc, description = description)
-                            
+    
+    import numpy as np
+    acquisition_params.wavelengths = np.arange(1280)
+                        
     try: 
-        change_patterns(DMD = DMD, acquisition_params = acquisition_params, zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, force_change = True) 
+        change_patterns(DMD = DMD, acquisition_params = acquisition_params, zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, force_change = False) 
     except: 
         pass
                   
@@ -141,6 +146,10 @@ acquire(DMD                 = DMD,
         acquisition_params  = acquisition_params,
         all_path            = all_path,
         verbose             = True)
+#%% read metadata
+from spas.acquisition_SPC1D import read_metadata
+metadata_path = '../../data/' + data_folder_name + '/' + data_name + '/metadata.json'
+saved_dmd_params, saved_spectro_params, saved_cam_spat_params, saved_cam_spec_params, saved_acquisition_params = read_metadata(metadata_path)
 #%% spectral data Reconstruction
 from matplotlib import pyplot as plt
 import numpy as np
@@ -199,25 +208,47 @@ plt.colorbar()
 plt.title('axis 1')
 #%% spatial data Reconstruction
 from matplotlib import pyplot as plt
-Np = 128
-spatial_data = np.empty((864, 1280, Np*2), dtype = np.uint16)
+import pickle
 plot_fig = True
-for i in range(256):#da.shape[3]):
-    # data_path = '../../data/2025-06-10_test/obj_cat2_source_white_LED_Walsh_im_128x128_ti_1.1ms_zoom_x1/raw_data/spectral_NR_1_Gr_2_L_550nm_NA_1_NS_' + str(i) + '.pkl'
-    data_path = 'C:/openspyrit/data/' + data_folder_name + '/' + data_name + '/raw_data/spatial_NR_0_Gr_2_Lc_550nm_NA_0_NS_' + str(i) + '.pkl'
-    with open(data_path, "rb") as fp:
-        da = pickle.load(fp)
+i = 0
+data_path_folder = '../../data/' + data_folder_name + '/' + data_name + '/raw_data/'
+data_file_list = os.listdir(data_path_folder)
+for file in data_file_list:
+    if file.startswith('spatial'):
+        data_path = data_path_folder + file
+        with open(data_path, "rb") as fp:
+            da = pickle.load(fp)
         
-    # spatial_data[:, :, i] = da
+        if plot_fig == True:    
+            if i <= 5:
+                img16 = da
+                img8 = (img16/256).astype('uint8')
+                plt.figure()
+                plt.imshow(img8)
+                plt.title(i)
+                plt.colorbar()
+        
+        i = i + 1
+        
+# Np = 128
+# spatial_data = np.empty((864, 1280, Np*2), dtype = np.uint16)
+# plot_fig = True
+# for i in range(256):#da.shape[3]):
+#     # data_path = '../../data/2025-06-10_test/obj_cat2_source_white_LED_Walsh_im_128x128_ti_1.1ms_zoom_x1/raw_data/spectral_NR_1_Gr_2_L_550nm_NA_1_NS_' + str(i) + '.pkl'
+#     data_path = 'C:/openspyrit/data/' + data_folder_name + '/' + data_name + '/raw_data/spatial_NR_0_Gr_2_Lc_550nm_NA_0_NS_' + str(i) + '.pkl'
+#     with open(data_path, "rb") as fp:
+#         da = pickle.load(fp)
+        
+#     # spatial_data[:, :, i] = da
 
-    if plot_fig == True:    
-        if i <= 5 or (i >= 120 and i < 128) or i > 250:
-            img16 = da
-            img8 = (img16/256).astype('uint8')
-            plt.figure()
-            plt.imshow(img8)
-            plt.title(i)
-            plt.colorbar()
+#     if plot_fig == True:    
+#         if i <= 5 or (i >= 120 and i < 128) or i > 250:
+#             img16 = da
+#             img8 = (img16/256).astype('uint8')
+#             plt.figure()
+#             plt.imshow(img8)
+#             plt.title(i)
+#             plt.colorbar()
 
 
 #%%bin
@@ -239,9 +270,6 @@ plt.figure()
 plt.imshow(M2_bin)
 plt.colorbar()
 plt.title('binning axis 1')
-#%% Hadamard Reconstruction            
-Q = wh.walsh_matrix(Np)
-GT = reconstruction_hadamard_1D(acquisition_params, scan_mode, Q, data_bin, Np)
 #%% Disconnect
 disconnect_DMD(DMD)
 disconnect_spectrograph(spectrograph, goto_zero = False)

@@ -7,18 +7,20 @@ __author__ = 'Guilherme Beneti Martins'
     
 """
 
-import warnings
-from time import sleep, perf_counter_ns
-from typing import NamedTuple, Tuple, List, Optional, Union
-from collections import namedtuple
+# import warnings
+# from time import sleep, perf_counter_ns
+# from typing import NamedTuple 
+from typing import Tuple, List, Optional, Union
+# from collections import namedtuple
 from pathlib import Path
-from multiprocessing import Process, Queue
-import shutil    
+# from multiprocessing import Process, Queue
+# import shutil    
 import math
 import os
+import json 
 
 import numpy as np
-from PIL import Image
+# from PIL import Image
 ##### DLL for the DMD
 try:
     from ALP4 import ALP4, ALP_FIRSTFRAME, ALP_LASTFRAME
@@ -35,23 +37,24 @@ from ximea import xiapi
 # except:
 #     pass
     
-from tqdm import tqdm
+# from tqdm import tqdm
 # from spas.metadata_SPC2D import DMDParameters, MetaData, AcquisitionParameters
 # from spas.metadata_SPC2D import SpectrometerParameters, save_metadata, CAM, save_metadata_2arms
 from spas.reconstruction_nn import reconstruct_process, plot_recon, ReconstructionParameters
+# from spas.metadata_SPC1D import save_metadata
 #To be remove later
-from spas.metadata_SPC2D import MetaData
+# from spas.metadata_SPC2D import MetaData
 
-# DLL for the IDS CAMERA
-try:
-    from pyueye import ueye, ueye_tools
-except:
-    print('ueye DLL not installed')
+# # DLL for the IDS CAMERA
+# try:
+#     from pyueye import ueye, ueye_tools
+# except:
+#     print('ueye DLL not installed')
 
-from matplotlib import pyplot as plt
-from IPython import get_ipython
-import ctypes as ct
-import logging
+# from matplotlib import pyplot as plt
+# from IPython import get_ipython
+# import ctypes as ct
+# import logging
 import time
 import threading
 from dataclasses import dataclass, field
@@ -297,7 +300,19 @@ class AcquisitionParameters:
             s += ']'
 
             return s
+        
+        def _hard_coded_conversion_for_list(data):
+            s = '['
+            for index in range(len(data)):
+                s += '('
+                for value in data[:][index]:
+                    s += f'{value:.4f}, '
+                s = s[:-2]
+                s += ')'
+            s += ']'
 
+            return s
+        
         readable_dict = acquisition_params_dict
         readable_dict['patterns'] = str(readable_dict['patterns'])
         readable_dict['patterns_wp'] = str(readable_dict['patterns_wp'])
@@ -305,22 +320,22 @@ class AcquisitionParameters:
         readable_dict['wavelengths'] = _hard_coded_conversion(
             readable_dict['wavelengths'])
     
-        readable_dict['timestamps'] = _hard_coded_conversion(
-            readable_dict['timestamps'])
+        # readable_dict['timestamps'] = _hard_coded_conversion(
+        #     readable_dict['timestamps'])
 
-        readable_dict['measurement_time'] = _hard_coded_conversion(
-            readable_dict['measurement_time'])
+        # readable_dict['measurement_time'] = _hard_coded_conversion(
+        #     readable_dict['measurement_time'])
         
-        readable_dict['mask_index'] = _hard_coded_conversion(
-            readable_dict['mask_index'])
+        # readable_dict['mask_index'] = _hard_coded_conversion(
+        #     readable_dict['mask_index'])
         
-        readable_dict['x_mask_coord'] = _hard_coded_conversion(
-            readable_dict['x_mask_coord'])
+        # readable_dict['x_mask_coord'] = _hard_coded_conversion(
+        #     readable_dict['x_mask_coord'])
         
-        readable_dict['y_mask_coord'] = _hard_coded_conversion(
-            readable_dict['y_mask_coord'])
+        # readable_dict['y_mask_coord'] = _hard_coded_conversion(
+        #     readable_dict['y_mask_coord'])
         
-        readable_dict['Lc'] = _hard_coded_conversion(
+        readable_dict['Lc'] = _hard_coded_conversion_for_list(
             readable_dict['Lc'])
 
         return readable_dict
@@ -392,339 +407,255 @@ def _calculate_elapsed_time(start_measurement_time: int,
     return measurement_time, timestamps
 
 
-# def setup_acqui(DMD: ALP4,
-#           #camPar: CAM,
-#           DMD_initial_memory: int, 
-#           #metadata: MetaData,
-#           acquisition_params: AcquisitionParameters,
-#           start_pixel: int = 0,
-#           stop_pixel: Optional[int] = None,
-#           integration_time: float = 1, 
-#           integration_delay: int = 0,
-#           DMD_output_synch_pulse_delay: int = 0, 
-#           add_illumination_time: int = 356,
-#           dark_phase_time: int = 44,
-#           DMD_trigger_in_delay: int = 0          
-#           ):# -> Tuple[SpectrometerParameters, DMDParameters]:
-#     """Setup everything needed to start an acquisition.
 
-#     Sets all parameters for DMD, spectrometer, DMD patterns and DMD timings.
-#     Must be called before every acquisition.
+
+# def _acquire_raw_2arms(
+#             DMD: ALP4,
+#             # camPar: CAM,
+#             # spectrometer_params: SpectrometerParameters, 
+#             DMD_params,#: DMD_mod.DMDParameters, 
+#             acquisition_params: AcquisitionParameters,
+#             metadata,
+#             repetition,
+#             repetitions
+#             ) -> NamedTuple:
+#     """Raw data acquisition.
+
+#     Setups a callback function to receive messages from spectrometer whenever a
+#     measurement is ready to be read. Reads a measurement via a callback.
 
 #     Args:
-#         spectrometer (Avantes):
+#         ava (Avantes): 
 #             Connected spectrometer (Avantes object).
-#         DMD (ALP4):
+#         DMD (ALP4): 
 #             Connected DMD.
 #         camPar (CAM):
 #             Metadata object of the IDS monochrome camera 
-#         DMD_initial_memory (int):
-#             Initial memory available in DMD after initialization.
-#         metadata (MetaData):
-#             Metadata concerning the experiment, paths, file inputs and file 
-#             outputs. Must be created and filled up by the user.
-#         acquisition_params (AcquisitionParameters):
-#             Acquisition related metadata object. User must partially fill up
-#             with pattern_compression, pattern_dimension_x, pattern_dimension_y,
-#             zoom, x and y offest of patterns displayed on the DMD.
-#         start_pixel (int):
-#             Initial pixel data received from spectrometer. Default is 0.
-#         stop_pixel (int, optional):
-#             Last pixel data received from spectrometer. Default is None if it
-#             should be determined from the amount of available pixels in the
-#             spectrometer.
-#         integration_time (float):
-#             Spectrometer exposure time during one scan in miliseconds. Default
-#             is 1 ms.
-#         integration_delay (int):
-#             Parameter used to start the integration time not immediately after 
-#             the measurement request (or on an external hardware trigger), but 
-#             after a specified delay. Unit is based on internal FPGA clock cycle.
-#             Default is 0 us.
-#         DMD_output_synch_pulse_delay (int):
-#             Time in microseconds between start of the frame synch output pulse 
-#             and the start of the pattern display (in master mode). Default is
-#             0 us.
-#         add_illumination_time (int):
-#             Extra time in microseconds to account for the spectrometer's 
-#             "dead time". Default is 365 us.
-#         dark_phase_time (int):
-#             Time in microseconds taken by the DMD mirrors to completely tilt. 
-#             Minimum time for XGA type DMD is 44 us. Default is 44 us.
-#         DMD_trigger_in_delay (int):
-#             Time in microseconds between the incoming trigger edge and the start
-#             of the pattern display on DMD (slave mode). Default is 0 us.
-    
-#     Raises:
-#         ValueError: Sum of dark phase and additional illumination time is lower
-#         than 400 us.
+#         spectrometer_params (SpectrometerParameters): 
+#             Spectrometer metadata object with spectrometer configurations.
+#         DMD_params (DMDParameters):
+#             DMD metadata object with DMD configurations.
+#         acquisition_params (AcquisitionParameters): 
+#             Acquisition related metadata object.
 
 #     Returns:
-#         Tuple[SpectrometerParameters, DMDParameters, List]: Tuple containing DMD
-#         and spectrometer relate metadata, as well as wavelengths.
-#             spectrometer_params (SpectrometerParameters):
-#                 Spectrometer metadata object with spectrometer configurations.
-#             DMD_params (DMDParameters):
-#                 DMD metadata object with DMD configurations.
+#         NamedTuple: NamedTuple containig spectral data and measurement timings.
+#             spectral_data (ndarray):
+#                 2D array of `float` of size (pattern_amount x pixel_amount)
+#                 containing measurements received from the spectrometer for each
+#                 pattern of a sequence.
+#             spectrum_index (int):
+#                 Index of the last acquired spectrum. 
+#             timestamps (np.ndarray): 
+#                 1D array with `float` type elapsed time between each measurement
+#                 made by the spectrometer based on its internal clock. 
+#                 Units in milliseconds.
+#             measurement_time (np.ndarray): 
+#                 1D array with `float` type elapsed times between each callback.
+#                 Units in milliseconds.
+#             start_measurement_time (float):
+#                 Time when acquisition started.
+#             saturation_detected (bool):
+#                 Boolean incating if saturation was detected during acquisition.
 #     """
+#     # def for spectrometer acquisition
+#     def register_callback(measurement_time, timestamps, 
+#                           spectral_data, ava):
+        
+#         def measurement_callback(handle, info): # If we want to reconstruct during callback; can use it in here. Add function as parameter. 
+#             nonlocal spectrum_index
+#             nonlocal saturation_detected
 
-#     path = Path(metadata.output_directory)
-#     if not path.exists():
-#         path.mkdir()
+#             measurement_time[spectrum_index] = perf_counter_ns()
+            
+#             if info.contents.value >= 0:                  
+#                 timestamp,spectrum = ava.get_data()
+#                 # spectral_data[spectrum_index,:] = (
+#                 #     np.ctypeslib.as_array(spectrum[0:pixel_amount]))
+                 
+#                 if np.any(ava.get_saturated_pixels() > 0):
+#                     saturation_detected = True
+
+#                 timestamps[spectrum_index] = np.ctypeslib.as_array(timestamp)
+                
+#             else: # Set values to zero if an error occured
+#                 spectral_data[spectrum_index,:] = 0
+#                 timestamps[spectrum_index] = 0
+            
+#             spectrum_index += 1
+        
+#         return measurement_callback
     
-#     if dark_phase_time + add_illumination_time < 350:
-#         raise ValueError(f'Sum of dark phase and additional illumination time '
-#                          f'is {dark_phase_time + add_illumination_time}.'
-#                          f' Must be greater than 350 µs.')
-
-#     elif dark_phase_time + add_illumination_time < 400:
-#         warnings.warn(f'Sum of dark phase and additional illumination time '
-#                       f'is {dark_phase_time + add_illumination_time}.'
-#                       f' It is recomended to choose at least 400 µs.')
+#     # def for camera acquisition 
+#     if repetition == 0:
+#         # camPar = stopCapt_DeallocMem(camPar)
+#         # camPar.trigger_mode = 'hard'#'soft'#
+#         # imageQueue(camPar)
+#         # camPar = prepareCam(camPar, metadata)
+#         # camPar.timeout = 1000   # time out in ms for the "is_WaitForNextImage" function
+#         start_chrono = time.time()
+#         # x = threading.Thread(target = runCam_thread, args=(camPar, start_chrono))
+#         # x.start()
     
-#     synch_pulse_width, illumination_time, picture_time = _calculate_timings(
-#         integration_time, 
-#         integration_delay, 
-#         add_illumination_time, 
-#         DMD_output_synch_pulse_delay, 
-#         dark_phase_time)
+#     # pixel_amount = (spectrometer_params.stop_pixel - 
+#     #                 spectrometer_params.start_pixel + 1)
 
-#     spectrometer_params, wavelenghts = _setup_spectrometer(
-#         spectrometer, 
-#         integration_time, 
-#         integration_delay,
-#         start_pixel,
-#         stop_pixel)
+#     measurement_time = np.zeros((acquisition_params.pattern_amount))
+#     timestamps = np.zeros((acquisition_params.pattern_amount),dtype=np.uint32)
+#     # spectral_data = np.zeros(
+#     #     (acquisition_params.pattern_amount,pixel_amount),dtype=np.float64)
+
+#     # Boolean to indicate if saturation was detected during acquisition
+#     saturation_detected = False 
+
+#     spectrum_index = 0 # Accessed as nonlocal variable inside the callback
+
+#     # #spectro.register_callback(-2,acquisition_params.pattern_amount,pixel_amount)
+#     # callback = register_callback(measurement_time, timestamps, 
+#     #                              spectral_data, ava)
+#     # measurement_callback = MeasureCallback(callback)
+#     # ava.measure_callback(-2, measurement_callback)
     
-#     if camPar.gate_period > 16:
-#         gate_period = 16
-#         print('Warning, gate period is ' + str(camPar.gate_period) + ' >  than the max: 16.')
-#         print('Try to increase the FPS of the camera, or the integration time of the spectrometer.')
-#         print('Check the Pixel clock which must be = 474 MHz')
-#         print('Otherwise some frames will be lost.')
-#     elif camPar.gate_period <1:
-#         print('Warning, gate period is ' + str(camPar.gate_period) + ' <  than the min: 1.')
-#         gate_period = 1
-#     else:
-#         gate_period = camPar.gate_period
+#     # time.sleep(0.5)
+#     # Run the whole sequence only once    
+#     DMD.Run(loop=False)
+#     start_measurement_time = perf_counter_ns()
+#     #sleep(13)
     
-#     camPar.gate_period = gate_period    
-#     Gate = tAlpDynSynchOutGate()
-#     Gate.byref[0] = ct.c_ubyte(gate_period)     # Period [1 to 16] (it is a multiple of the trig period which go to the spectro)
-#     Gate.byref[1] = ct.c_ubyte(1)   # Polarity => 0: active pulse is low, 1: high
-#     Gate.byref[2] = ct.c_ubyte(1)   # Gate1 ok to send TTL 
-#     Gate.byref[3] = ct.c_ubyte(0)   # Gate2 do not send TTL
-#     Gate.byref[4] = ct.c_ubyte(0)   # Gate3 do not send TTL
-#     DMD.DevControlEx(ALP_DEV_DYN_SYNCH_OUT1_GATE, Gate)
-#     camPar.gate_period = gate_period
-#     camPar.int_time_spect = integration_time
+#     while(True):
+#         if(spectrum_index >= acquisition_params.pattern_amount):
+#             break
+#         elif((perf_counter_ns() - start_measurement_time) / 1e+6 > 
+#             (2 * acquisition_params.pattern_amount * 
+#             DMD_params.picture_time_us / 1e+3)):
+#             print('Stopping measurement. One of the equipments may be blocked '
+#             'or disconnected.')
+#             break
+#         else:
+#             time.sleep(acquisition_params.pattern_amount *
+#             DMD_params.picture_time_us / 1e+6 / 10)
 
-#     acquisition_params.wavelengths = np.asarray(wavelenghts, dtype=np.float64)
+#     # ava.stop_measure()
+#     DMD.Halt()
+#     # camPar.Exit = 2
+#     if repetition == repetitions-1:
+#         # camPar = stopCam(camPar)
+#         pass
+#     #Yprint('MAIN :// camPar.camActivated = ' + str(camPar.camActivated))
+#     AcquisitionResult = namedtuple('AcquisitionResult', [
+#         'spectral_data', 
+#         'spectrum_index',
+#         'timestamps',
+#         'measurement_time',
+#         'start_measurement_time',
+#         'saturation_detected'])
 
-#     DMD_params = _setup_DMD(DMD, add_illumination_time, DMD_initial_memory)
-    
-#     _setup_patterns_2arms(DMD=DMD, metadata=metadata, DMD_params=DMD_params, 
-#                     acquisition_params=acquisition_params, camPar=camPar)
-
-#     _setup_timings(DMD, DMD_params, picture_time, illumination_time, 
-#                    DMD_output_synch_pulse_delay, synch_pulse_width, 
-#                    DMD_trigger_in_delay, add_illumination_time)
-
-#     return spectrometer_params, DMD_params, camPar
-
-def _save_acquisition_2arms(# metadata: MetaData, 
-                     DMD_params,#: DMD_mod.DMDParameters, 
-                     # spectrometer_params: SpectrometerParameters, 
-                     # camPar: CAM,
-                     acquisition_parameters: AcquisitionParameters, 
-                     spectral_data: np.ndarray) -> None:
-    print('at this moment, do nothing')
-
-# def _save_acquisition_2arms(metadata: MetaData, 
-#                      DMD_params: DMDParameters, 
-#                      spectrometer_params: SpectrometerParameters, 
-#                      camPar: CAM,
-#                      acquisition_parameters: AcquisitionParameters, 
-#                      spectral_data: np.ndarray) -> None:
-#     """Save all acquisition data and metadata.
-
-#     Args:
-#         metadata (MetaData):
-#             Metadata concerning the experiment, paths, file inputs and file
-#             outputs.
-#         DMD_params (DMDParameters): 
-#             DMD metadata object with DMD configurations.
-#         spectrometer_params (SpectrometerParameters):
-#             Spectrometer metadata object with spectrometer configurations.
-#         camPar (CAM):
-#             Metadata object of the IDS monochrome camera 
-#         acquisition_parameters (AcquisitionParameters):
-#             Acquisition related metadata object. 
-#         spectral_data (ndarray):
-#             1D array with `float` type spectrometer measurements. Array size
-#             depends on start and stop pixels previously set to the spectrometer.
-#     """
-
-#     # Saving collected data and timings
-#     path = Path(metadata.output_directory)
-#     path = path / f'{metadata.experiment_name}_spectraldata.npz'
-#     np.savez_compressed(path, spectral_data=spectral_data)
-
-#     # Saving metadata
-#     save_metadata_2arms(metadata, 
-#                   DMD_params,
-#                   spectrometer_params,
-#                   camPar,
-#                   acquisition_parameters)
+#     return AcquisitionResult(#spectral_data, 
+#                              spectrum_index,
+#                              timestamps,
+#                              measurement_time,
+#                              start_measurement_time,
+#                              saturation_detected)
 
 
-def _acquire_raw_2arms(
-            DMD: ALP4,
-            # camPar: CAM,
-            # spectrometer_params: SpectrometerParameters, 
-            DMD_params,#: DMD_mod.DMDParameters, 
-            acquisition_params: AcquisitionParameters,
-            metadata,
-            repetition,
-            repetitions
-            ) -> NamedTuple:
-    """Raw data acquisition.
+ 
 
-    Setups a callback function to receive messages from spectrometer whenever a
-    measurement is ready to be read. Reads a measurement via a callback.
+def read_metadata(file_path: str):
+                                    # -> Tuple[DMDParameters,
+                                    #        Spectrograph_Parameters,
+                                    #        cam_Parameters,
+                                    #        cam_Parameters,
+                                    #        AcquisitionParameters]:
+    """Reads metadata of a previous acquisition from JSON file.
 
     Args:
-        ava (Avantes): 
-            Connected spectrometer (Avantes object).
-        DMD (ALP4): 
-            Connected DMD.
-        camPar (CAM):
-            Metadata object of the IDS monochrome camera 
-        spectrometer_params (SpectrometerParameters): 
-            Spectrometer metadata object with spectrometer configurations.
-        DMD_params (DMDParameters):
-            DMD metadata object with DMD configurations.
-        acquisition_params (AcquisitionParameters): 
-            Acquisition related metadata object.
+        file_path (str):
+            Name of JSON file containing all metadata.
 
     Returns:
-        NamedTuple: NamedTuple containig spectral data and measurement timings.
-            spectral_data (ndarray):
-                2D array of `float` of size (pattern_amount x pixel_amount)
-                containing measurements received from the spectrometer for each
-                pattern of a sequence.
-            spectrum_index (int):
-                Index of the last acquired spectrum. 
-            timestamps (np.ndarray): 
-                1D array with `float` type elapsed time between each measurement
-                made by the spectrometer based on its internal clock. 
-                Units in milliseconds.
-            measurement_time (np.ndarray): 
-                1D array with `float` type elapsed times between each callback.
-                Units in milliseconds.
-            start_measurement_time (float):
-                Time when acquisition started.
-            saturation_detected (bool):
-                Boolean incating if saturation was detected during acquisition.
+        Tuple[MetaData, AcquisitionParameters, SpectrometerParameters, 
+        DMDParameters]:
+            saved_metadata (MetaData):
+                Metadata object read from JSON.
+            saved_acquisition_params(AcquisitionParameters):
+                AcquisitionParameters object read from JSON.
+            saved_spectrometer_params(SpectrometerParameters):
+                SpectrometerParameters object read from JSON.
+            saved_dmd_params(DMDParameters):
+                DMDParameters object read from JSON.
     """
-    # def for spectrometer acquisition
-    def register_callback(measurement_time, timestamps, 
-                          spectral_data, ava):
+    
+    from spas.DMD_module import DMDParameters
+    from spas.spectro_SP_module import Spectrograph_Parameters
+    from spas.cam_Ximea_module import cam_Parameters
+    from spas.acquisition_SPC1D import AcquisitionParameters
+    
+    
+    file = open(file_path,'r')
+    # data_folder_name = '2025-06-16_test'
+    # data_name = 'obj_USAF3_source_white_LED_Walsh_im_128x128_ti_1.0ms_zoom_x1'
+    # file = open('../../data/' + data_folder_name + '/' + data_name + '/metadata.json','r')
+    data = json.load(file)
+    file.close()
         
-        def measurement_callback(handle, info): # If we want to reconstruct during callback; can use it in here. Add function as parameter. 
-            nonlocal spectrum_index
-            nonlocal saturation_detected
-
-            measurement_time[spectrum_index] = perf_counter_ns()
+    for object in data:
+        if object['class_description'] == 'DMD parameters':
+            saved_dmd_params = DMDParameters.from_dict(object)
             
-            if info.contents.value >= 0:                  
-                timestamp,spectrum = ava.get_data()
-                # spectral_data[spectrum_index,:] = (
-                #     np.ctypeslib.as_array(spectrum[0:pixel_amount]))
-                 
-                if np.any(ava.get_saturated_pixels() > 0):
-                    saturation_detected = True
-
-                timestamps[spectrum_index] = np.ctypeslib.as_array(timestamp)
-                
-            else: # Set values to zero if an error occured
-                spectral_data[spectrum_index,:] = 0
-                timestamps[spectrum_index] = 0
-            
-            spectrum_index += 1
+        if object['class_description'] == 'spectrograph SP parameters':
+            saved_spectro_params = Spectrograph_Parameters.from_dict(object)
+            # saved_spectro_params = Spectrograph_Parameters.undo_readable_class_spectro(object)
+            # # saved_spectro_params.undo_readable_class_spectro(object)
+            # break
         
-        return measurement_callback
-    
-    # def for camera acquisition 
-    if repetition == 0:
-        # camPar = stopCapt_DeallocMem(camPar)
-        # camPar.trigger_mode = 'hard'#'soft'#
-        # imageQueue(camPar)
-        # camPar = prepareCam(camPar, metadata)
-        # camPar.timeout = 1000   # time out in ms for the "is_WaitForNextImage" function
-        start_chrono = time.time()
-        # x = threading.Thread(target = runCam_thread, args=(camPar, start_chrono))
-        # x.start()
-    
-    # pixel_amount = (spectrometer_params.stop_pixel - 
-    #                 spectrometer_params.start_pixel + 1)
+        if object['class_description'] == 'spatial camera parameters':
+            saved_cam_spat_params = cam_Parameters.from_dict(object)  
+            
+        if object['class_description'] == 'spectral camera parameters':
+            saved_cam_spec_params = cam_Parameters.from_dict(object)  
+            
+        if object['class_description'] == 'Acquisition parameters':
+            saved_acquisition_params = AcquisitionParameters.from_dict(object)
+            saved_acquisition_params.undo_readable_pattern_order()
+            
 
-    measurement_time = np.zeros((acquisition_params.pattern_amount))
-    timestamps = np.zeros((acquisition_params.pattern_amount),dtype=np.uint32)
-    # spectral_data = np.zeros(
-    #     (acquisition_params.pattern_amount,pixel_amount),dtype=np.float64)
+    return (saved_dmd_params, saved_spectro_params, 
+            saved_cam_spat_params, saved_cam_spec_params, saved_acquisition_params)
 
-    # Boolean to indicate if saturation was detected during acquisition
-    saturation_detected = False 
 
-    spectrum_index = 0 # Accessed as nonlocal variable inside the callback
+def save_metadata(DMD_params,#: DMDParameters, 
+                  spectrograph_params,#: Spectrograph_Parameters, 
+                  cam_spat_params,#: cam_Parameters,
+                  cam_spec_params,
+                  acquisition_params: AcquisitionParameters) -> None:
+    """Saves metadata to JSON file.
 
-    # #spectro.register_callback(-2,acquisition_params.pattern_amount,pixel_amount)
-    # callback = register_callback(measurement_time, timestamps, 
-    #                              spectral_data, ava)
-    # measurement_callback = MeasureCallback(callback)
-    # ava.measure_callback(-2, measurement_callback)
-    
-    # time.sleep(0.5)
-    # Run the whole sequence only once    
-    DMD.Run(loop=False)
-    start_measurement_time = perf_counter_ns()
-    #sleep(13)
-    
-    while(True):
-        if(spectrum_index >= acquisition_params.pattern_amount):
-            break
-        elif((perf_counter_ns() - start_measurement_time) / 1e+6 > 
-            (2 * acquisition_params.pattern_amount * 
-            DMD_params.picture_time_us / 1e+3)):
-            print('Stopping measurement. One of the equipments may be blocked '
-            'or disconnected.')
-            break
-        else:
-            time.sleep(acquisition_params.pattern_amount *
-            DMD_params.picture_time_us / 1e+6 / 10)
+    Args:
+        metadata (MetaData):
+            Metadata concerning the experiment, paths, file inputs and file
+            outputs.
+        DMD_params (DMDParameters):
+            Class containing DMD configurations and status.
+        spectrometer_params (SpectrometerParameters):
+            Object containing spectrometer configurations.
+        acquisition_parameters (AcquisitionParameters):
+            Object containing acquisition specifications and timing results.
+    """
 
-    # ava.stop_measure()
-    DMD.Halt()
-    # camPar.Exit = 2
-    if repetition == repetitions-1:
-        # camPar = stopCam(camPar)
-        pass
-    #Yprint('MAIN :// camPar.camActivated = ' + str(camPar.camActivated))
-    AcquisitionResult = namedtuple('AcquisitionResult', [
-        'spectral_data', 
-        'spectrum_index',
-        'timestamps',
-        'measurement_time',
-        'start_measurement_time',
-        'saturation_detected'])
+    from spas.spectro_SP_module import Spectrograph_Parameters
+    from spas.acquisition_SPC1D import AcquisitionParameters
 
-    return AcquisitionResult(#spectral_data, 
-                             spectrum_index,
-                             timestamps,
-                             measurement_time,
-                             start_measurement_time,
-                             saturation_detected)
+    path = Path(acquisition_params.output_directory)
+    with open(path / 'metadata.json', 'w', encoding='utf8') as output:
+
+        output_params = [DMD_params.to_dict(), 
+                         Spectrograph_Parameters.readable_class_spectro(spectrograph_params.to_dict()),
+                         cam_spat_params.to_dict(),
+                         cam_spec_params.to_dict(),
+                         AcquisitionParameters.readable_pattern_order(acquisition_params.to_dict())]
+
+        json.dump(output_params, output, ensure_ascii=False, indent=4)
+
 
 def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iLc: int = 1, NA: int = 1, first_acqui: bool = True): 
     """Acquire video with the Ximea camera in a thread
@@ -759,29 +690,58 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
         
     start_chrono = time.time()
     i = 0
-    while True: 
-        counter_time = time.time() - start_chrono
-        if i >= acquisition_params.pattern_amount:# total_iter:
-            acquisition_params.receive_last_trig = True
-            print('\n iteration reach (' + arm + ') : ' + str(i) + ' in the thread \n')
-            break
-        elif counter_time > math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4:
-            print('delay > ' + str(math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4) + 's in the thread \n')
-            break        
-        else:
-            ############## get data and pass them from cameras to img #################
-            cam.get_image(img)
-            ################### get image data as numpy array #########################
-            data_np = img.get_image_data_numpy()#(invert_rgb_order = True)  
-            ################### write raw data in files #######################
-            with open(all_path.raw_data_path + '/' + file_name + str(i) + '.pkl', 'wb') as outp:
-                pickle.dump(data_np, outp, pickle.HIGHEST_PROTOCOL)
-
-            # # time_stmp = (img.tsSec) + ((img.tsUSec)/1000000)
-            # print('i: ' + str(i) + '-->  Time Stamp: ' + str(time_stmp - time_stmp_0))           
-            
-            i = i + 1
-            acquisition_params.receive_last_trig = False
+    # acquire snapshot
+    if cam.snapshot:
+        while True: 
+            counter_time = time.time() - start_chrono
+            if arm == "spatial":
+                stop_it = 2
+            elif arm == "spectral":
+                stop_it = 1
+            if i >= stop_it:
+                acquisition_params.receive_last_trig = True
+                print('\n iteration reach (' + arm + ') : ' + str(i) + ' in the thread \n')
+                break
+            elif counter_time > math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4:
+                print('delay > ' + str(math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4) + 's in the thread \n')
+                break        
+            else:
+                ############## get data and pass them from cameras to img #################
+                cam.get_image(img)
+                if i == stop_it - 1:
+                    ################### get image data as numpy array #########################
+                    data_np = img.get_image_data_numpy()#(invert_rgb_order = True)  
+                    ################### write raw data in files #######################
+                    with open(all_path.raw_data_path + '/' + file_name + str(i) + '.pkl', 'wb') as outp:
+                        pickle.dump(data_np, outp, pickle.HIGHEST_PROTOCOL)      
+                
+                i = i + 1
+                acquisition_params.receive_last_trig = False
+    # acquire all the frames
+    else:
+        while True: 
+            counter_time = time.time() - start_chrono
+            if i >= acquisition_params.pattern_amount:
+                acquisition_params.receive_last_trig = True
+                print('\n iteration reach (' + arm + ') : ' + str(i) + ' in the thread \n')
+                break
+            elif counter_time > math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4:
+                print('delay > ' + str(math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4) + 's in the thread \n')
+                break        
+            else:
+                ############## get data and pass them from cameras to img #################
+                cam.get_image(img)
+                ################### get image data as numpy array #########################
+                data_np = img.get_image_data_numpy()#(invert_rgb_order = True)  
+                ################### write raw data in files #######################
+                with open(all_path.raw_data_path + '/' + file_name + str(i) + '.pkl', 'wb') as outp:
+                    pickle.dump(data_np, outp, pickle.HIGHEST_PROTOCOL)
+    
+                # # time_stmp = (img.tsSec) + ((img.tsUSec)/1000000)
+                # print('i: ' + str(i) + '-->  Time Stamp: ' + str(time_stmp - time_stmp_0))           
+                
+                i = i + 1
+                acquisition_params.receive_last_trig = False
 
 def acquire(DMD: ALP4,
             DMD_params,
@@ -828,7 +788,6 @@ def acquire(DMD: ALP4,
 
     total_loop = acquisition_params.NRepetitions * acquisition_params.NAverages * len(acquisition_params.Lc)
     total_iter = acquisition_params.pattern_amount * total_loop
-
 
     bar = Bar('Processing', max = total_loop)
     verbose = False
@@ -898,6 +857,8 @@ def acquire(DMD: ALP4,
     cam_spec.stop_acquisition()
 
     bar.finish()
+    
+    save_metadata(DMD_params, spectrograph_params, cam_spat_params, cam_spec_params, acquisition_params)
 
 
 class func_path:
