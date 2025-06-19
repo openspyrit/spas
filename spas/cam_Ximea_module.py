@@ -111,47 +111,16 @@ class cam_Parameters:
     sensor_bit_depth: Optional[str] = None
     output_bit_depth: Optional[str] = None
     image_data_bit_depth: Optional[str] = None
+    snapshot: Optional[bool] = None
     
     cam: InitVar[xiapi.Camera] = None
     
     class_description: str = None
     
-    # def __init__(self, cam: Optional[xiapi.Camera] = None):
-    #     if cam == None:
-    #         print('cam_par is None in __init__()')
-    #         pass
-    #     else:
-    #         print('cam is not None in __init__()')
-    #         print('lalalala')
-    #         self.arm = cam.arm
-    #         self.exposure_time_µs = cam.get_exposure()
-    #         self.gain = round(cam.get_framerate(), 2)
-    #         self.gain = round(cam.get_gain(), 2)
-    #         if cam.get_device_name().decode(encoding) == 'CB013CG-LX-X8G3':
-    #             self.is_auto_wb = cam.is_auto_wb() 
-    #             self.wb_red = round(cam.get_wb_kr(), 2)
-    #             self.wb_green = round(cam.get_wb_kg(), 2)
-    #             self.wb_blue= round(cam.get_wb_kb(), 2)
-    #         self.gammaY = round(cam.get_gammaY(), 2)
-    #         self.gammaC = round(cam.get_gammaC(), 2)
-    #         self.width  = cam.get_width()
-    #         self.height = cam.get_height()
-    #         self.offsetX  = cam.get_offsetX()
-    #         self.offsetY = cam.get_offsetY()
-    #         self.binningX = cam.get_binning_horizontal()
-    #         self.binningY = cam.get_binning_vertical()
-    #         self.sensor_bit_depth = cam.get_sensor_bit_depth()
-    #         self.output_bit_depth = cam.get_output_bit_depth()
-    #         self.image_data_bit_depth = cam.get_image_data_bit_depth()
-            
-    #         self.class_description = cam.arm + ' camera parameters' 
-    
     def __post_init__(self, cam: Optional[xiapi.Camera] = None):
         if cam == None:
-            print('cam_par is None in __post_init__()')
             pass
         else:
-            print('cam is not None in __post_init__()')
             self.arm = cam.arm
             self.exposure_time_µs = cam.get_exposure()
             self.gain = round(cam.get_framerate(), 2)
@@ -172,6 +141,7 @@ class cam_Parameters:
             self.sensor_bit_depth = cam.get_sensor_bit_depth()
             self.output_bit_depth = cam.get_output_bit_depth()
             self.image_data_bit_depth = cam.get_image_data_bit_depth()
+            self.snapshot = cam.snapshot
             
             self.class_description = cam.arm + ' camera parameters'   
             

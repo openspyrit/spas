@@ -529,7 +529,7 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path):
     print('Beging RGB convertion ...')
     image_arr = plot_spec_to_rgb_image(GT, acquisition_parameters.wavelengths)
     print('RGB convertion finished')
-    plt.figure()
+    # plt.figure()
     plt.imshow(image_arr) #, extent=[0, 10.5, 0, 10.5])
     # plt.xlabel('X (mm)')
     # plt.ylabel('Y (mm)')
@@ -538,7 +538,7 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path):
     ####################### spectral view ###################
     GT50 = GT[round(size_x/4):round(size_x*3/4), round(size_y/4):round(size_y*3/4), :]
     GT25 = GT[round(size_x*3/8):round(size_x*5/8), round(size_y*3/8):round(size_y*5/8), :]
-    plt.figure()
+    # plt.figure()
     plt.plot(acquisition_parameters.wavelengths, np.mean(np.mean(GT25,axis=1),axis=0))
     plt.plot(acquisition_parameters.wavelengths, np.mean(np.mean(GT50,axis=1),axis=0))
     plt.plot(acquisition_parameters.wavelengths, np.mean(np.mean(GT,axis=1),axis=0))

@@ -182,7 +182,7 @@ class AcquisitionParameters:
     
     NRepetitions: Optional[int] = field(default=None) 
     NAverages: Optional[int] = field(default=None) 
-    Lc: Optional[Union[List[int], str]] = field(default=None, repr=False)
+    Lc: Optional[Union[List[List[int]], str]] = field(default=None)
     receive_last_trig:Optional[bool] = field(default=False, repr=False)
     
     class_description: str = 'Acquisition parameters'
@@ -267,13 +267,28 @@ class AcquisitionParameters:
             ' Reading data in legacy mode.')
             
         if self.Lc:
-            self.Lc = (
-                self.Lc.strip('[').strip(']').split(', '))
-            self.Lc = to_float(self.Lc)
-            self.Lc = np.asarray(self.Lc)
+            LLc = [] * 2            
+            a = (
+                self.Lc.strip('[').strip(']').split(')('))
+            for ia in range(len(a)):
+                if ia % 2 == 0:
+                    b = a[ia] + ')'
+                else:
+                    b = '(' + a[ia]   
+                c = b.strip('(').strip(')').split(', ')
+                d = to_float(c)
+                LLc.append(d)
+            
+            # self.Lc = LLc
+            LLLc = [] * 2
+            for sublist in LLc:
+                sublist[:] = map(int, sublist[:])
+                LLLc.append(sublist)
+            self.Lc = LLLc
         else:
             print('Lc not present in metadata.'
             ' Reading data in legacy mode.')
+
         
     @staticmethod
     def readable_pattern_order(acquisition_params_dict: dict) -> dict:
@@ -306,7 +321,7 @@ class AcquisitionParameters:
             for index in range(len(data)):
                 s += '('
                 for value in data[:][index]:
-                    s += f'{value:.4f}, '
+                    s += f'{value:.0f}, '
                 s = s[:-2]
                 s += ')'
             s += ']'
@@ -405,159 +420,6 @@ def _calculate_elapsed_time(start_measurement_time: int,
     timestamps = np.diff(timestamps)/100 # In ms
 
     return measurement_time, timestamps
-
-
-
-
-# def _acquire_raw_2arms(
-#             DMD: ALP4,
-#             # camPar: CAM,
-#             # spectrometer_params: SpectrometerParameters, 
-#             DMD_params,#: DMD_mod.DMDParameters, 
-#             acquisition_params: AcquisitionParameters,
-#             metadata,
-#             repetition,
-#             repetitions
-#             ) -> NamedTuple:
-#     """Raw data acquisition.
-
-#     Setups a callback function to receive messages from spectrometer whenever a
-#     measurement is ready to be read. Reads a measurement via a callback.
-
-#     Args:
-#         ava (Avantes): 
-#             Connected spectrometer (Avantes object).
-#         DMD (ALP4): 
-#             Connected DMD.
-#         camPar (CAM):
-#             Metadata object of the IDS monochrome camera 
-#         spectrometer_params (SpectrometerParameters): 
-#             Spectrometer metadata object with spectrometer configurations.
-#         DMD_params (DMDParameters):
-#             DMD metadata object with DMD configurations.
-#         acquisition_params (AcquisitionParameters): 
-#             Acquisition related metadata object.
-
-#     Returns:
-#         NamedTuple: NamedTuple containig spectral data and measurement timings.
-#             spectral_data (ndarray):
-#                 2D array of `float` of size (pattern_amount x pixel_amount)
-#                 containing measurements received from the spectrometer for each
-#                 pattern of a sequence.
-#             spectrum_index (int):
-#                 Index of the last acquired spectrum. 
-#             timestamps (np.ndarray): 
-#                 1D array with `float` type elapsed time between each measurement
-#                 made by the spectrometer based on its internal clock. 
-#                 Units in milliseconds.
-#             measurement_time (np.ndarray): 
-#                 1D array with `float` type elapsed times between each callback.
-#                 Units in milliseconds.
-#             start_measurement_time (float):
-#                 Time when acquisition started.
-#             saturation_detected (bool):
-#                 Boolean incating if saturation was detected during acquisition.
-#     """
-#     # def for spectrometer acquisition
-#     def register_callback(measurement_time, timestamps, 
-#                           spectral_data, ava):
-        
-#         def measurement_callback(handle, info): # If we want to reconstruct during callback; can use it in here. Add function as parameter. 
-#             nonlocal spectrum_index
-#             nonlocal saturation_detected
-
-#             measurement_time[spectrum_index] = perf_counter_ns()
-            
-#             if info.contents.value >= 0:                  
-#                 timestamp,spectrum = ava.get_data()
-#                 # spectral_data[spectrum_index,:] = (
-#                 #     np.ctypeslib.as_array(spectrum[0:pixel_amount]))
-                 
-#                 if np.any(ava.get_saturated_pixels() > 0):
-#                     saturation_detected = True
-
-#                 timestamps[spectrum_index] = np.ctypeslib.as_array(timestamp)
-                
-#             else: # Set values to zero if an error occured
-#                 spectral_data[spectrum_index,:] = 0
-#                 timestamps[spectrum_index] = 0
-            
-#             spectrum_index += 1
-        
-#         return measurement_callback
-    
-#     # def for camera acquisition 
-#     if repetition == 0:
-#         # camPar = stopCapt_DeallocMem(camPar)
-#         # camPar.trigger_mode = 'hard'#'soft'#
-#         # imageQueue(camPar)
-#         # camPar = prepareCam(camPar, metadata)
-#         # camPar.timeout = 1000   # time out in ms for the "is_WaitForNextImage" function
-#         start_chrono = time.time()
-#         # x = threading.Thread(target = runCam_thread, args=(camPar, start_chrono))
-#         # x.start()
-    
-#     # pixel_amount = (spectrometer_params.stop_pixel - 
-#     #                 spectrometer_params.start_pixel + 1)
-
-#     measurement_time = np.zeros((acquisition_params.pattern_amount))
-#     timestamps = np.zeros((acquisition_params.pattern_amount),dtype=np.uint32)
-#     # spectral_data = np.zeros(
-#     #     (acquisition_params.pattern_amount,pixel_amount),dtype=np.float64)
-
-#     # Boolean to indicate if saturation was detected during acquisition
-#     saturation_detected = False 
-
-#     spectrum_index = 0 # Accessed as nonlocal variable inside the callback
-
-#     # #spectro.register_callback(-2,acquisition_params.pattern_amount,pixel_amount)
-#     # callback = register_callback(measurement_time, timestamps, 
-#     #                              spectral_data, ava)
-#     # measurement_callback = MeasureCallback(callback)
-#     # ava.measure_callback(-2, measurement_callback)
-    
-#     # time.sleep(0.5)
-#     # Run the whole sequence only once    
-#     DMD.Run(loop=False)
-#     start_measurement_time = perf_counter_ns()
-#     #sleep(13)
-    
-#     while(True):
-#         if(spectrum_index >= acquisition_params.pattern_amount):
-#             break
-#         elif((perf_counter_ns() - start_measurement_time) / 1e+6 > 
-#             (2 * acquisition_params.pattern_amount * 
-#             DMD_params.picture_time_us / 1e+3)):
-#             print('Stopping measurement. One of the equipments may be blocked '
-#             'or disconnected.')
-#             break
-#         else:
-#             time.sleep(acquisition_params.pattern_amount *
-#             DMD_params.picture_time_us / 1e+6 / 10)
-
-#     # ava.stop_measure()
-#     DMD.Halt()
-#     # camPar.Exit = 2
-#     if repetition == repetitions-1:
-#         # camPar = stopCam(camPar)
-#         pass
-#     #Yprint('MAIN :// camPar.camActivated = ' + str(camPar.camActivated))
-#     AcquisitionResult = namedtuple('AcquisitionResult', [
-#         'spectral_data', 
-#         'spectrum_index',
-#         'timestamps',
-#         'measurement_time',
-#         'start_measurement_time',
-#         'saturation_detected'])
-
-#     return AcquisitionResult(#spectral_data, 
-#                              spectrum_index,
-#                              timestamps,
-#                              measurement_time,
-#                              start_measurement_time,
-#                              saturation_detected)
-
-
  
 
 def read_metadata(file_path: str):
@@ -594,7 +456,7 @@ def read_metadata(file_path: str):
     file = open(file_path,'r')
     # data_folder_name = '2025-06-16_test'
     # data_name = 'obj_USAF3_source_white_LED_Walsh_im_128x128_ti_1.0ms_zoom_x1'
-    # file = open('../../data/' + data_folder_name + '/' + data_name + '/metadata.json','r')
+    # file = open(metadata_path,'r')
     data = json.load(file)
     file.close()
         
@@ -657,7 +519,7 @@ def save_metadata(DMD_params,#: DMDParameters,
         json.dump(output_params, output, ensure_ascii=False, indent=4)
 
 
-def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iLc: int = 1, NA: int = 1, first_acqui: bool = True): 
+def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iLc: int = 1, NA: int = 1, first_acqui: bool = True, verbose: bool = False): 
     """Acquire video with the Ximea camera in a thread
 
     Parameters:
@@ -700,7 +562,8 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
                 stop_it = 1
             if i >= stop_it:
                 acquisition_params.receive_last_trig = True
-                print('\n iteration reach (' + arm + ') : ' + str(i) + ' in the thread \n')
+                if verbose:
+                    print('\n iteration reach (' + arm + ') : ' + str(i) + ' in the thread \n')
                 break
             elif counter_time > math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4:
                 print('delay > ' + str(math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4) + 's in the thread \n')
@@ -723,7 +586,8 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
             counter_time = time.time() - start_chrono
             if i >= acquisition_params.pattern_amount:
                 acquisition_params.receive_last_trig = True
-                print('\n iteration reach (' + arm + ') : ' + str(i) + ' in the thread \n')
+                if verbose:
+                    print('\n iteration reach (' + arm + ') : ' + str(i) + ' in the thread \n')
                 break
             elif counter_time > math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4:
                 print('delay > ' + str(math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4) + 's in the thread \n')
@@ -808,10 +672,10 @@ def acquire(DMD: ALP4,
                 
                 bar.next()
                 
-                x = threading.Thread(target = runCam_thread, args=(cam_spat, acquisition_params, DMD_params, all_path, NR, iLc, NA, first_acqui))
+                x = threading.Thread(target = runCam_thread, args=(cam_spat, acquisition_params, DMD_params, all_path, NR, iLc, NA, first_acqui, verbose))
                 x.start()
 
-                x1 = threading.Thread(target = runCam_thread, args=(cam_spec, acquisition_params, DMD_params, all_path, NR, iLc, NA, first_acqui))
+                x1 = threading.Thread(target = runCam_thread, args=(cam_spec, acquisition_params, DMD_params, all_path, NR, iLc, NA, first_acqui, verbose))
                 x1.start()
 
                 if first_acqui:
@@ -830,7 +694,8 @@ def acquire(DMD: ALP4,
                     counter_time = time.time() - start_chrono
                     
                     if acquisition_params.receive_last_trig:
-                        print('iteration reachs ' + str(acquisition_params.pattern_amount) + ' in the main loop \n')
+                        if verbose:
+                            print('iteration reachs ' + str(acquisition_params.pattern_amount) + ' in the main loop \n')
                         break
                     elif counter_time > math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 5:
                         print('delay > ' + str(math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6 + 5)) + 's in the main loop \n')
@@ -916,9 +781,9 @@ class func_path:
         self.data_name = data_name
         self.data_path = self.subfolder_path + '/'# + data_name
         self.had_reco_path = self.data_path + 'had_reco.npz'         
-        self.fig_had_reco_path = self.overview_path + '/'# + data_name   
+        self.fig_had_reco_path = self.overview_path + '/spectral'   
         self.nn_reco_path = self.data_path + 'nn_reco.npz'
-        self.fig_nn_reco_path = self.overview_path + '/'# + data_name 
+        self.fig_nn_reco_path = self.overview_path + '/spectral' 
 
 
 

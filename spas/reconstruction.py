@@ -1,8 +1,163 @@
 # -*- coding: utf-8 -*-
-__author__ = 'Guilherme Beneti Martins'
+__author__ = 'Guilherme Beneti Martins / mahieu'
 
+import time
+import pickle
 import numpy as np
+from spas.acquisition_SPC1D import read_metadata
+import spyrit.misc.walsh_hadamard as wh
 from spas.metadata_SPC2D import AcquisitionParameters
+
+
+
+
+def binArray(data, axis, binstep, binsize, func=np.nanmean):
+    """
+    Binning on an array
+    
+    Parameters
+    ----------
+    data : TYPE
+        data is your array.
+    axis : TYPE
+        axis is the axis you want to been.
+    binstep : TYPE
+        binstep is the number of points between each bin (allow overlapping bins).
+    binsize : TYPE
+        binsize is the size of each bin.
+    func : TYPE, optional
+        func is the function you want to apply to the bin (np.max for maxpooling, np.mean for an average ...). The default is np.nanmean.
+
+    Returns
+    -------
+    data : TYPE
+        The binning array.
+
+    """
+    data = np.array(data)
+    dims = np.array(data.shape)
+    argdims = np.arange(data.ndim)
+    argdims[0], argdims[axis]= argdims[axis], argdims[0]
+    data = data.transpose(argdims)
+    data = [func(np.take(data,np.arange(int(i*binstep),int(i*binstep+binsize)),0),0) for i in np.arange(dims[axis]//binstep)]
+    data = np.array(data).transpose(argdims)
+    return data
+
+def had_reco_1D(data_folder_name: str, data_name: str, mean_NA: bool = True, mean_NR: bool = False, save_spectral_data: bool = True, save_spatial_data: bool = False):
+    """
+    The Hadamard reconstruction for 1D acquisition
+
+    Parameters
+    ----------
+    data_folder_name : str
+        The folder parent of the data. its name is a type of : '2025-06-17_name'
+    data_name : str
+        The folder of the data. its name is a type of : "obj_USAF_source_white_LED_Walsh_im_128x128_ti_1.0ms_zoom_x1".
+    mean_NA : bool, optional
+        Calculate the mean along the number of averages axis of the hadamard reconstruction matrix. The default is True.
+    mean_NR : bool, optional
+        Calculate the mean along the number of repetitions axis of the hadamard reconstruction matrix. The default is False.
+    save_spectral_data : bool, optional
+        To save the spectral data matrix. The default is True.
+    save_spatial_data : bool, optional
+        To save the spatial data matrix. The default is False.
+        
+    Returns
+    -------
+    had_reco_all: np.array
+        The Hadamard reconstruction matrix. Its size is [pattern dim Y, pattern dim X, wavelength, NRepetitions, central wavelength, NAverages]
+
+    """
+
+
+    output_path = '../../data/' + data_folder_name + '/' + data_name
+    saved_DMD_params, saved_spectrograph_params, saved_cam_spat_params, saved_cam_spec_params, saved_acquisition_params = read_metadata(output_path + '/metadata.json')
+    
+    
+    Npatterns = saved_acquisition_params.pattern_amount
+    snapshot = saved_cam_spat_params.snapshot
+    if snapshot == True:
+        spatial_Npatterns = 1
+    else:
+        spatial_Npatterns = Npatterns
+        
+    Nx = saved_cam_spec_params.width
+    Ny = saved_cam_spec_params.height
+    NR = saved_acquisition_params.NRepetitions
+    Lc = saved_acquisition_params.Lc
+    NLc = len(Lc)
+    NA = saved_acquisition_params.NAverages
+    Npx = saved_acquisition_params.pattern_dimension_x
+    Npy = saved_acquisition_params.pattern_dimension_y
+    height = saved_cam_spat_params.height
+    width = saved_cam_spat_params.width  
+    
+    spectral_data_all = np.empty((Npy, Nx, Npatterns, NR, NLc, NA), dtype = float)
+    spatial_data_all = np.empty((height, width, 3, spatial_Npatterns, NR, NLc, NA), dtype = float)
+    bin_image = np.empty((Npy, Nx), dtype = float)
+    had_reco_all = np.empty((Npy, Npx, Nx, NR, NLc, NA), dtype = float)# Ny must will be changed by the wavelength vector
+    t0 = time.time()
+    for iNA in range(NA):
+        for iLc in range(NLc):
+            print(iLc)
+            for iNR in range(NR): 
+                for iNp in range(Npatterns):
+                    data_path = output_path + '/raw_data/spectral_NR_' + str(iNR) + '_Gr_' + str(Lc[iLc][1]) + '_Lc_' + str(Lc[iLc][0]) + 'nm_NA_' + str(iNA) + '_NS_' + str(iNp) + '.pkl'
+                    with open(data_path, "rb") as fp:
+                        pickle_image = pickle.load(fp)
+                        bin_image = binArray(pickle_image, 0, Ny/Npy, Ny/Npy)
+                    
+                    spectral_data_all[:, :, iNp, iNR, iLc, iNA] = bin_image
+                    
+                    if save_spatial_data:
+                        if snapshot == False:
+                            data_path = output_path + '/raw_data/spatial_NR_' + str(iNR) + '_Gr_' + str(Lc[iLc][1]) + '_Lc_' + str(Lc[iLc][0]) + 'nm_NA_' + str(iNA) + '_NS_' + str(iNp) + '.pkl'
+                            with open(data_path, "rb") as fp:
+                                pickle_image = pickle.load(fp)
+                            
+                            spatial_data_all[:, :, :, iNp, iNR, iLc, iNA] = pickle_image
+                        elif iNp ==1:
+                            data_path = output_path + '/raw_data/spatial_NR_' + str(iNR) + '_Gr_' + str(Lc[iLc][1]) + '_Lc_' + str(Lc[iLc][0]) + 'nm_NA_' + str(iNA) + '_NS_' + str(iNp) + '.pkl'
+                            with open(data_path, "rb") as fp:
+                                pickle_image = pickle.load(fp)
+                            
+                            spatial_data_all[:, :, :, iNp, iNR, iLc, iNA] = pickle_image
+                        
+                    
+                M_sub = spectral_data_all[:,:,0::2, iNR, iLc, iNA] - spectral_data_all[:,:,1::2, iNR, iLc, iNA]
+                had_reco = wh.fwht(M_sub)
+                had_reco = np.swapaxes(had_reco, 2, 1)
+    
+                had_reco_all[:, :, :, iNR, iLc, iNA] = had_reco
+                
+    print(' read raw data, elapsed time = ' + str(time.time() - t0))
+    
+    if mean_NA:
+        had_reco_all = np.mean(had_reco_all, axis = 5)
+    
+    if mean_NR:
+        had_reco_all = np.mean(had_reco_all, axis = 3)
+    
+    t0 = time.time()
+    had_reco_all = np.squeeze(had_reco_all)
+    
+    np.savez_compressed(output_path + '/had_reco.npz', had_reco = had_reco_all)
+    print(' save had reco, elapsed time = ' + str(time.time() - t0))
+    
+    
+    if save_spectral_data:
+        t0 = time.time()
+        np.savez_compressed(output_path + '/spectral_data.npz', spectral_data = spectral_data_all)
+        print(' save spectral data, elapsed time = ' + str(time.time() - t0))
+        
+    if save_spatial_data:
+        t0 = time.time()
+        spatial_data_all = np.squeeze(spatial_data_all)
+        
+        np.savez_compressed(output_path + '/spatial_data.npz', spatial_data = spatial_data_all)
+        print(' save spatial reco, elapsed time = ' + str(time.time() - t0))
+        
+    return had_reco_all
 
 def reconstruction_hadamard(acquisition_parameters: AcquisitionParameters,
                             mode: str,

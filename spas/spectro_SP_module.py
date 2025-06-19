@@ -48,7 +48,7 @@ class Spectrograph_Parameters:
     grating: Optional[grating] = None
     slit_width: Optional[int] = None
     slit_height: Optional[int] = 4000
-    resol_th: Optional[float] = None
+    resolution_th: Optional[float] = None
     # speed: Optional[int] = None
     # size: Optional[int] = None
         
@@ -72,13 +72,13 @@ class Spectrograph_Parameters:
         if spectrograph is None:
             pass
         else:
-            self.unit       = Spectrograph.query_unit(spectrograph)
-            self.position   = Spectrograph.query_position(spectrograph)
-            self.grating    = Spectrograph.query_grating(spectrograph, grating)
-            self.slit_width = Spectrograph.slit_width
-            self.resol_th   = self.slit_width * 10 / self.grating.grooves
-            # self.speed    = Spectrograph.query_speed(spectrograph, print_speed = False)
-            # self.size     = Spectrograph.query_size(spectrograph, print_size = False)
+            self.unit            = Spectrograph.query_unit(spectrograph)
+            self.position        = Spectrograph.query_position(spectrograph)
+            self.grating         = Spectrograph.query_grating(spectrograph, grating)
+            self.slit_width      = Spectrograph.slit_width
+            self.resolution_th   = self.slit_width * 10 / self.grating.grooves
+            # self.speed         = Spectrograph.query_speed(spectrograph, print_speed = False)
+            # self.size          = Spectrograph.query_size(spectrograph, print_size = False)
     
     # def undo_readable_class_spectro(self):
     #     """Changes the time_array attribute from `str` to `List` of `int`."""
