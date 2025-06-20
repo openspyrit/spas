@@ -9,18 +9,17 @@ The main software to acquire in 1D an hyperspectral cube with the single pixel c
 
 
 #%% packages
+import time
+import math
 import os
 os.chdir('C:\\openspyrit\\spas\\scripts')
 from spas.DMD_module import init_DMD, disconnect_DMD, change_patterns, setup_DMD, play_one_pattern
 from spas.spectro_SP_module import init_spectrograph, disconnect_spectrograph, setup_spectrograph
-from spas.cam_Ximea_module import init_cam_spat, init_cam_spec, disconnect_cam, setup_cam, snapshot_cam, display_cam, counter_trigger
+from spas.cam_Ximea_module import init_cam_spat, init_cam_spec, disconnect_cam, setup_cam, snapshot_cam, display_cam
 from spas.acquisition_SPC1D import AcquisitionParameters, func_path, acquire
-
 from spas.reconstruction import had_reco_1D
-import time
-import math
-
 from spas.visualization import plot_reco_without_NN
+from spas.transfer_data_to_girder import transfer_data_SPC1D
 #%% old packages
 # from spas.visualization import snapshotVisu, plot_reco_without_NN, plot_reco_with_NN, extract_ROI_coord
 # from spas.transfer_data_to_girder import transfer_data_2arms
@@ -31,7 +30,7 @@ cam_spat = init_cam_spat(SN = 'BRCID2503000')
 cam_spec = init_cam_spec(SN = 'BRMID2503000')
 #%% setup the Spectrograph
 spectrograph_params = setup_spectrograph(spectrograph,
-                                         grating_nbr =    2, print_select   = True,   # Arg:  1 (High Resoluton), 2 (Low Resoluton)
+                                         grating_nbr =    1, print_select   = True,   # Arg:  1 (High Resoluton), 2 (Low Resoluton)
                                          position    =  550, print_position = True,   # the central wavelength of the grating
                                          unit        = 'nm', print_unit     = True,   # Arg: 'A', 'nm', 'µm'
                                          slit_width  = 600)                          # the width of the slit in (µm)
@@ -59,9 +58,9 @@ DMD.Halt()
 #%% setup Spectral Camera
 cam_spec_params = setup_cam(cam = cam_spec, 
                             cameras_nbr = 2,
-                            expos_time  = 2,         # [0.001 - 1000] ms
+                            expos_time  = 1.6,         # [0.001 - 1000] ms
                             frame_rate  = 4000,      # maximum is applied, depending of the exposure time 
-                            gain        = 18,        # [0 - 18.07] dB
+                            gain        = 12,        # [0 - 18.07] dB
                             gammaY      = 0.31,      # [0.3 - 1]                                
                             width       = 768,      # [32 - 1280]
                             height      = 576,       # [4 - 864]
@@ -82,9 +81,9 @@ DMD.Halt()
 setup_version            = 'setup_v2.0'
 collection_access        = 'public' #'private'#
 Np                       = 128      # Number of pixels in one dimension of the image (image: NpxNp)
-ti                       = cam_spec_params.exposure_time_μs / 1000        # Integration time of the spectrometer  
+ti                       = cam_spec_params.exposure_time_μs / 1000        # Integration time of the spectral camera
 NAverages                = 1 # Number of avegare (the acquisition is accumulated before moving the grating)
-NRepetitions             = 1 # Number of repetitions (grating change after that, the acquisition is repetided)
+NRepetitions             = 1 # Number of repetitions (grating change after that, the acquisition is repeated)
 Lc                       = [(550, 2)]#, (600, 2)]#, (550, 1)] # a vector containig the central wavelength following by the grating number
 zoom                     = 1        # Numerical zoom applied in the DMD
 xw_offset                = 128#+192# - 130     # Default = 128
@@ -93,8 +92,8 @@ pattern_compression      = 1
 pattern_dim              = '1D'
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
 source                   = 'white_LED'#White_Zeiss_lamp'#No-light'#'Bioblock'#'Thorlabs_White_halogen_lamp'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#'HgAr multilines Source (HG-1 Oceanoptics)'
-object_name              = 'USAF7'   #'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
-data_folder_name         = '2025-06-19_lens_tuning'#'Patient-69_exvivo_LGG_BU'
+object_name              = 'Woman2'   #'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
+data_folder_name         = '2025-06-20_lens_tuning'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
 
 all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
@@ -159,9 +158,10 @@ if len(had_reco.shape) > 3:
         LLc = acquisition_params.Lc[i][0]    
         plot_reco_without_NN(acquisition_params, had_reco[:,:,:,i], all_path)
 else:
-    plot_reco_without_NN(acquisition_params, had_reco, all_path)
-
-    
+    plot_reco_without_NN(acquisition_params, had_reco, all_path)    
+    #%% transfer data to girder
+    transfer_data_SPC1D(DMD_params, cam_spat_params, cam_spec_params, spectrograph_params, acquisition_params,
+                        setup_version, data_folder_name, data_name, collection_access, upload_metadata = 1)
 #%% spatial data Reconstruction
 from matplotlib import pyplot as plt
 import pickle
@@ -210,7 +210,14 @@ disconnect_DMD(DMD)
 disconnect_spectrograph(spectrograph, goto_zero = False)
 disconnect_cam(cam_spat)
 disconnect_cam(cam_spec)
+
 #%% below, old prog
+
+
+
+
+
+
 
 #%% Neural Network setup (executed it just one time)
 network_param = ReconstructionParameters(
