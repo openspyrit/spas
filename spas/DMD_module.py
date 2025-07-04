@@ -475,9 +475,10 @@ def _update_sequence(DMD: ALP4.ALP4,
                 
             patterns[y_offset:y_offset+len_im[0], x_offset:x_offset+len_im[1]] = im_HD  
             
-            patterns_inside = patterns[:, 128:patterns.shape[1] - 128]
-            patterns_inside = patterns_inside.T
-            patterns[:,128:patterns.shape[1] - 128 ] = patterns_inside
+            # # To tilt of 90° the patterns 
+            # patterns_inside = patterns[:, 128:patterns.shape[1] - 128]
+            # patterns_inside = patterns_inside.T
+            # patterns[:,128:patterns.shape[1] - 128 ] = patterns_inside
         
         # if pattern_name == 0:
         #     from matplotlib import pyplot as plt

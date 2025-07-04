@@ -113,7 +113,7 @@ def hadamard_patterns(width: int=1024, height: int=768, N: int=64, N_DMD: int=76
 
 def walsh_patterns(width: int=1024, height: int=768, N: int=64, N_DMD: int=768, 
                       save_data: bool = False, path: str = None, 
-                      prefix: str = None) -> np.ndarray:
+                      prefix: str = None, pattern_dim: str = '2D') -> np.ndarray:
     """Generates Walsh patterns resized for use according with DMD dimensions
 
     Args:
@@ -136,6 +136,8 @@ def walsh_patterns(width: int=1024, height: int=768, N: int=64, N_DMD: int=768,
         prefix (str, optional):
             Selects patterns' filename prefix. If prefis is None, patterns will 
             be named 'Walsh_{N}x{N}_*.png' Default is None.
+       pattern_dim (str):
+           the spatial cmpression of the pattern, '1D' or '2D'. Default is '2D' 
             
     Returns:
         ndarray:
@@ -143,12 +145,12 @@ def walsh_patterns(width: int=1024, height: int=768, N: int=64, N_DMD: int=768,
             dimensions.
     """  
     return resize_to_DMD(width, height, N, N_DMD, 'Walsh', 'pos_neg', 
-                         save_data, path, prefix)
+                         save_data, path, prefix, pattern_dim)
 
 
 def resize_to_DMD(width: int, height: int, N: int, N_DMD: int, 
                   pattern_name: str, method: str, save_data: bool = False, 
-                  path: str = None, prefix: str = None) -> np.ndarray:
+                  path: str = None, prefix: str = None, pattern_dim: str = '2D') -> np.ndarray:
     """Generates patterns resized for use according with DMD dimensions.
 
     Args:
@@ -204,9 +206,12 @@ def resize_to_DMD(width: int, height: int, N: int, N_DMD: int,
         n_patterns = N ** 2
         
     # Walsh-ordered patterns using torch
+    H = wh.walsh_matrix_2d(N)
     if pattern_name == 'Walsh':
-        H = wh.walsh2_matrix(N)
-        n_patterns = N ** 2
+        if pattern_dim == '2D':
+            n_patterns = N ** 2
+        elif pattern_dim == '1D':            
+            n_patterns = N
 
     if method == 'pos_neg':
         Hpos, Hneg = hadamard_posneg(H)

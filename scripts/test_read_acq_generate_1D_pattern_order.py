@@ -57,23 +57,23 @@ for i in range(256):#da.shape[3]):
             plt.title(i)
             plt.colorbar()
         
-# # generate pattern order
-# Np                       = 64 
-# pattern_dim              = '1D'
-# scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
+# generate pattern order
+Np                       = 64 
+pattern_dim              = '1D'
+scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
 
-# pattern_order_source = 'C:/openspyrit/spas/stats/' + pattern_dim + '/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz'
+pattern_order_source = 'C:/openspyrit/spas/stats/' + pattern_dim + '/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz'
 
-# pattern_order = np.load(pattern_order_source)
-# data = pattern_order['pattern_order']
+pattern_order = np.load(pattern_order_source)
+data = pattern_order['pattern_order']
 
 
 
-# Np                       = 16 
-# pattern_dim              = '1D'
-# pattern_order_source = 'C:/openspyrit/spas/stats/' + pattern_dim + '/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz'
+Np                       = 2 
+pattern_dim              = '1D'
+pattern_order_source = 'C:/openspyrit/spas/stats/' + pattern_dim + '/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz'
 
-# li = np.arange(2*Np)
-# pattern_order = np.array(li, dtype=np.uint16)
+li = np.arange(2*Np)
+pattern_order = np.array(li, dtype=np.uint16)
 
-# np.savez(pattern_order_source[:len(pattern_order_source)-4], pattern_order = pattern_order, pos_neg = True)
+np.savez(pattern_order_source[:len(pattern_order_source)-4], pattern_order = pattern_order, pos_neg = True)

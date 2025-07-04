@@ -679,7 +679,7 @@ def acquire(DMD: ALP4,
                 x1.start()
 
                 if first_acqui:
-                    time.sleep(1)
+                    time.sleep(1.2)
                 
                 DMD.Run(loop=False)
                 

@@ -90,9 +90,7 @@ class cam_Parameters:
     """
     
     """
-    print('ici')
     arm: Optional[str] = None
-    print('là')
     exposure_time_µs: Optional[int] = None
     frame_rate: Optional[float] = None
     gain: Optional[float] = None
@@ -267,11 +265,13 @@ def setup_cam(cam: xiapi.Camera, cameras_nbr: int = 2, expos_time: float = 1, fr
     #             break
     #     else:
     #         break
-
+     
     cam.set_width(width_acc) 
     cam.set_height(height_acc) 
     cam.set_offsetX(offsetX_acc) 
-    cam.set_offsetY(offsetY_acc) 
+    cam.set_offsetY(offsetY_acc)
+    
+    
     
     width_get = cam.get_width()
     height_get = cam.get_height()
@@ -335,10 +335,17 @@ def setup_cam(cam: xiapi.Camera, cameras_nbr: int = 2, expos_time: float = 1, fr
    
     cam.set_limit_bandwidth(camera_data_rate)
     ########################## set buffer #####################################
-    cam.set_buffer_policy('XI_BP_SAFE')
+    cam.set_buffer_policy('XI_BP_SAFE')#'XI_BP_UNSAFE')#
     cam.set_acq_buffer_size(int(cam.get_acq_buffer_size_maximum()/4)) # divide by 4 because if higher, we lose triggers, to set max, you need too wait 2.6s between star_acquisition and receive the first trig (DMD.run), to set max/2 => wait 1.5s, max/4 => wait 1s
+    # cam.set_acq_buffer_size(cam.get_acq_buffer_size_minimum()*2)
     print('buffer size = ' + str(cam.get_acq_buffer_size()))
-    cam.set_buffers_queue_size(cam.get_buffers_queue_size_maximum()) 
+    print('min buffers queue size = ' + str(cam.get_buffers_queue_size_minimum()))
+    print('max buffers queue size = ' + str(cam.get_buffers_queue_size_maximum()))
+    
+    cam.set_buffers_queue_size(cam.get_buffers_queue_size_maximum())
+    # cam.set_buffers_queue_size(2)#
+    # # cam.set_buffers_queue_size(cam.get_buffers_queue_size_minimum())
+    
     buffers_queue_size = cam.get_buffers_queue_size()
     print('buffers queue size  = ' + str(buffers_queue_size ))
     ########################## setting gain ###################################
@@ -398,7 +405,7 @@ def setup_cam(cam: xiapi.Camera, cameras_nbr: int = 2, expos_time: float = 1, fr
     return cam_Parameters(cam = cam)
         
 
-def snapshot_cam(cam, data_format: int = 8, binX: int = 1, binY: int = 1, disp_bin_effect: bool = False):
+def snapshot_cam(cam, data_format: int = 8, binX: int = 1, binY: int = 1, disp_bin_effect: bool = False, tilt_image: bool = False):
     """
     take a snapshot of the camera
     
@@ -414,6 +421,8 @@ def snapshot_cam(cam, data_format: int = 8, binX: int = 1, binY: int = 1, disp_b
             binning in the height direction
         disp_bin_effect (bool):
             display graph and SNR measurement cause by the binning
+         tilt_image (bool):
+             Tilte the image as display on the DMD. Default is False.
     Returns
     -------
     None.
@@ -457,6 +466,10 @@ def snapshot_cam(cam, data_format: int = 8, binX: int = 1, binY: int = 1, disp_b
         data_bin = rebin(data, [round(cam.get_height()/binY), round(cam.get_width()/binX)])
     else:
         data_bin = data
+    ########################## title image ####################################
+    if tilt_image:
+        data = np.flip(np.flip(data, axis = 1), axis = 0)
+        data_bin = np.flip(np.flip(data_bin, axis = 1), axis = 0)
     ########################## print snapshot #################################
     plt.figure()
     plt.imshow(data)
@@ -500,22 +513,23 @@ def snapshot_cam(cam, data_format: int = 8, binX: int = 1, binY: int = 1, disp_b
     return data    
 
 
-def display_cam(cam):
+def display_cam(cam, display_max: bool = False):
     """
     Continuous image display of a camera
     
     Parameters:
     -----------
         cam (obj): 
-            a object to drive the Ximea camera
-            
+            a object to drive the Ximea camera  
+        display_max (bool):
+            display the maximum value in the image. Default is True.
     Returns:
     -------
         None
     """
     
     try:
-    
+        cam.set_buffers_queue_size(2)
         import cv2
         # Creating a cv2 window
         window_name = "Camera of the Spatial Arm"
@@ -571,7 +585,8 @@ def display_cam(cam):
             
             maxi = np.max(data)
             if maxi != maxii:
-                print("max = " + str(maxi))
+                if display_max:
+                    print("max = " + str(maxi))
                 maxii = maxi
             
             if np.max(data) == 255 and first_passage2 == True:
@@ -653,6 +668,7 @@ def display_cam(cam):
                     cam.set_imgdataformat('XI_RAW16')
                     print('image data format set to : ' + cam.get_imgdataformat() + ' for the B & W camera')
                     
+                cam.set_buffers_queue_size(cam.get_buffers_queue_size_maximum())
                 break
         
     except:
