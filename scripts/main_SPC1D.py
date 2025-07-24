@@ -16,7 +16,7 @@ os.chdir('C:\\openspyrit\\spas\\scripts')
 from spas.DMD_module import init_DMD, disconnect_DMD, change_patterns, setup_DMD, play_one_pattern
 from spas.spectro_SP_module import init_spectrograph, disconnect_spectrograph, setup_spectrograph
 from spas.cam_Ximea_module import init_cam_spat, init_cam_spec, disconnect_cam, setup_cam, snapshot_cam, display_cam
-from spas.acquisition_SPC1D import AcquisitionParameters, func_path, acquire
+from spas.acquisition_SPC1D import AcquisitionParameters, func_path, acquire, define_wavelengths_matrix
 from spas.reconstruction_SPC1D import hadamard_reco
 from spas.visualization_SCP1D import plot_reco_without_NN
 from spas.transfer_data_to_girder import transfer_data_SPC1D
@@ -28,21 +28,21 @@ cam_spec = init_cam_spec(SN = 'BRMID2503000')
 #%% setup the Spectrograph
 spectrograph_params = setup_spectrograph(spectrograph,
                                          grating_nbr =    1, print_select   = True,   # Arg:  1 (High Resoluton), 2 (Low Resoluton)
-                                         position    =  0, print_position = True,   # the central wavelength of the grating
+                                         position    =  405, print_position = True,   # the central wavelength of the grating
                                          unit        = 'nm', print_unit     = True,   # Arg: 'A', 'nm', 'µm'
-                                         slit_width  = 300)                          # the width of the slit in (µm)
+                                         slit_width  = 150)                          # the width of the slit in (µm)
 #%% setup Spatial Camera
 cam_spat_params = setup_cam(cam = cam_spat, 
                             cameras_nbr = 2,        # number of camera 
-                            expos_time  = 0.002,     # [0.001 - 1000] ms
+                            expos_time  = 0.02,     # [0.001 - 1000] ms
                             frame_rate  = 4000,     # maximum is applied, depending of the exposure time 
                             gain        = 0,       # [0 - 18.07] dB
                             auto_wb     = True,     # auto white balance: [True or False]
                             gammaY      = 0.31,     # [0.3 - 1]                                
-                            width       = 544,      # [32 - 1280]
-                            height      = 400,      # [4 - 864]
-                            offsetX     = 335,
-                            offsetY     = 240,
+                            width       = 544,      #1280,# [32 - 1280]
+                            height      = 400,      #864,#` [4 - 864]
+                            offsetX     = 220, #0,#
+                            offsetY     = 200, #0,#
                             snapshot    = True)    # if false => acquire video, if True => acquire an image 
 #%% get a snapshot of the spatial camera
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'black') # white, black or gray
@@ -55,21 +55,27 @@ DMD.Halt()
 #%% setup Spectral Camera
 cam_spec_params = setup_cam(cam = cam_spec, 
                             cameras_nbr = 2,
-                            expos_time  = 0.7,         # [0.001 - 1000] ms
+                            expos_time  = 55,         # [0.001 - 1000] ms
                             frame_rate  = 4000,      # maximum is applied, depending of the exposure time 
-                            gain        = 10,        # [0 - 18.07] dB
+                            gain        = 12,        # [0 - 18.07] dB
                             gammaY      = 0.31,      # [0.3 - 1]                                   
-                            width       = 960,      # [32 - 1280]
-                            height      = 440,#648,#480,       # [4 - 864]
-                            offsetX     = 160,
-                            offsetY     = 170,#75,#150,
+                            width       = 1280, #832, # 960, #1280,#,      # [32 - 1280]
+                            height      = 480,       # [4 - 864]
+                            offsetX     = 0, #$100, #3 100, #230,#170,#160,
+                            offsetY     = 150,#230,#75,#150,
                             binningX    = 1,         # [1, 2, 4, 8 & 16]
                             binningY    = 1,         # [1, 2, 4, 8 & 16]
                             snapshot    = False)     # if false => acquire video, if True => acquire an image    
 #%% get a snapshot of the spectral camera
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'white') # white, black or gray
-data = snapshot_cam(cam = cam_spec, data_format = 16, binX = 4, binY = 4, disp_bin_effect = False, tilt_image = False) # data_format accepted: 8 or 16 bits
+wavelengths = define_wavelengths_matrix(cam_spec_params, [(spectrograph_params.position, spectrograph_params.grating.current_grating_nbr)])
+data = snapshot_cam(cam = cam_spec, data_format = 16, binX = 1, binY = 1, disp_bin_effect = False, tilt_image = False) # data_format accepted: 8 or 16 bits
 DMD.Halt()
+import numpy as np
+from matplotlib import pyplot as plt
+data_m = data[220,:] #np.mean(data[200:240,:], axis = 0)
+plt.figure()
+plt.plot(wavelengths[0, :], data_m)
 #%% display spectral camera in continous mode
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'white') # white, black or gray
 display_cam(cam = cam_spec, display_max = True)
@@ -77,20 +83,20 @@ DMD.Halt()
 #%% setup acquisition
 setup_version            = 'setup_v2.0'
 collection_access        = 'public' #'private'#
-Np                       = 128      # Number of pixels in one dimension of the image (image: NpxNp)
+Np                       = 2      # Number of pixels in one dimension of the image (image: NpxNp)
 ti                       = cam_spec_params.exposure_time_μs / 1000        # Integration time of the spectral camera
 NAverages                = 1 # Number of avegare (the acquisition is accumulated before moving the grating)
 NRepetitions             = 1 # Number of repetitions (grating change after that, the acquisition is repeated)
-Lc                       = [(600, 2)]#, (390, 2), (400, 2), (404, 2), (410, 2)] # a vector containig the central wavelength following by the grating number
+Lc                       = [(0, 1), (385, 1), (395, 1), (405, 1), (415, 1), (425, 1)] # [(0, 1), (780, 1), (785, 1), (795, 1), (805, 1), (810, 1)] #[(0, 1), (676, 1), (686, 1), (696, 1), (706, 1), (716, 1)] #[(0, 1), (557, 1), (567, 1), (577, 1), (587, 1), (597, 1)] #[(0, 1), (526, 1), (536, 1), (546, 1), (556, 1), (566, 1)] #[(0, 1), (416, 1), (426, 1), (436, 1), (446, 1), (456, 1)] ##, (832, 2), (852, 2), (872, 2), (892, 2), (912, 2), (932, 2), (952, 2), (972, 2), (992, 2)]## # a vector containig the central wavelength following by the grating number
 zoom                     = 1        # Numerical zoom applied in the DMD
 xw_offset                = 128#+192# - 130     # Default = 128
 yh_offset                = 0#+192# - 50        # Default = 0
 pattern_compression      = 1
 pattern_dim              = '1D'
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
-source                   = 'Thorlabs_White_halogen_lamp'#'White_Zeiss_lamp'#'white_LED'#'HG-1_Oceanoptics'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
-object_name              = 'CAt_Gr_1_f-75mm_CL_65mm_2'#'nothing'   #'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
-data_folder_name         = '2025-07-04_lens_tuning'#'Patient-69_exvivo_LGG_BU'
+source                   = 'HG-1_Oceanoptics'#'white_LED'#'Thorlabs_White_halogen_lamp'#'White_Zeiss_lamp'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
+object_name              = 'Ray-405' #'ray_405'#'nothing'   #'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
+data_folder_name         = '2025-07-24_wavelength-calibration-Gr1'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
 
 all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
@@ -105,7 +111,7 @@ if all_path.aborted == False:
     light_source         = source,
     object               = object_name
     filter               = 'Diffuser' #+ OD=0.3',''No filter',#'linear colored filter',#'Orange filter (600nm)',#'Dichroic_420nm',#'HighPass_500nm + LowPass_750nm + Dichroic_560nm',#'BandPass filter 560nm Dl=10nm',#'None', # + , #'Nothing',#'Diffuser + HighPass_500nm + LowPass_750nm',##'Microsope objective x40',#'' linear colored filter + OD#0',#'Nothing',#
-    description          = 'with circular lens (f=75 mm) at d= 140 mm from the slit and 150 from the DMD. Cylindrical lens at d = 65 mm of the spectrograph'
+    description          = 'wavelength calibration of the second gratong (300gr/mm)'
     
     acquisition_params = AcquisitionParameters(pattern_compression = pattern_compression, pattern_dimension_x = Np, pattern_dimension_y = Np, 
                                                zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, mask_index = mask_index, 
@@ -116,6 +122,8 @@ if all_path.aborted == False:
     
     import numpy as np
     acquisition_params.wavelengths = np.linspace(450, 750, cam_spec_params.width)
+    # acquisition_params.wavelengths = define_wavelengths_matrix(cam_spec_params, Lc)
+    # acquisition_params.wavelengths = acquisition_params.wavelengths[0, :]
                         
     try: 
         change_patterns(DMD = DMD, acquisition_params = acquisition_params, zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, 
@@ -131,7 +139,7 @@ if all_path.aborted == False:
 else:
     print('setup aborted')
 #%% Acquire
-# time.sleep(2)
+# time.sleep(5)
 
 acquire(DMD                 = DMD,
         DMD_params          = DMD_params,
@@ -247,9 +255,6 @@ model_folder = 'C:/openspyrit/models/'
 model, device = setup_reconstruction(cov_path, model_folder, network_param)
 #%% Neural Network Reconstruction
 plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, network_param, all_path, cov_path)
-#%% transfer data to girder
-transfer_data_2arms(metadata, acquisition_parameters, spectrometer_params, DMD_params, camPar,
-                    setup_version, data_folder_name, data_name, collection_access, upload_metadata = 1)
 #%% Draw a ROI
 # Comment data_folder_name & data_name to draw a ROI in the current acquisition, else specify the acquisition name
 data_folder_name = '2025-01-16_myFirstAcq'

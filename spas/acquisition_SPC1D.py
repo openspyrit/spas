@@ -63,6 +63,7 @@ import pickle
 from progress.bar import Bar
 from spas.spectro_SP_module import setup_spectrograph
 from spas.cam_Ximea_module import counter_trigger
+from scipy import interpolate
 
 # from spas.DMD_module import  DMDParameters
 # import spas.DMD_module as DMD_mod
@@ -725,6 +726,118 @@ def acquire(DMD: ALP4,
     
     save_metadata(DMD_params, spectrograph_params, cam_spat_params, cam_spec_params, acquisition_params)
 
+def find_nearest(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return idx
+
+
+def define_wavelengths_matrix(cam_spec_params, Lc: list = []):
+    """
+    define the wavelength vector for each central wavelength of the spectrograph
+
+    Parameters
+    ----------
+    cam_spec_params: class.
+        the class containing the parameters of the spectral camera
+    Lc : list, optional
+        The list af the central wavelength aof the spectrograph. The default is [].
+
+    Returns
+    -------
+    A matrix fo the wavelength vector for each Lc.
+
+    """
+    display_figure = 0
+    
+    if display_figure:
+        from matplotlib import pyplot as plt
+    
+    NLc = len(Lc)
+    for iLc in range(NLc):
+        Lcc = Lc[iLc][0]
+        Grating = Lc[iLc][1]
+        
+        if Grating == 2:
+            Lc_array = np.array([365, 435, 546, 577, 696, 912])
+            coeff_array = np.array([3.308, 3.311, 3.319, 3.324, 3.341, 3.365])
+            ord_origine = np.array([-5.5, -9.56, -7.58, -3.09, -6.92, -3.89])
+        elif Grating == 1:
+            # Lc_array = np.array([365, 405, 436, 546, 696, 795])
+            # coeff_array = np.array([14, 14.075, 14.3, 14.82, 15.75, 16.63])
+            # ord_origine = np.array([0, 0, 0, 0, 0, 0])
+            Lc_array = np.array([     365,   405,   436,   546,    696,   912])
+            coeff_array = np.array([13.26, 14.18, 14.12, 14.94,  15.89, 18.36])
+            ord_origine = np.array([ 3.94, -0.69, -6.5,  -3.53,  -9.63, -5.88])
+    
+        z = np.polyfit(Lc_array, coeff_array, 2)
+        p = np.poly1d(z)
+    
+        # xnew = np.arange(Lc_array[0], Lc_array[-1])
+        xnew = np.arange(200, 1000)
+        if display_figure:
+            plt.figure()
+            plt.plot(Lc_array, coeff_array, '.', xnew, p(xnew), '-')
+            plt.grid()
+            plt.title('GR = 2')
+            
+        indx = find_nearest(xnew, Lcc)
+        
+        px_width = cam_spec_params.width
+        px_offset = cam_spec_params.offsetX
+        
+        spam_lambda = px_width / p(xnew[indx]) # np.mean(p(xnew))
+        
+        L_offset = px_offset / p(xnew[indx]) # np.mean(p(xnew))
+        L1 = Lcc - spam_lambda / 2 + L_offset
+        L2 = Lcc + spam_lambda / 2 + L_offset
+        
+        xnew2 = np.linspace(L1, L2, px_width)
+        if display_figure:
+            plt.figure()
+            plt.plot(Lc_array, coeff_array, '.', xnew2, p(xnew2), '-')
+            plt.grid()
+            plt.title('GR = 2')
+        
+        f = interpolate.interp1d(Lc_array, ord_origine, fill_value='extrapolate')    
+        ynew = f(xnew2)
+        
+        w = np.empty([NLc, px_width])
+        for i in range(px_width):
+            w[iLc, i] = (i - 640 - ynew[i]) / p(xnew2[i]) + Lcc + L_offset
+        
+    return w
+
+
+def plot_spectrum(data, cam_spec_params, spectrograph_params):
+    """
+    plot the spectrum of the spectral cam
+
+    Parameters
+    ----------
+    data : np.array
+        2d array of the spectral cam.
+    cam_spec_params: class.
+        A class containing the spectral cam parameters
+    spectrograph_params: class.
+        A class containing the spectrograph parameters
+
+    Returns
+    -------
+    None.
+
+    """
+    from matplotlib import pyplot as plt
+    
+    wavelengths = define_wavelengths_matrix(cam_spec_params, [(spectrograph_params.position, spectrograph_params.grating.current_grating_nbr)])
+
+    data_m = data[220,:]
+    plt.figure()
+    plt.plot(wavelengths[0, :], data_m)
+    plt.xlabel('Lambda (nm)')
+    plt.ylabel('Intensity [0 - 1023]')
+    plt.grid()
+    
 
 class func_path:
     """
@@ -733,7 +846,7 @@ class func_path:
     Args:
         None
         
-    Return:
+    # Return:
         None
     """
     

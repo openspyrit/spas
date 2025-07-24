@@ -221,12 +221,12 @@ def setup_cam(cam: xiapi.Camera, cameras_nbr: int = 2, expos_time: float = 1, fr
     height_max = cam.get_height_maximum()
     height_inc = cam.get_height_increment() 
 
-    # offsetX = cam.get_offsetX()
+    offsetX_cur = cam.get_offsetX()
     # offsetX_min = cam.get_offsetX_minimum()
     # offsetX_max = cam.get_offsetX_maximum()
     offsetX_inc = cam.get_offsetX_increment() 
 
-    # offsetY = cam.get_offsetY()
+    offsetY_cur = cam.get_offsetY()
     # offsetY_min = cam.get_offsetY_minimum()
     # offsetY_max = cam.get_offsetY_maximum()
     offsetY_inc = cam.get_offsetY_increment() 
@@ -265,11 +265,21 @@ def setup_cam(cam: xiapi.Camera, cameras_nbr: int = 2, expos_time: float = 1, fr
     #             break
     #     else:
     #         break
-     
-    cam.set_width(width_acc) 
-    cam.set_height(height_acc) 
-    cam.set_offsetX(offsetX_acc) 
-    cam.set_offsetY(offsetY_acc)
+
+    if offsetX_cur > 0 and offsetX_acc == 0:
+        cam.set_offsetX(offsetX_acc)  
+        cam.set_width(width_acc)  
+    else:
+        cam.set_width(width_acc) 
+        cam.set_offsetX(offsetX_acc)  
+         
+    if offsetY_cur > 0 and offsetY_acc == 0: 
+        cam.set_offsetY(offsetY_acc)  
+        cam.set_height(height_acc) 
+    else:
+        cam.set_height(height_acc) 
+        cam.set_offsetY(offsetY_acc)
+    
     
     
     
