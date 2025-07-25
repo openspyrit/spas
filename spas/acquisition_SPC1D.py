@@ -226,13 +226,20 @@ class AcquisitionParameters:
             print('wavelenghts not present in metadata.'
             ' Reading data in legacy mode.')
 
-        if self.timestamps:
-            self.timestamps = self.timestamps.strip('[').strip(']').split(', ')
-            self.timestamps = to_float(self.timestamps)
+        if self.spat_timestamps:
+            self.spat_timestamps = self.spat_timestamps.strip('[').strip(']').split(', ')
+            self.spat_timestamps = to_float(self.spat_timestamps)
         else:
-            print('timestamps not present in metadata.'
+            print('spat_timestamps not present in metadata.'
             ' Reading data in legacy mode.')
-
+        
+        if self.spec_timestamps:
+            self.spec_timestamps = self.spec_timestamps.strip('[').strip(']').split(', ')
+            self.spec_timestamps = to_float(self.spec_timestamps)
+        else:
+            print('spec_timestamps not present in metadata.'
+            ' Reading data in legacy mode.')
+        
         if self.measurement_time:
             self.measurement_time = (
                 self.measurement_time.strip('[').strip(']').split(', '))
@@ -337,8 +344,11 @@ class AcquisitionParameters:
         readable_dict['wavelengths'] = _hard_coded_conversion(
             readable_dict['wavelengths'])
     
-        # readable_dict['timestamps'] = _hard_coded_conversion(
-        #     readable_dict['timestamps'])
+        readable_dict['spat_timestamps'] = _hard_coded_conversion(
+            readable_dict['spat_timestamps'])
+        
+        readable_dict['spec_timestamps'] = _hard_coded_conversion(
+            readable_dict['spec_timestamps'])
 
         # readable_dict['measurement_time'] = _hard_coded_conversion(
         #     readable_dict['measurement_time'])
@@ -554,10 +564,11 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
         
     start_chrono = time.time()
     time_stmp_0 = (img.tsSec) + ((img.tsUSec)/1000000)
-    timestamps = np.zeros((acquisition_params.pattern_amount),dtype=np.float64)
+    
     i = 0
     # acquire snapshot
     if cam.snapshot:
+        timestamps = np.zeros((acquisition_params.pattern_amount),dtype=np.float64)
         while True: 
             counter_time = time.time() - start_chrono
             if arm == "spatial":
@@ -566,6 +577,10 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
                 stop_it = 1
             if i >= stop_it:
                 acquisition_params.receive_last_trig = True
+                if arm == 'spectral':
+                    acquisition_params.spec_timestamps = timestamps
+                elif arm == 'spatial':
+                    acquisition_params.spat_timestamps = timestamps
                 if verbose:
                     print('\n iteration reach (' + arm + ') : ' + str(i) + ' in the thread \n')
                 break
@@ -575,6 +590,8 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
             else:
                 ############## get data and pass them from cameras to img #################
                 cam.get_image(img)
+                ################### timestamp #################################
+                timestamps[i] = (img.tsSec) + ((img.tsUSec)/1000000)
                 if i == stop_it - 1:
                     ################### get image data as numpy array #########################
                     data_np = img.get_image_data_numpy()#(invert_rgb_order = True)  
@@ -586,6 +603,7 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
                 acquisition_params.receive_last_trig = False
     # acquire all the frames
     else:
+        timestamps = np.zeros((acquisition_params.pattern_amount),dtype=np.float64)
         while True: 
             counter_time = time.time() - start_chrono
             if i >= acquisition_params.pattern_amount:
@@ -594,7 +612,7 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
                     acquisition_params.spec_timestamps = timestamps
                 elif arm == 'spatial':
                     acquisition_params.spat_timestamps = timestamps
-                    print('\n iteration reach (' + arm + ') : ' + str(i) + ' in the thread \n')
+                print('\n iteration reach (' + arm + ') : ' + str(i) + ' in the thread \n')
                 break
             elif counter_time > math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4:
                 print('delay > ' + str(math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4) + 's in the thread \n')
@@ -692,14 +710,15 @@ def acquire(DMD: ALP4,
 
                 if first_acqui:
                     time.sleep(1.2)
+                    begin_acqui = time.time()
                 
                 DMD.Run(loop=False)
                 
-                first_pass = True
+                first_pass = True                
                 start_chrono = time.time()
                 while(True):
                     if first_pass == True:
-                        time.sleep(math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6))
+                        time.sleep(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6)
                         first_pass = False
                         
                     time.sleep(0.1)
@@ -713,10 +732,29 @@ def acquire(DMD: ALP4,
                         print('delay > ' + str(math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6 + 5)) + 's in the main loop \n')
                         break
                         
-                acquisition_params.total_spectrometer_acquisition_time_s = time.time() - start_chrono
+                
                 DMD.Halt()
                 first_acqui = False
-
+                
+    acquisition_params.total_spectrometer_acquisition_time_s = time.time() - begin_acqui
+    print('\n')
+    print('\nTotal acquisition time = ' + str(round(acquisition_params.total_spectrometer_acquisition_time_s * 1000) / 1000) + ' s')
+    # print('\n----------- COUNTERS SPATIAL CAM -----------') # reading counters
+    # cam_spat.set_counter_selector('XI_CNT_SEL_TRANSPORT_SKIPPED_FRAMES')
+    # print('Transport skipped frames: ',cam_spat.get_counter_value())
+    # cam_spat.set_counter_selector('XI_CNT_SEL_API_SKIPPED_FRAMES')
+    # print('API skipped frames: ',cam_spat.get_counter_value())
+    # cam_spat.set_counter_selector('XI_CNT_SEL_TRANSPORT_TRANSFERRED_FRAMES')
+    # print('Transferred frames: ',cam_spat.get_counter_value(), ' / ' + str(total_iter))
+    
+    # print('\n----------- COUNTERS SPECTRAL CAM -----------')
+    # cam_spec.set_counter_selector('XI_CNT_SEL_TRANSPORT_SKIPPED_FRAMES')
+    # print('Transport skipped frames: ',cam_spec.get_counter_value())
+    # cam_spec.set_counter_selector('XI_CNT_SEL_API_SKIPPED_FRAMES')
+    # print('API skipped frames: ',cam_spec.get_counter_value())
+    # cam_spec.set_counter_selector('XI_CNT_SEL_TRANSPORT_TRANSFERRED_FRAMES')
+    # print('Transferred frames: ',cam_spec.get_counter_value(), ' / ' + str(total_iter))
+    
     print('\n----------- COUNTERS SPATIAL CAM -----------') # reading counters
     counter_trig = counter_trigger(cam_spat)
     print('Transport skipped frames: ', counter_trig[0])
@@ -728,7 +766,6 @@ def acquire(DMD: ALP4,
     print('Transport skipped frames: ', counter_trig[0])
     print('API skipped frames      : ', counter_trig[1])
     print('Transferred frames      : ', str(counter_trig[2]) + ' / ' + str(total_iter))
-    print('\n')
                 
     time.sleep(1)
     cam_spat.stop_acquisition()

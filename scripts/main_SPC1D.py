@@ -91,7 +91,7 @@ pattern_dim              = '1D'
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
 source                   = 'white_LED'#'HG-1_Oceanoptics'#'Thorlabs_White_halogen_lamp'#'White_Zeiss_lamp'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
 object_name              = 'Cat' #'Ray-912' #'ray_405'#'nothing'   #'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
-data_folder_name         = '2025-07-25_test_timestamp'#'Patient-69_exvivo_LGG_BU'
+data_folder_name         = '2025-07-25_test_NA'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
 
 all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
@@ -150,7 +150,7 @@ acquire(DMD                 = DMD,
 #%% spectral data Reconstruction
 # data_folder_name = '2025-06-27_lens_tuning'
 # data_name = 'obj_Cat_fs-75mm_Lc-40mm_source_white_LED_Walsh_im_128x128_ti_1.25ms_zoom_x1'
-had_reco = hadamard_reco(data_folder_name, data_name, mean_NA = True, mean_NR = False, save_spectral_data = False, 
+had_reco = hadamard_reco(data_folder_name, data_name, mean_NA = False, mean_NR = False, save_spectral_data = False, 
                          save_spatial_data = False, bin_fact = cam_spec_params.height/Np/zoom, zoom = zoom)
 #%% Plot
 from matplotlib import pyplot as plt
