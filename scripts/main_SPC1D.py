@@ -28,15 +28,15 @@ cam_spec = init_cam_spec(SN = 'BRMID2503000')
 #%% setup the Spectrograph
 spectrograph_params = setup_spectrograph(spectrograph,
                                          grating_nbr =    2, print_select   = True,   # Arg:  1 (High Resoluton), 2 (Low Resoluton)
-                                         position    =  641, print_position = True,   # the central wavelength of the grating
+                                         position    =  550, print_position = True,   # the central wavelength of the grating
                                          unit        = 'nm', print_unit     = True,   # Arg: 'A', 'nm', 'µm'
                                          slit_width  = 300)                          # the width of the slit in (µm)
 #%% setup Spatial Camera
 cam_spat_params = setup_cam(cam = cam_spat, 
                             cameras_nbr = 2,        # number of camera 
-                            expos_time  = 0.02,     # [0.001 - 1000] ms
+                            expos_time  = 0.008,     # [0.001 - 1000] ms
                             frame_rate  = 4000,     # maximum is applied, depending of the exposure time 
-                            gain        = 0,       # [0 - 18.07] dB
+                            gain        = 10,       # [0 - 18.07] dB
                             auto_wb     = True,     # auto white balance: [True or False]
                             gammaY      = 0.31,     # [0.3 - 1]                                
                             width       = 544,      #1280,# [32 - 1280]
@@ -55,13 +55,13 @@ DMD.Halt()
 #%% setup Spectral Camera
 cam_spec_params = setup_cam(cam = cam_spec, 
                             cameras_nbr = 2,
-                            expos_time  = 2.3,         # [0.001 - 1000] ms
+                            expos_time  = 1.5,         # [0.001 - 1000] ms
                             frame_rate  = 4000,      # maximum is applied, depending of the exposure time 
                             gain        = 12,        # [0 - 18.07] dB
                             gammaY      = 0.31,      # [0.3 - 1]                                   
-                            width       = 768,#832, #L 1280, #960, #1280,#,      # [32 - 1280]
+                            width       = 768,#672,#1280, #832, #L 960, #1280,#,      # [32 - 1280]
                             height      = 480,       # [4 - 864]
-                            offsetX     = 150,#0, #$100, #3 100, #170,#160,
+                            offsetX     = 260,#0, #150,#$100, #3 100, #170,#160,
                             offsetY     = 150,#230,#75,#150,
                             binningX    = 1,         # [1, 2, 4, 8 & 16]
                             binningY    = 1,         # [1, 2, 4, 8 & 16]
@@ -82,7 +82,7 @@ Np                       = 128      # Number of pixels in one dimension of the i
 ti                       = cam_spec_params.exposure_time_μs / 1000        # Integration time of the spectral camera
 NAverages                = 1 # Number of avegare (the acquisition is accumulated before moving the grating)
 NRepetitions             = 1 # Number of repetitions (grating change after that, the acquisition is repeated)
-Lc                       = [(641, 2)]#[(0, 1), (897, 1), (902, 1), (907, 1), (912, 1), (917, 1), (922, 1), (927, 1)] # [(0, 1), (780, 1), (785, 1), (795, 1), (805, 1), (810, 1)] #[(0, 1), (676, 1), (686, 1), (696, 1), (706, 1), (716, 1)] #[(0, 1), (557, 1), (567, 1), (577, 1), (587, 1), (597, 1)] #[(0, 1), (526, 1), (536, 1), (546, 1), (556, 1), (566, 1)] #[(0, 1), (416, 1), (426, 1), (436, 1), (446, 1), (456, 1)] ##, (832, 2), (852, 2), (872, 2), (892, 2), (912, 2), (932, 2), (952, 2), (972, 2), (992, 2)]## # a vector containig the central wavelength following by the grating number
+Lc                       = [(550, 2)]#[(0, 1), (897, 1), (902, 1), (907, 1), (912, 1), (917, 1), (922, 1), (927, 1)] # [(0, 1), (780, 1), (785, 1), (795, 1), (805, 1), (810, 1)] #[(0, 1), (676, 1), (686, 1), (696, 1), (706, 1), (716, 1)] #[(0, 1), (557, 1), (567, 1), (577, 1), (587, 1), (597, 1)] #[(0, 1), (526, 1), (536, 1), (546, 1), (556, 1), (566, 1)] #[(0, 1), (416, 1), (426, 1), (436, 1), (446, 1), (456, 1)] ##, (832, 2), (852, 2), (872, 2), (892, 2), (912, 2), (932, 2), (952, 2), (972, 2), (992, 2)]## # a vector containig the central wavelength following by the grating number
 zoom                     = 1        # Numerical zoom applied in the DMD
 xw_offset                = 128#320#128#+192# - 130     # Default = 128
 yh_offset                = 0#192#0#+192# - 50        # Default = 0
@@ -90,8 +90,8 @@ pattern_compression      = 1
 pattern_dim              = '1D'
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
 source                   = 'white_LED'#'HG-1_Oceanoptics'#'Thorlabs_White_halogen_lamp'#'White_Zeiss_lamp'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
-object_name              = 'Cat' #'Ray-912' #'ray_405'#'nothing'   #'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
-data_folder_name         = '2025-07-25_test_NA'#'Patient-69_exvivo_LGG_BU'
+object_name              = 'Cat_SP_only' #'Ray-912' #'ray_405'#'nothing'   #'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
+data_folder_name         = '2025-07-25_decrease_size_cat'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
 
 all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
@@ -106,7 +106,7 @@ if all_path.aborted == False:
     light_source         = source,
     object               = object_name
     filter               = 'Diffuser' #+ OD=0.3',''No filter',#'linear colored filter',#'Orange filter (600nm)',#'Dichroic_420nm',#'HighPass_500nm + LowPass_750nm + Dichroic_560nm',#'BandPass filter 560nm Dl=10nm',#'None', # + , #'Nothing',#'Diffuser + HighPass_500nm + LowPass_750nm',##'Microsope objective x40',#'' linear colored filter + OD#0',#'Nothing',#
-    description          = 'wavelength calibration of the second gratong (300gr/mm)'
+    description          = 'for illumination: f=80mm + f=60mm, collection: spherical lens f=75mm only'
     
     acquisition_params = AcquisitionParameters(pattern_compression = pattern_compression, pattern_dimension_x = Np, pattern_dimension_y = Np, 
                                                zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, mask_index = mask_index, 

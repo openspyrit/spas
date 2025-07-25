@@ -46,7 +46,7 @@ class Spectrograph:
         Returns:
             Nothing, just print if communication is established or failed
         """
-            
+ 
         send_cmd = bytes([27])
         try: 
             serial_port.write(send_cmd)    
@@ -55,6 +55,9 @@ class Spectrograph:
             
             if HiByte == 27:
                 print("RS232 communication established with the spectrograh")
+                print('Spetrograph SP connected')
+            else:
+                print("Problem to communicate with the RS232 port")
         except:
             print("Error: Attempting to use a port that is not open or used by another software !!")
     
@@ -66,7 +69,7 @@ class Spectrograph:
             spectrograph (obj):
                 This itself class containing the serial port communication object and all functions that control the spectrograph.
             comm_port (str):
-                The the communication port number that your computer assigns by opening the Device Manager / Ports(COM & LPT)
+                The communication port number that your computer assigns by opening the Device Manager / Ports(COM & LPT)
                 
         Returns
             serial_port (obj)
@@ -75,6 +78,7 @@ class Spectrograph:
         
         try:
             serial_port = serial.Serial(port = comm_port, baudrate = 9600, bytesize = 8, parity = 'N', stopbits = 1, timeout = 0.1, rtscts = True, dsrdtr = False, xonxoff = False)
+
             self.query_echo(serial_port)
             
             return serial_port
@@ -170,7 +174,7 @@ class Spectrograph:
 
         receive_serial = self.serial_port.readline()
         if len(receive_serial) == 0:
-            # print('problem to read position')
+            print('problem to read position')
             position = -1
         else:
             HiByte = receive_serial[0]

@@ -25,8 +25,7 @@ def init_spectrograph(model : str = 'CM110'):
     """
     if model == 'CM110':
         spectrograph = Spectrograph()
-        spectrograph.serial_port = Spectrograph.open_serial(Spectrograph, comm_port = 'COM10')
-        print('Spetrograph SP connected')
+        spectrograph.serial_port = Spectrograph.open_serial(Spectrograph, comm_port = 'COM11')
         
         return spectrograph
     else:
