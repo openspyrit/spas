@@ -27,10 +27,10 @@ cam_spat = init_cam_spat(SN = 'BRCID2503000')
 cam_spec = init_cam_spec(SN = 'BRMID2503000')
 #%% setup the Spectrograph
 spectrograph_params = setup_spectrograph(spectrograph,
-                                         grating_nbr =    1, print_select   = True,   # Arg:  1 (High Resoluton), 2 (Low Resoluton)
-                                         position    =  420, print_position = True,   # the central wavelength of the grating
+                                         grating_nbr =    2, print_select   = True,   # Arg:  1 (High Resoluton), 2 (Low Resoluton)
+                                         position    =  641, print_position = True,   # the central wavelength of the grating
                                          unit        = 'nm', print_unit     = True,   # Arg: 'A', 'nm', 'µm'
-                                         slit_width  = 150)                          # the width of the slit in (µm)
+                                         slit_width  = 300)                          # the width of the slit in (µm)
 #%% setup Spatial Camera
 cam_spat_params = setup_cam(cam = cam_spat, 
                             cameras_nbr = 2,        # number of camera 
@@ -40,8 +40,8 @@ cam_spat_params = setup_cam(cam = cam_spat,
                             auto_wb     = True,     # auto white balance: [True or False]
                             gammaY      = 0.31,     # [0.3 - 1]                                
                             width       = 544,      #1280,# [32 - 1280]
-                            height      = 400,      #864,#` [4 - 864]
-                            offsetX     = 220, #0,#
+                            height      = 400,      #864,# [4 - 864]
+                            offsetX     = 320, #0,#
                             offsetY     = 200, #0,#
                             snapshot    = True)    # if false => acquire video, if True => acquire an image 
 #%% get a snapshot of the spatial camera
@@ -55,13 +55,13 @@ DMD.Halt()
 #%% setup Spectral Camera
 cam_spec_params = setup_cam(cam = cam_spec, 
                             cameras_nbr = 2,
-                            expos_time  = 100,         # [0.001 - 1000] ms
+                            expos_time  = 2.3,         # [0.001 - 1000] ms
                             frame_rate  = 4000,      # maximum is applied, depending of the exposure time 
                             gain        = 12,        # [0 - 18.07] dB
                             gammaY      = 0.31,      # [0.3 - 1]                                   
-                            width       = 1280, #832, # 960, #1280,#,      # [32 - 1280]
+                            width       = 768,#832, #L 1280, #960, #1280,#,      # [32 - 1280]
                             height      = 480,       # [4 - 864]
-                            offsetX     = 0, #$100, #3 100, #230,#170,#160,
+                            offsetX     = 150,#0, #$100, #3 100, #170,#160,
                             offsetY     = 150,#230,#75,#150,
                             binningX    = 1,         # [1, 2, 4, 8 & 16]
                             binningY    = 1,         # [1, 2, 4, 8 & 16]
@@ -78,20 +78,20 @@ DMD.Halt()
 #%% setup acquisition
 setup_version            = 'setup_v2.0'
 collection_access        = 'public' #'private'#
-Np                       = 2      # Number of pixels in one dimension of the image (image: NpxNp)
+Np                       = 128      # Number of pixels in one dimension of the image (image: NpxNp)
 ti                       = cam_spec_params.exposure_time_μs / 1000        # Integration time of the spectral camera
 NAverages                = 1 # Number of avegare (the acquisition is accumulated before moving the grating)
 NRepetitions             = 1 # Number of repetitions (grating change after that, the acquisition is repeated)
-Lc                       = [(385, 1)]#[(0, 1), (897, 1), (902, 1), (907, 1), (912, 1), (917, 1), (922, 1), (927, 1)] # [(0, 1), (780, 1), (785, 1), (795, 1), (805, 1), (810, 1)] #[(0, 1), (676, 1), (686, 1), (696, 1), (706, 1), (716, 1)] #[(0, 1), (557, 1), (567, 1), (577, 1), (587, 1), (597, 1)] #[(0, 1), (526, 1), (536, 1), (546, 1), (556, 1), (566, 1)] #[(0, 1), (416, 1), (426, 1), (436, 1), (446, 1), (456, 1)] ##, (832, 2), (852, 2), (872, 2), (892, 2), (912, 2), (932, 2), (952, 2), (972, 2), (992, 2)]## # a vector containig the central wavelength following by the grating number
+Lc                       = [(641, 2)]#[(0, 1), (897, 1), (902, 1), (907, 1), (912, 1), (917, 1), (922, 1), (927, 1)] # [(0, 1), (780, 1), (785, 1), (795, 1), (805, 1), (810, 1)] #[(0, 1), (676, 1), (686, 1), (696, 1), (706, 1), (716, 1)] #[(0, 1), (557, 1), (567, 1), (577, 1), (587, 1), (597, 1)] #[(0, 1), (526, 1), (536, 1), (546, 1), (556, 1), (566, 1)] #[(0, 1), (416, 1), (426, 1), (436, 1), (446, 1), (456, 1)] ##, (832, 2), (852, 2), (872, 2), (892, 2), (912, 2), (932, 2), (952, 2), (972, 2), (992, 2)]## # a vector containig the central wavelength following by the grating number
 zoom                     = 1        # Numerical zoom applied in the DMD
-xw_offset                = 128#+192# - 130     # Default = 128
-yh_offset                = 0#+192# - 50        # Default = 0
+xw_offset                = 128#320#128#+192# - 130     # Default = 128
+yh_offset                = 0#192#0#+192# - 50        # Default = 0
 pattern_compression      = 1
 pattern_dim              = '1D'
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
-source                   = 'HG-1_Oceanoptics'#'white_LED'#'Thorlabs_White_halogen_lamp'#'White_Zeiss_lamp'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
-object_name              = 'Ray-912' #'ray_405'#'nothing'   #'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
-data_folder_name         = '2025-07-24_wavelength-calibration-Gr1_test'#'Patient-69_exvivo_LGG_BU'
+source                   = 'white_LED'#'HG-1_Oceanoptics'#'Thorlabs_White_halogen_lamp'#'White_Zeiss_lamp'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
+object_name              = 'Cat' #'Ray-912' #'ray_405'#'nothing'   #'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
+data_folder_name         = '2025-07-25_test_timestamp'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
 
 all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
@@ -122,7 +122,7 @@ if all_path.aborted == False:
                         
     try: 
         change_patterns(DMD = DMD, acquisition_params = acquisition_params, zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, 
-                        force_change = False) 
+                        force_change = True) 
     except: 
         pass
                   
@@ -151,7 +151,7 @@ acquire(DMD                 = DMD,
 # data_folder_name = '2025-06-27_lens_tuning'
 # data_name = 'obj_Cat_fs-75mm_Lc-40mm_source_white_LED_Walsh_im_128x128_ti_1.25ms_zoom_x1'
 had_reco = hadamard_reco(data_folder_name, data_name, mean_NA = True, mean_NR = False, save_spectral_data = False, 
-                         save_spatial_data = False, bin_fact = cam_spec_params.height/Np)
+                         save_spatial_data = False, bin_fact = cam_spec_params.height/Np/zoom, zoom = zoom)
 #%% Plot
 from matplotlib import pyplot as plt
 

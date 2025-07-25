@@ -40,7 +40,8 @@ def binArray(data, axis, binstep, binsize, func=np.nanmean):
     data = np.array(data).transpose(argdims)
     return data
 
-def hadamard_reco(data_folder_name: str, data_name: str, mean_NA: bool = True, mean_NR: bool = False, save_spectral_data: bool = True, save_spatial_data: bool = False, bin_fact: float = 1):
+def hadamard_reco(data_folder_name: str, data_name: str, mean_NA: bool = True, mean_NR: bool = False, save_spectral_data: bool = True, 
+                  save_spatial_data: bool = False, bin_fact: float = 1, zoom: int = 1):
     """
     The Hadamard reconstruction for 1D acquisition
 
@@ -106,7 +107,7 @@ def hadamard_reco(data_folder_name: str, data_name: str, mean_NA: bool = True, m
                             bin_image = binArray(pickle_image, 0, bin_fact, bin_fact)
                         else:
                             bin_image = pickle_image
-                    
+                            
                     spectral_data_all[:, :, iNp, iNR, iLc, iNA] = bin_image
                     
                     if save_spatial_data:
@@ -126,10 +127,12 @@ def hadamard_reco(data_folder_name: str, data_name: str, mean_NA: bool = True, m
                     
                 M_sub = spectral_data_all[:,:,0::2, iNR, iLc, iNA] - spectral_data_all[:,:,1::2, iNR, iLc, iNA]
                 had_reco = wh.fwht(M_sub) / Npy
-                had_reco = np.swapaxes(had_reco, 2, 1)
-    
+                had_reco = np.swapaxes(had_reco, 2, 1)    
                 had_reco_all[:, :, :, iNR, iLc, iNA] = had_reco
-                
+    
+    if zoom > 1:
+        had_reco_all = had_reco_all[40:128+40, :, :, :, :, :]
+        
     print(' read raw data, elapsed time = ' + str(time.time() - t0))
     
     had_reco_all = np.flip(had_reco_all, axis = 0)

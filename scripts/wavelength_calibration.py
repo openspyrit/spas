@@ -18,7 +18,7 @@ def find_nearest(array, value):
     idx = (np.abs(array - value)).argmin()
     return idx
 #%% read data
-Lc_acq = 912 # 811 #  795 #696 #  546 #436 # 405 # 365 # 577 #763 #842 #     
+Lc_acq = 577 #405 # 912 # 811 #  795 #696 #  546 #436 # 365 # 763 #842 #     
 Gr = 1
 if Lc_acq == 365:
     Lc_real = 365.015

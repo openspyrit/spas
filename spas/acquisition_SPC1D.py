@@ -168,7 +168,8 @@ class AcquisitionParameters:
     patterns: Optional[Union[List[int], str]] = field(default=None, repr=False)
     patterns_wp: Optional[Union[List[int], str]] = field(default=None, repr=False)
     wavelengths: Optional[Union[np.ndarray, str]] = field(default=None, repr=False)
-    timestamps: Optional[Union[List[float], str]] = field(default=None, repr=False)
+    spec_timestamps: Optional[Union[List[float], str]] = field(default=None, repr=False)
+    spat_timestamps: Optional[Union[List[float], str]] = field(default=None, repr=False)
     measurement_time: Optional[Union[List[float], str]] = field(default=None, repr=False)
     
     output_directory: Optional[str] = field(default=None)  
@@ -552,6 +553,8 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
         cam.start_acquisition()
         
     start_chrono = time.time()
+    time_stmp_0 = (img.tsSec) + ((img.tsUSec)/1000000)
+    timestamps = np.zeros((acquisition_params.pattern_amount),dtype=np.float64)
     i = 0
     # acquire snapshot
     if cam.snapshot:
@@ -587,7 +590,10 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
             counter_time = time.time() - start_chrono
             if i >= acquisition_params.pattern_amount:
                 acquisition_params.receive_last_trig = True
-                if verbose:
+                if arm == 'spectral':
+                    acquisition_params.spec_timestamps = timestamps
+                elif arm == 'spatial':
+                    acquisition_params.spat_timestamps = timestamps
                     print('\n iteration reach (' + arm + ') : ' + str(i) + ' in the thread \n')
                 break
             elif counter_time > math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4:
@@ -596,14 +602,19 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
             else:
                 ############## get data and pass them from cameras to img #################
                 cam.get_image(img)
+                ################### timestamp #################################
+                timestamps[i] = (img.tsSec) + ((img.tsUSec)/1000000)
+                # print('i: ' + str(i) + '-->  Time Stamp: ' + str(time_stmp - time_stmp_0)) 
+                # timestamps[i] = time_stmp
+                # if i > 0:
+                #     print(timestamps[i] - timestamps[i-1])                
                 ################### get image data as numpy array #########################
                 data_np = img.get_image_data_numpy()#(invert_rgb_order = True)  
                 ################### write raw data in files #######################
                 with open(all_path.raw_data_path + '/' + file_name + str(i) + '.pkl', 'wb') as outp:
                     pickle.dump(data_np, outp, pickle.HIGHEST_PROTOCOL)
     
-                # # time_stmp = (img.tsSec) + ((img.tsUSec)/1000000)
-                # print('i: ' + str(i) + '-->  Time Stamp: ' + str(time_stmp - time_stmp_0))           
+                        
                 
                 i = i + 1
                 acquisition_params.receive_last_trig = False
@@ -702,6 +713,7 @@ def acquire(DMD: ALP4,
                         print('delay > ' + str(math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6 + 5)) + 's in the main loop \n')
                         break
                         
+                acquisition_params.total_spectrometer_acquisition_time_s = time.time() - start_chrono
                 DMD.Halt()
                 first_acqui = False
 
