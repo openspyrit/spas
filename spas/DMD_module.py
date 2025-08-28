@@ -215,15 +215,12 @@ class DMDParameters:
             elif polarity == 2007:
                 self.synch_polarity = 'Low'
 
-            print('polarity set to : ' + str(polarity))
-
             edge = DMD.DevInquire(ALP4.ALP_TRIGGER_EDGE)
             if edge == 2008:
                 self.trigger_edge = 'Falling'
             elif edge == 2009:
                 self.trigger_edge = 'Rising'
-                
-            print('trigger edge set to : ' + str(edge))    
+ 
             # synch_polarity_OUT1 = 
                 
             self.type = DMDTypes(DMD.DevInquire(ALP4.ALP_DEV_DMDTYPE))
@@ -383,6 +380,39 @@ def _sequence_limits(DMD: ALP4.ALP4,
 
     return frames
 
+def binArray(data, axis, binstep, binsize, func=np.nanmean):
+    """
+    Binning on an array
+    
+    Parameters
+    ----------
+    data : TYPE
+        data is your array.
+    axis : TYPE
+        axis is the axis you want to been.
+    binstep : TYPE
+        binstep is the number of points between each bin (allow overlapping bins).
+    binsize : TYPE
+        binsize is the size of each bin.
+    func : TYPE, optional
+        func is the function you want to apply to the bin (np.max for maxpooling, np.mean for an average ...). The default is np.nanmean.
+
+    Returns
+    -------
+    data : TYPE
+        The binning array.
+
+    """
+    data = np.array(data)
+    dims = np.array(data.shape)
+    argdims = np.arange(data.ndim)
+    argdims[0], argdims[axis]= argdims[axis], argdims[0]
+    data = data.transpose(argdims)
+    data = [func(np.take(data,np.arange(int(i*binstep),int(i*binstep+binsize)),0),0) for i in np.arange(dims[axis]//binstep)]
+    data = np.array(data).transpose(argdims)
+    return data
+
+from scipy.ndimage import rotate
 
 def _update_sequence(DMD: ALP4.ALP4,
                      DMD_params: DMDParameters,
@@ -464,7 +494,7 @@ def _update_sequence(DMD: ALP4.ALP4,
                 first_pass = False
                 len_im3 = pat_mask_all_mat_DMD.shape
                     
-            patterns[y_offset:y_offset+len_im3[0], x_offset:x_offset+len_im3[1]] = pat_mask_all_mat_DMD 
+            patterns[y_offset:y_offset+len_im3[0], x_offset:x_offset+len_im3[1]] = pat_mask_all_mat_DMD             
         else: # send the entire square pattern without the mask
             im_mat = np.reshape(im, [Np,Np])
             im_HD = cv2.resize(im_mat, (int(dmd_height/zoom), int(dmd_height/zoom)), interpolation = cv2.INTER_NEAREST)
@@ -478,14 +508,24 @@ def _update_sequence(DMD: ALP4.ALP4,
             # # To tilt of 90° the patterns 
             # patterns_inside = patterns[:, 128:patterns.shape[1] - 128]
             # patterns_inside = patterns_inside.T
-            # patterns[:,128:patterns.shape[1] - 128 ] = patterns_inside
+            # patterns[:, 128:patterns.shape[1] - 128] = patterns_inside
+            
+            # # To tilte of 45°
+            # patterns_inside = patterns[:, 128:patterns.shape[1] - 128]
+            # patterns_inside = rotate(patterns_inside, angle=45)
+            # bin_fact = patterns_inside.shape[0]/dmd_height
+            # bin_image = binArray(patterns_inside, 0, bin_fact, bin_fact)
+            # bin_image2 = binArray(bin_image, 1, bin_fact, bin_fact)
+            # bin_image2 = rotate(bin_image2, angle=90)
+            # patterns[:, 128:patterns.shape[1] - 128 ] = bin_image2
         
-        # if pattern_name == 0:
+        # if pattern_name == 4:
         #     from matplotlib import pyplot as plt
         #     plt.figure()
         #     # plt.imshow(pat_c_re)
         #     # plt.imshow(pat_mask_all_mat)
         #     # plt.imshow(pat_mask_all_mat_DMD)
+        #     # plt.imshow(patterns_inside)
         #     plt.imshow(np.rot90(patterns,2))
         #     plt.colorbar()
         #     plt.title('pattern n°' + str(pattern_name))

@@ -530,7 +530,7 @@ def save_metadata(DMD_params,#: DMDParameters,
 
         json.dump(output_params, output, ensure_ascii=False, indent=4)
 
-
+# from matplotlib import pyplot as plt
 def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iLc: int = 1, NA: int = 1, first_acqui: bool = True, verbose: bool = False): 
     """Acquire video with the Ximea camera in a thread
 
@@ -631,8 +631,12 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
                 ################### write raw data in files #######################
                 with open(all_path.raw_data_path + '/' + file_name + str(i) + '.pkl', 'wb') as outp:
                     pickle.dump(data_np, outp, pickle.HIGHEST_PROTOCOL)
-    
-                        
+                    
+                # if i == 0 and arm == 'spectral':
+                #     print(data_np.shape)
+                #     plt.figure()
+                #     plt.imshow(data_np)      
+                #     plt.colorbar()
                 
                 i = i + 1
                 acquisition_params.receive_last_trig = False
@@ -737,8 +741,7 @@ def acquire(DMD: ALP4,
                 first_acqui = False
                 
     acquisition_params.total_spectrometer_acquisition_time_s = time.time() - begin_acqui
-    print('\n')
-    print('\nTotal acquisition time = ' + str(round(acquisition_params.total_spectrometer_acquisition_time_s * 1000) / 1000) + ' s')
+    
     # print('\n----------- COUNTERS SPATIAL CAM -----------') # reading counters
     # cam_spat.set_counter_selector('XI_CNT_SEL_TRANSPORT_SKIPPED_FRAMES')
     # print('Transport skipped frames: ',cam_spat.get_counter_value())
@@ -766,7 +769,10 @@ def acquire(DMD: ALP4,
     print('Transport skipped frames: ', counter_trig[0])
     print('API skipped frames      : ', counter_trig[1])
     print('Transferred frames      : ', str(counter_trig[2]) + ' / ' + str(total_iter))
-                
+    
+    print('\n')
+    print('\nTotal acquisition time = ' + str(round(acquisition_params.total_spectrometer_acquisition_time_s * 1000) / 1000) + ' s')
+            
     time.sleep(1)
     cam_spat.stop_acquisition()
     cam_spec.stop_acquisition()
@@ -880,7 +886,10 @@ def plot_spectrum(data, cam_spec_params, spectrograph_params):
     
     wavelengths = define_wavelengths_matrix(cam_spec_params, [(spectrograph_params.position, spectrograph_params.grating.current_grating_nbr)])
 
-    data_m = data[220,:]
+    i, j = np.unravel_index(data.argmax(), data.shape)
+    print('maximum found at the row : ' + str(i))
+    
+    data_m = data[i, :]
     plt.figure()
     plt.plot(wavelengths[0, :], data_m)
     plt.xlabel('Lambda (nm)')

@@ -407,12 +407,14 @@ def plot_color(F: np.ndarray, wavelengths: np.ndarray, filename: str = None,
     # plt.show()
 
 
-def plot_reco_without_NN(acquisition_parameters, GT, all_path):
+def plot_reco_without_NN(acquisition_parameters, GT, all_path, overwrite = True):
     
     had_reco_path = all_path.had_reco_path
     fig_had_reco_path = all_path.fig_had_reco_path
     
     GT = np.rot90(GT, 2)
+    
+    save_fig = False
     
     if not os.path.exists(had_reco_path):
         np.savez_compressed(had_reco_path, GT)
@@ -429,20 +431,24 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path):
     ############### spatial view, wavelength bin #############
     # plt.figure()
     plot_color(F_bin_flip, wavelengths_bin)
-    plt.savefig(fig_had_reco_path + '_BIN_IMAGE_had_reco.png')
+    if overwrite == True:
+        plt.savefig(fig_had_reco_path + '_BIN_IMAGE_had_reco.png')
+        print('save image')
     plt.show()
 
     ############### spatial view, one wavelength #############
     # plt.figure()
     plot_color(F_bin_1px_flip, wavelengths_bin)
-    plt.savefig(fig_had_reco_path + '_SLICE_IMAGE_had_reco.png')
+    if save_fig == True:
+        plt.savefig(fig_had_reco_path + '_SLICE_IMAGE_had_reco.png')
     plt.show()
 
     ############### spatial view, wavelength sum #############
     # plt.figure()
     plt.imshow(np.mean(GT, axis=2))#[:,:,100:-100], axis=2))#[:,:,193:877] #(540-625 nm)
     plt.title('Sum of all wavelengths')
-    plt.savefig(fig_had_reco_path + '_GRAY_IMAGE_had_reco.png')
+    if overwrite == True:
+        plt.savefig(fig_had_reco_path + '_GRAY_IMAGE_had_reco.png')
     plt.show()
 
     ####################### RGB view ########################
@@ -453,7 +459,8 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path):
     plt.imshow(image_arr) #, extent=[0, 10.5, 0, 10.5])
     # plt.xlabel('X (mm)')
     # plt.ylabel('Y (mm)')
-    plt.savefig(fig_had_reco_path + '_RGB_IMAGE_had_reco.png')
+    if overwrite == True:
+        plt.savefig(fig_had_reco_path + '_RGB_IMAGE_had_reco.png')
     plt.show()
     ####################### spectral view ###################
     GT50 = GT[round(size_x/4):round(size_x*3/4), round(size_y/4):round(size_y*3/4), :]
@@ -466,7 +473,8 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path):
     plt.title("% of region from the center of the image")
     plt.legend(['25%', '50%', '100%'])
     plt.xlabel(r'$\lambda$ (nm)')
-    plt.savefig(fig_had_reco_path + '_SPECTRA_PLOT_had_reco.png')
+    if overwrite == True:
+        plt.savefig(fig_had_reco_path + '_SPECTRA_PLOT_had_reco.png')
     plt.show()
 
 
