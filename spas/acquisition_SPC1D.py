@@ -65,6 +65,8 @@ from spas.spectro_SP_module import setup_spectrograph
 from spas.cam_Ximea_module import counter_trigger
 from scipy import interpolate
 
+# import PIL.Image
+
 # from spas.DMD_module import  DMDParameters
 # import spas.DMD_module as DMD_mod
 # init_DMD, calculate_timings, setup_DMD, setup_patterns, setup_timings, _sequence_limits, _update_sequence, disconnect_DMD,
@@ -185,7 +187,8 @@ class AcquisitionParameters:
     NRepetitions: Optional[int] = field(default=None) 
     NAverages: Optional[int] = field(default=None) 
     Lc: Optional[Union[List[List[int]], str]] = field(default=None)
-    receive_last_trig:Optional[bool] = field(default=False, repr=False)
+    receive_last_trig_spat:Optional[bool] = field(default=False, repr=False)
+    receive_last_trig_spec:Optional[bool] = field(default=False, repr=False)
     
     class_description: str = 'Acquisition parameters'
 
@@ -555,31 +558,35 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
     """
 
     img = xiapi.Image()
+    acquisition_params.receive_last_trig_spat = False
+    acquisition_params.receive_last_trig_spec = False
     arm = cam.arm
     file_name = arm + '_NR_' + str(NR) + '_Gr_' + str(acquisition_params.Lc[iLc][1]) + '_Lc_' + str(acquisition_params.Lc[iLc][0]) + 'nm_NA_' + str(NA) + '_NS_'
     ####################### start data acquisition ############################
     if first_acqui:
-        # print('Starting ' + arm + ' data acquisition...\n')
+        print('Starting ' + arm + ' data acquisition...\n')
         cam.start_acquisition()
         
     start_chrono = time.time()
     time_stmp_0 = (img.tsSec) + ((img.tsUSec)/1000000)
-    
     i = 0
     # acquire snapshot
     if cam.snapshot:
-        timestamps = np.zeros((acquisition_params.pattern_amount),dtype=np.float64)
+        if arm == "spatial":
+            stop_it = 2
+            timestamps = np.zeros((stop_it),dtype=np.float64)
+        elif arm == "spectral":
+            stop_it = 1
+            timestamps = np.zeros((stop_it),dtype=np.float64)
+        
         while True: 
-            counter_time = time.time() - start_chrono
-            if arm == "spatial":
-                stop_it = 2
-            elif arm == "spectral":
-                stop_it = 1
-            if i >= stop_it:
-                acquisition_params.receive_last_trig = True
+            counter_time = time.time() - start_chrono            
+            if i >= stop_it:                
                 if arm == 'spectral':
+                    acquisition_params.receive_last_trig_spec = True
                     acquisition_params.spec_timestamps = timestamps
                 elif arm == 'spatial':
+                    acquisition_params.receive_last_trig_spat = True
                     acquisition_params.spat_timestamps = timestamps
                 if verbose:
                     print('\n iteration reach (' + arm + ') : ' + str(i) + ' in the thread \n')
@@ -595,22 +602,22 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
                 if i == stop_it - 1:
                     ################### get image data as numpy array #########################
                     data_np = img.get_image_data_numpy()#(invert_rgb_order = True)  
-                    ################### write raw data in files #######################
-                    with open(all_path.raw_data_path + '/' + file_name + str(i) + '.pkl', 'wb') as outp:
-                        pickle.dump(data_np, outp, pickle.HIGHEST_PROTOCOL)      
+                    ################### write raw data in files #######################  
+                    outp = all_path.raw_data_path + '/' + file_name + str(i)
+                    np.savez(outp, data_np)
                 
                 i = i + 1
-                acquisition_params.receive_last_trig = False
     # acquire all the frames
     else:
         timestamps = np.zeros((acquisition_params.pattern_amount),dtype=np.float64)
         while True: 
             counter_time = time.time() - start_chrono
             if i >= acquisition_params.pattern_amount:
-                acquisition_params.receive_last_trig = True
                 if arm == 'spectral':
+                    acquisition_params.receive_last_trig_spec = True
                     acquisition_params.spec_timestamps = timestamps
                 elif arm == 'spatial':
+                    acquisition_params.receive_last_trig_spat = True
                     acquisition_params.spat_timestamps = timestamps
                 print('\n iteration reach (' + arm + ') : ' + str(i) + ' in the thread \n')
                 break
@@ -621,26 +628,16 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
                 ############## get data and pass them from cameras to img #################
                 cam.get_image(img)
                 ################### timestamp #################################
-                timestamps[i] = (img.tsSec) + ((img.tsUSec)/1000000)
-                # print('i: ' + str(i) + '-->  Time Stamp: ' + str(time_stmp - time_stmp_0)) 
-                # timestamps[i] = time_stmp
-                # if i > 0:
-                #     print(timestamps[i] - timestamps[i-1])                
+                timestamps[i] = (img.tsSec) + ((img.tsUSec)/1000000)               
                 ################### get image data as numpy array #########################
-                data_np = img.get_image_data_numpy()#(invert_rgb_order = True)  
+                data_np = img.get_image_data_numpy()#invert_rgb_order = True)  
                 ################### write raw data in files #######################
-                with open(all_path.raw_data_path + '/' + file_name + str(i) + '.pkl', 'wb') as outp:
-                    pickle.dump(data_np, outp, pickle.HIGHEST_PROTOCOL)
-                    
-                # if i == 0 and arm == 'spectral':
-                #     print(data_np.shape)
-                #     plt.figure()
-                #     plt.imshow(data_np)      
-                #     plt.colorbar()
+                outp = all_path.raw_data_path + '/' + file_name + str(i)
+                np.savez(outp, data_np, allow_pickle = False)
                 
-                i = i + 1
-                acquisition_params.receive_last_trig = False
-
+                i = i + 1              
+                       
+                       
 def acquire(DMD: ALP4,
             DMD_params,
             cam_spat: xiapi,
@@ -680,8 +677,7 @@ def acquire(DMD: ALP4,
     -------
     None.
 
-    """
-    
+    """   
     first_acqui = True
 
     total_loop = acquisition_params.NRepetitions * acquisition_params.NAverages * len(acquisition_params.Lc)
@@ -705,12 +701,14 @@ def acquire(DMD: ALP4,
                     print('[NR = ' + str(NR + 1) + '/' + str(acquisition_params.NRepetitions) + ' --- Lc = ' + str(iLc + 1) + '/' + str(len(acquisition_params.Lc)) + ' --- NA = ' + str(NA + 1) + '/' + str(acquisition_params.NAverages) + ']')
                 
                 bar.next()
+                print('\n')
                 
-                x = threading.Thread(target = runCam_thread, args=(cam_spat, acquisition_params, DMD_params, all_path, NR, iLc, NA, first_acqui, verbose))
-                x.start()
+                thread_spat = threading.Thread(target = runCam_thread, args=(cam_spat, acquisition_params, DMD_params, all_path, NR, iLc, NA, first_acqui, verbose))
+                thread_spat.start()
+                
+                thread_spec = threading.Thread(target = runCam_thread, args=(cam_spec, acquisition_params, DMD_params, all_path, NR, iLc, NA, first_acqui, verbose))
+                thread_spec.start()
 
-                x1 = threading.Thread(target = runCam_thread, args=(cam_spec, acquisition_params, DMD_params, all_path, NR, iLc, NA, first_acqui, verbose))
-                x1.start()
 
                 if first_acqui:
                     time.sleep(1.2)
@@ -728,12 +726,12 @@ def acquire(DMD: ALP4,
                     time.sleep(0.1)
                     counter_time = time.time() - start_chrono
                     
-                    if acquisition_params.receive_last_trig:
+                    if acquisition_params.receive_last_trig_spat and acquisition_params.receive_last_trig_spec:
                         if verbose:
                             print('iteration reachs ' + str(acquisition_params.pattern_amount) + ' in the main loop \n')
                         break
-                    elif counter_time > math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 5:
-                        print('delay > ' + str(math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6 + 5)) + 's in the main loop \n')
+                    elif counter_time > math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 1:
+                        print('delay > ' + str(counter_time) + 's in the main loop \n')
                         break
                         
                 
@@ -773,11 +771,23 @@ def acquire(DMD: ALP4,
     print('\n')
     print('\nTotal acquisition time = ' + str(round(acquisition_params.total_spectrometer_acquisition_time_s * 1000) / 1000) + ' s')
             
-    time.sleep(1)
+    # time.sleep(1)
     cam_spat.stop_acquisition()
     cam_spec.stop_acquisition()
 
     bar.finish()
+    
+    try:
+        a = acquisition_params.spec_timestamps[0]
+    except:
+        acquisition_params.spec_timestamps = np.empty(0)
+        print('warning, timestamps for spectral camera is empty')
+    
+    try:
+        a = acquisition_params.spat_timestamps[0]
+    except:
+        acquisition_params.spat_timestamps = np.empty(0)
+        print('warning, timestamps for spatial camera is empty')
     
     save_metadata(DMD_params, spectrograph_params, cam_spat_params, cam_spec_params, acquisition_params)
 

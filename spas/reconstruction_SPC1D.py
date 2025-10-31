@@ -7,6 +7,7 @@ import numpy as np
 from spas.acquisition_SPC1D import read_metadata
 import spyrit.misc.walsh_hadamard as wh
 
+# from matplotlib import pyplot as plt
 
 def binArray(data, axis, binstep, binsize, func=np.nanmean):
     """
@@ -90,26 +91,39 @@ def hadamard_reco(data_folder_name: str, data_name: str, mean_NA: bool = True, m
     height = saved_cam_spat_params.height
     width = saved_cam_spat_params.width  
     
-    spectral_data_all = np.empty((int(Ny/bin_fact), Nx, Npatterns, NR, NLc, NA), dtype = float)
+    # spectral_data_all = np.empty((int(Ny/bin_fact), Nx, Npatterns, NR, NLc, NA), dtype = float)
     spatial_data_all = np.empty((height, width, 3, spatial_Npatterns, NR, NLc, NA), dtype = float)
     # bin_image = np.empty((Npy, Nx), dtype = float)
-    had_reco_all = np.empty((int(Ny/bin_fact), Npx, Nx, NR, NLc, NA), dtype = float)# Ny must will be changed by the wavelength vector
+    # had_reco_all = np.empty((int(Ny/bin_fact), Npx, Nx, NR, NLc, NA), dtype = float)# Ny must will be changed by the wavelength vector
     t0 = time.time()
+    # save_image = ''#'pickle'
+    fisrt_pass = True
     for iNA in range(NA):
         for iLc in range(NLc):
             print(iLc)
             for iNR in range(NR): 
                 for iNp in range(Npatterns):
-                    data_path = output_path + '/raw_data/spectral_NR_' + str(iNR) + '_Gr_' + str(Lc[iLc][1]) + '_Lc_' + str(Lc[iLc][0]) + 'nm_NA_' + str(iNA) + '_NS_' + str(iNp) + '.pkl'
-                    with open(data_path, "rb") as fp:
-                        pickle_image = pickle.load(fp)
-                        if bin_fact != 1:
-                            bin_image = binArray(pickle_image, 0, bin_fact, bin_fact)
-                        else:
-                            bin_image = pickle_image
-                            
-                    spectral_data_all[:, :, iNp, iNR, iLc, iNA] = bin_image
+                    data_path = output_path + '/raw_data/spectral_NR_' + str(iNR) + '_Gr_' + str(Lc[iLc][1]) + '_Lc_' + str(Lc[iLc][0]) + 'nm_NA_' + str(iNA) + '_NS_' + str(iNp) + '.npz'
                     
+                    file = np.load(data_path)    
+                    npz_image = file['arr_0']
+                    
+                    # delete the two fisrt rows
+                    npz_image = np.delete(npz_image, (0), axis=0)
+                    npz_image = np.delete(npz_image, (1), axis=0)
+                    
+                    if bin_fact != 1:
+                        bin_image = binArray(npz_image, 0, bin_fact, bin_fact)
+                    else:
+                        bin_image = npz_image
+                        
+                    if fisrt_pass == True:
+                        spectral_data_all = np.empty((bin_image.shape[0], bin_image.shape[1], Npatterns, NR, NLc, NA), dtype = float)
+                        had_reco_all = np.empty((bin_image.shape[0], Npx, Nx, NR, NLc, NA), dtype = float)
+                        fisrt_pass = False
+                     
+                    spectral_data_all[:, :, iNp, iNR, iLc, iNA] = bin_image
+
                     if save_spatial_data:
                         if snapshot == False:
                             data_path = output_path + '/raw_data/spatial_NR_' + str(iNR) + '_Gr_' + str(Lc[iLc][1]) + '_Lc_' + str(Lc[iLc][0]) + 'nm_NA_' + str(iNA) + '_NS_' + str(iNp) + '.pkl'
@@ -129,9 +143,6 @@ def hadamard_reco(data_folder_name: str, data_name: str, mean_NA: bool = True, m
                 had_reco = wh.fwht(M_sub) / Npy
                 had_reco = np.swapaxes(had_reco, 2, 1)    
                 had_reco_all[:, :, :, iNR, iLc, iNA] = had_reco
-    
-    if zoom > 1:
-        had_reco_all = had_reco_all[40:128+40, :, :, :, :, :]
         
     print(' read raw data, elapsed time = ' + str(time.time() - t0))
     
@@ -152,6 +163,7 @@ def hadamard_reco(data_folder_name: str, data_name: str, mean_NA: bool = True, m
     
     if save_spectral_data:
         t0 = time.time()
+        spectral_data_all = np.squeeze(spectral_data_all)
         np.savez_compressed(output_path + '/spectral_data.npz', spectral_data = spectral_data_all)
         print(' save spectral data, elapsed time = ' + str(time.time() - t0))
         
@@ -165,7 +177,7 @@ def hadamard_reco(data_folder_name: str, data_name: str, mean_NA: bool = True, m
     if save_spectral_data:
         return had_reco_all, spectral_data_all
     else:
-        return had_reco_all
+        return had_reco_all, 0
 
 
 def reconstruction_raster(M: np.ndarray, N: int = 64) -> np.ndarray:    

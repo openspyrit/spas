@@ -423,9 +423,11 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path, overwrite = True)
     size_y = GT.shape[1]
         
     F_bin, wavelengths_bin, bin_width = spectral_binning(GT.T, acquisition_parameters.wavelengths, acquisition_parameters.wavelengths[0], acquisition_parameters.wavelengths[-1], 8)
+    # F_bin, wavelengths_bin, bin_width = spectral_binning(GT.T, acquisition_parameters.wavelengths, 530, 730, 8)
     F_bin_rot = np.rot90(F_bin, axes=(1,2))
     F_bin_flip = F_bin_rot[:,::-1,:]
     F_bin_1px, wavelengths_bin, bin_width = spectral_slicing(GT.T, acquisition_parameters.wavelengths, acquisition_parameters.wavelengths[0], acquisition_parameters.wavelengths[-1], 8)
+    # F_bin_1px, wavelengths_bin, bin_width = spectral_slicing(GT.T, acquisition_parameters.wavelengths, 530, 730, 8)
     F_bin_1px_rot = np.rot90(F_bin_1px, axes=(1,2))
     F_bin_1px_flip = F_bin_1px_rot[:,::-1,:]
     ############### spatial view, wavelength bin #############
@@ -439,13 +441,13 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path, overwrite = True)
     ############### spatial view, one wavelength #############
     # plt.figure()
     plot_color(F_bin_1px_flip, wavelengths_bin)
-    if save_fig == True:
+    if overwrite == True:
         plt.savefig(fig_had_reco_path + '_SLICE_IMAGE_had_reco.png')
     plt.show()
 
     ############### spatial view, wavelength sum #############
     # plt.figure()
-    plt.imshow(np.mean(GT, axis=2))#[:,:,100:-100], axis=2))#[:,:,193:877] #(540-625 nm)
+    plt.imshow(np.mean(GT[:,:,33:-33], axis=2))#[:,:,193:877] #(540-625 nm)
     plt.title('Sum of all wavelengths')
     if overwrite == True:
         plt.savefig(fig_had_reco_path + '_GRAY_IMAGE_had_reco.png')

@@ -264,7 +264,7 @@ class DMDParameters:
 # setup
 def calculate_timings(integration_time: float = 1, 
                       integration_delay: int = 0, 
-                      add_illumination_time: int = 300, 
+                      add_illumination_time: int = 78, 
                       synch_pulse_delay: int = 0, 
                       dark_phase_time: int = 44,
                       ) -> Tuple[int, int, int]:
@@ -705,7 +705,7 @@ def setup_DMD(DMD: ALP4,
               integration_time: float = 1, 
               integration_delay: int = 0,
               DMD_output_synch_pulse_delay: int = 0, 
-              add_illumination_time: int = 356,
+              add_illumination_time: int = 78,
               dark_phase_time: int = 44,
               DMD_trigger_in_delay: int = 0,
               pattern_to_display: str = 'white',
@@ -820,7 +820,7 @@ def setup_DMD(DMD: ALP4,
     return DMD_params
 
 
-def play_one_pattern(DMD, DMD_initial_memory, cam_Par, 
+def play_one_pattern(DMD, DMD_initial_memory, cam_Par, zoom: int = 1,
                      pattern_to_display: str = 'white'):
     """
     play an unique pattern on the DMD in continue mode
@@ -849,9 +849,9 @@ def play_one_pattern(DMD, DMD_initial_memory, cam_Par,
     Np = 64
     AcquisitionParameters.pattern_dimension_x = Np
     AcquisitionParameters.pattern_dimension_y = Np
-    AcquisitionParameters.zoom = 1
-    AcquisitionParameters.xw_offset = 128#+192#-50-50-30
-    AcquisitionParameters.yh_offset = 0#+192#-50
+    AcquisitionParameters.zoom = zoom
+    AcquisitionParameters.xw_offset = int((1024 - 768/zoom) / 2)
+    AcquisitionParameters.yh_offset = int((768 - 768/zoom) / 2)
     if 'mask_index' not in locals(): mask_index = [];  x_mask_coord = []; y_mask_coord = [] # execute "mask_index = []" to not apply the mask
     AcquisitionParameters.mask_index = mask_index
     AcquisitionParameters.x_mask_coord = x_mask_coord

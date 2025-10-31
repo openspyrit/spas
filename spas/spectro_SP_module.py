@@ -75,7 +75,7 @@ class Spectrograph_Parameters:
             self.position        = Spectrograph.query_position(spectrograph)
             self.grating         = Spectrograph.query_grating(spectrograph, grating)
             self.slit_width      = Spectrograph.slit_width
-            self.resolution_th   = self.slit_width * 10 / self.grating.grooves
+            self.resolution_th   = self.slit_width * 7.44 / self.grating.grooves
             # self.speed         = Spectrograph.query_speed(spectrograph, print_speed = False)
             # self.size          = Spectrograph.query_size(spectrograph, print_size = False)
     

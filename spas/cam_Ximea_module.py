@@ -156,9 +156,9 @@ class cam_Parameters:
     #         self.exposure_time_µs = cam.get_exposure()   
         
 
-def setup_cam(cam: xiapi.Camera, cameras_nbr: int = 2, expos_time: float = 1, frame_rate: int = 3700, gain: float = 0, black_level: int = 4, 
-              auto_wb: bool = True, gammaY: float = 0.3, width: int = 1280, height: int = 864, offsetX: int = 0, offsetY: int = 0, 
-              binningX: int = 1, binningY: int = 1, snapshot: bool = False):
+def setup_cam(cam: xiapi.Camera, data_format: int = 8, cameras_nbr: int = 2, expos_time: float = 1, frame_rate: int = 3700, gain: float = 0, 
+              black_level: int = 4, auto_wb: bool = True, gammaY: float = 0.3, width: int = 1280, height: int = 864, 
+              offsetX: int = 0, offsetY: int = 0, binningX: int = 1, binningY: int = 1, snapshot: bool = False):
     """
     setup the Ximea camera
 
@@ -168,6 +168,8 @@ def setup_cam(cam: xiapi.Camera, cameras_nbr: int = 2, expos_time: float = 1, fr
         a object to drive the Ximea camera
     cameras_nbr : int, optional
         the number of camera connected on the same controller. The default is 2.
+    data_format (int):
+        Format of image data returned by function xiGetImage in depth bit
     expos_time : float, optional
         the exposure time in ms. The default is 1.
     frame_rate : int, optional
@@ -235,36 +237,11 @@ def setup_cam(cam: xiapi.Camera, cameras_nbr: int = 2, expos_time: float = 1, fr
     height_acc = height# round(round(height / height_inc) * height_inc / binningY)
     offsetX_acc = round(offsetX / offsetX_inc) * offsetX_inc
     offsetY_acc = round(offsetY / offsetY_inc) * offsetY_inc
-
-    # while True:
-    #     if offsetX_acc < 0:
-    #         print('problem, offsetX is negative, it is set to zero')
-    #         offsetX_acc = 0
-    #         break
-    #     if width_acc + offsetX_acc > width_max:
-    #         offsetX_acc = offsetX_acc - offsetX_inc
-    #         print('offsetX + width higher than width max, offsetX decrease')
-    #         if offsetX_acc < 0:
-    #             print('problem, offsetX is negative, it is set to zero')
-    #             offsetX_acc = 0
-    #             break
-    #     else:
-    #         break
-
-    # while True:
-    #     if offsetY_acc < 0:
-    #         print('problem, offsetY is negative, it is set to zero')
-    #         offsetY_acc = 0
-    #         break
-    #     if height_acc + offsetY_acc > height_max:
-    #         offsetY_acc = offsetY_acc - offsetY_inc
-    #         print('offsetY + height higher than height max, offsetY decrease')
-    #         if offsetY_acc < 0:
-    #             print('problem, offsetY is negative, it is set to zero')
-    #             offsetY_acc = 0
-    #             break
-    #     else:
-    #         break
+    
+    print('width acc    : ' + str(width_acc))
+    print('height acc   : ' + str(height_acc))
+    print('offset X acc : ' + str(offsetX_acc))
+    print('offset Y acc : ' + str(offsetY_acc))
 
     if offsetX_cur > 0 and offsetX_acc == 0:
         cam.set_offsetX(offsetX_acc)  
@@ -279,10 +256,7 @@ def setup_cam(cam: xiapi.Camera, cameras_nbr: int = 2, expos_time: float = 1, fr
     else:
         cam.set_height(height_acc) 
         cam.set_offsetY(offsetY_acc)
-    
-    
-    
-    
+         
     width_get = cam.get_width()
     height_get = cam.get_height()
     offsetX_get = cam.get_offsetX()
@@ -293,11 +267,41 @@ def setup_cam(cam: xiapi.Camera, cameras_nbr: int = 2, expos_time: float = 1, fr
     print('offset X set to : ' + str(offsetX_get))
     print('offset Y set to : ' + str(offsetY_get))
     ####################### set sensor bit depth ##############################
-    cam.set_sensor_bit_depth('XI_BPP_10')
-    ###################### set output data format #############################
-    cam.set_output_bit_depth('XI_BPP_10') 
+    # cam.set_sensor_bit_depth('XI_BPP_10')
+    # ###################### set output data format #############################
+    # cam.set_output_bit_depth('XI_BPP_16') 
+    
+    ## set the RGB image data format to 8 bit to display it if set to 16 bits #
+
+    if cam.get_device_name().decode(encoding) == 'CB013CG-LX-X8G3':
+        if data_format == 8:
+            cam.set_imgdataformat('XI_RGB24')
+        elif data_format == 16:
+            cam.set_imgdataformat('XI_RGB48')
+        else:
+            print('!!! image data format ERROR. Please choice between 8 or 16 bit !!!')
+        print('image data format set to: ' + cam.get_imgdataformat())
+    elif cam.get_device_name().decode(encoding) == 'CB013MG-LX-X8G3':
+        if data_format == 8:
+            cam.set_imgdataformat('XI_RAW8')
+            print('image data format bit depth = ' + cam.get_imgdataformat())
+            cam.set_sensor_bit_depth('XI_BPP_10')
+            print('sensor bit depth = ' + cam.get_sensor_bit_depth())
+            cam.set_output_bit_depth('XI_BPP_8') 
+            print('output bit depth = ' + cam.get_output_bit_depth())
+        elif data_format == 16:
+            cam.set_imgdataformat('XI_RAW16')
+            print('image data format bit depth = ' + cam.get_imgdataformat())
+            cam.set_sensor_bit_depth('XI_BPP_10')
+            print('sensor bit depth = ' + cam.get_sensor_bit_depth())
+            cam.set_output_bit_depth('XI_BPP_10') 
+            print('output bit depth = ' + cam.get_output_bit_depth())
+            
+    image_bit_depth_str = cam.get_image_data_bit_depth()
+    image_bit_depth = int(image_bit_depth_str[7:])
+    print('data output bit depth = ' + str(image_bit_depth))    
     #################### setting the exposure timre ###########################
-    # NB: the exposure time must bean interger in µs wheras it is enqueried in ms as a float
+    # NB: the exposure time must be an interger in µs wheras it is enqueried in ms as a float
     exposure_time = round(expos_time * 1000)
     if exposure_time < cam.get_exposure_minimum():
         exposure_time = cam.get_exposure_minimum()
@@ -316,21 +320,11 @@ def setup_cam(cam: xiapi.Camera, cameras_nbr: int = 2, expos_time: float = 1, fr
     # cam.set_framerate(frame_rate)
     # current_frame_rate = cam.get_framerate()
     # print('new frame rate set to : ' + str(current_frame_rate))
-    ########### set the image data format to 8 bit to display it ##############
-    if cam.get_device_name().decode(encoding) == 'CB013CG-LX-X8G3':
-        cam.set_imgdataformat('XI_RGB24')
-        # print('image data format set to : ' + cam.get_imgdataformat() + ' for the color camera')
-    elif cam.get_device_name().decode(encoding) == 'CB013MG-LX-X8G3':
-        cam.set_imgdataformat('XI_RAW8')
-        # print('image data format set to : ' + cam.get_imgdataformat() + ' for the monochrome camera')
-    ####################### setting the data rate #############################
+    ########################### get bandwidth #################################
     cam.set_limit_bandwidth_mode('XI_ON')
-    CAMERAS_ON_SAME_CONTROLLER = cameras_nbr
-    #set interface data rate
-    interface_data_rate = cam.get_limit_bandwidth()
-    camera_data_rate = int(interface_data_rate / CAMERAS_ON_SAME_CONTROLLER)
+    interface_data_rate = cam.get_limit_bandwidth_maximum()
+    camera_data_rate = int(interface_data_rate / cameras_nbr)
 
-    # get min and max data rate:
     min_data_rate_cam = cam.get_limit_bandwidth_minimum()
     max_data_rate_cam = cam.get_limit_bandwidth_maximum()
     
@@ -340,28 +334,24 @@ def setup_cam(cam: xiapi.Camera, cameras_nbr: int = 2, expos_time: float = 1, fr
     elif camera_data_rate > max_data_rate_cam:
         camera_data_rate = max_data_rate_cam
         print('camera_data_rate is above the maximum value, it is set to its maxinum value')
-    # ici, je prend la valeur max que je divise par deux, à améliorer
-    camera_data_rate = int(max_data_rate_cam / CAMERAS_ON_SAME_CONTROLLER)
    
     cam.set_limit_bandwidth(camera_data_rate)
+    print('BandWidth = ' + str(cam.get_limit_bandwidth()))
     ########################## set buffer #####################################
-    cam.set_buffer_policy('XI_BP_SAFE')#'XI_BP_UNSAFE')#
+    cam.set_buffer_policy('XI_BP_SAFE')#
     cam.set_acq_buffer_size(int(cam.get_acq_buffer_size_maximum()/4)) # divide by 4 because if higher, we lose triggers, to set max, you need too wait 2.6s between star_acquisition and receive the first trig (DMD.run), to set max/2 => wait 1.5s, max/4 => wait 1s
-    # cam.set_acq_buffer_size(cam.get_acq_buffer_size_minimum()*2)
+
     print('buffer size = ' + str(cam.get_acq_buffer_size()))
     print('min buffers queue size = ' + str(cam.get_buffers_queue_size_minimum()))
     print('max buffers queue size = ' + str(cam.get_buffers_queue_size_maximum()))
     
     cam.set_buffers_queue_size(cam.get_buffers_queue_size_maximum())
-    # cam.set_buffers_queue_size(2)#
-    # # cam.set_buffers_queue_size(cam.get_buffers_queue_size_minimum())
     
     buffers_queue_size = cam.get_buffers_queue_size()
-    print('buffers queue size  = ' + str(buffers_queue_size ))
+    print('buffers queue size  = ' + str(buffers_queue_size))
     ########################## setting gain ###################################
     gain_min = cam.get_gain_minimum()
     gain_max = cam.get_gain_maximum()
-    # gain_inc = cam.get_gain_increment()
     if gain < gain_min:
         gain = 0
         print('Warning, gain is below the minimum value, it is set to ' + str(round(gain_min, 2)) + ' dB')        
@@ -380,9 +370,9 @@ def setup_cam(cam: xiapi.Camera, cameras_nbr: int = 2, expos_time: float = 1, fr
         elif auto_wb == False:
             cam.disable_auto_wb() 
     
-        wb_kr = cam.get_wb_kr()
-        wb_kg = cam.get_wb_kg()
-        wb_kb = cam.get_wb_kb()
+        # wb_kr = cam.get_wb_kr()
+        # wb_kg = cam.get_wb_kg()
+        # wb_kb = cam.get_wb_kb()
     ######################### set the GammaY ##################################
     gammaY_min = cam.get_gammaY_minimum()
     gammaY_max = cam.get_gammaY_maximum()
@@ -394,14 +384,6 @@ def setup_cam(cam: xiapi.Camera, cameras_nbr: int = 2, expos_time: float = 1, fr
         print('gammaY is above the maximum, it is set to : ' + str(round(gammaY_max, 2)))
         
     cam.set_gammaY(gammaY)    
-    ########### set the image data format to 10 bit to save it ################
-    if cam.get_device_name().decode(encoding) == 'CB013CG-LX-X8G3':
-        cam.set_imgdataformat('XI_RGB48')
-        # print('image data format set to : ' + cam.get_imgdataformat() + ' for the color camera')
-    elif cam.get_device_name().decode(encoding) == 'CB013MG-LX-X8G3':
-        cam.set_imgdataformat('XI_RAW16')
-        # print('the exposure time is above the maximum value, it is set to ' + str(cam.get_exposure_maximum()))
-        
     ################# acquire waiting an internal trigger #####################
     gpi_mode = 'XI_GPI_TRIGGER'
     cam.set_gpi_mode(gpi_mode)
@@ -409,13 +391,14 @@ def setup_cam(cam: xiapi.Camera, cameras_nbr: int = 2, expos_time: float = 1, fr
     cam.set_trigger_source(trigger_source)
     trigger_selector = 'XI_TRG_SEL_FRAME_START'
     cam.set_trigger_selector(trigger_selector)
-    ################♠ acquisition mode ########################################
+    cam.set_trigger_overlap('XI_TRG_OVERLAP_OFF') # in the case of 'XI_TRG_OVERLAP_PREV_FRAME', a stray line appear in the image => desastrous for the Hadamard reco
+    ################♠ acquisition mode: snapshot or video #####################
     cam.snapshot = snapshot
     
     return cam_Parameters(cam = cam)
         
 
-def snapshot_cam(cam, data_format: int = 8, binX: int = 1, binY: int = 1, disp_bin_effect: bool = False, tilt_image: bool = False):
+def snapshot_cam(cam, binX: int = 1, binY: int = 1, disp_bin_effect: bool = False, tilt_image: bool = False):
     """
     take a snapshot of the camera
     
@@ -423,8 +406,6 @@ def snapshot_cam(cam, data_format: int = 8, binX: int = 1, binY: int = 1, disp_b
     -----------
         cam (obj): 
             a object to drive the Ximea camera
-        data_format (int):
-            Format of image data returned by function xiGetImage in depth bit
         binX (int):
             binning in the width direction
         binY (int):
@@ -443,18 +424,16 @@ def snapshot_cam(cam, data_format: int = 8, binX: int = 1, binY: int = 1, disp_b
                  new_shape[1], arr.shape[1] // new_shape[1])
         return arr.reshape(shape).mean(-1).mean(1)
     
-    ########### set the image data format to 8 bit to display it ##############
-    if data_format == 8:
-        if cam.get_device_name().decode(encoding) == 'CB013CG-LX-X8G3':
-            cam.set_imgdataformat('XI_RGB24')
-            print('image data format set to : ' + cam.get_imgdataformat() + ' for the color camera')
-        elif cam.get_device_name().decode(encoding) == 'CB013MG-LX-X8G3':
-            cam.set_imgdataformat('XI_RAW8')
-            print('image data format set to : ' + cam.get_imgdataformat() + ' for the monochrome camera')
+    # ########### set the image data format to 8 bit to display it ##############
+    if cam.get_device_name().decode(encoding) == 'CB013CG-LX-X8G3' and cam.get_imgdataformat() == 'XI_RGB48':
+        cam.set_imgdataformat('XI_RGB24')   
+        change_data_format_for_dispaly = True
+    else:
+        change_data_format_for_dispaly = False
             
     image_bit_depth_str = cam.get_image_data_bit_depth()
     image_bit_depth = int(image_bit_depth_str[7:])
-    print('data output bit depth = ' + str(image_bit_depth))
+    # print('data output bit depth = ' + str(image_bit_depth))
     ##################### create instance for cameras #########################
     img = xiapi.Image()
     ####################### start data acquisition ############################
@@ -464,6 +443,8 @@ def snapshot_cam(cam, data_format: int = 8, binX: int = 1, binY: int = 1, disp_b
     cam.get_image(img)
     ################### get image data as numpy array #########################
     data = img.get_image_data_numpy(invert_rgb_order = True)
+    # outp = 'test'
+    # np.savez(outp, data)
     ####################### stop data acquisition #############################
     print(cam.arm + ' camera: Stopping acquisition...')
     cam.stop_acquisition()
@@ -473,13 +454,16 @@ def snapshot_cam(cam, data_format: int = 8, binX: int = 1, binY: int = 1, disp_b
         print('!!!!!!!!!! Warning, saturation detected !!!!!!!!!!!!')
     ######################## apply binning ####################################
     if binX != 1 and binY !=1:
+        print('bin data activated')
         data_bin = rebin(data, [round(cam.get_height()/binY), round(cam.get_width()/binX)])
     else:
+        print('bin data deactivated')
         data_bin = data
-    ########################## title image ####################################
+    ########################## tilt image ####################################
     if tilt_image:
         data = np.flip(np.flip(data, axis = 1), axis = 0)
         data_bin = np.flip(np.flip(data_bin, axis = 1), axis = 0)
+        print('image tilted')
     ########################## print snapshot #################################
     plt.figure()
     plt.imshow(data)
@@ -512,14 +496,9 @@ def snapshot_cam(cam, data_format: int = 8, binX: int = 1, binY: int = 1, disp_b
         print('     Noise = ' + str(noise_bin))
         print('     SNR = ' + str(Sig_bin/noise_bin))
     ########### set the image data format to 10 bit to save it ################
-    if data_format == 8:
-        if cam.get_device_name().decode(encoding) == 'CB013CG-LX-X8G3':
-            cam.set_imgdataformat('XI_RGB48')
-            print('image data format set to : ' + cam.get_imgdataformat() + ' for the color camera')
-        elif cam.get_device_name().decode(encoding) == 'CB013MG-LX-X8G3':
-            cam.set_imgdataformat('XI_RAW16')
-            print('image data format set to : ' + cam.get_imgdataformat() + ' for the monochrome camera')
-    
+    if cam.get_device_name().decode(encoding) == 'CB013CG-LX-X8G3' and change_data_format_for_dispaly == True:
+        cam.set_imgdataformat('XI_RGB48')
+
     return data    
 
 
