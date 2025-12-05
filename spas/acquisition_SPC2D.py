@@ -372,7 +372,7 @@ def _sequence_limits(DMD: ALP4,
     if (round(pattern_compression * sequence_lenght) % 2 == 0) or not (pos_neg):
         frames = round(pattern_compression * sequence_lenght)
     else:
-        frames = round(pattern_compression * sequence_lenght) + 1
+        frames = round(pattern_compression * sequence_lenght)# + 1
 
     DMD.SeqControl(ALP_LASTFRAME, frames - 1)
 
@@ -429,7 +429,7 @@ def _update_sequence(DMD: ALP4,
     # for adaptative patterns into a ROI
     apply_mask = False
     mask_index = acquisition_params.mask_index
-        
+
     if len(mask_index) > 0:
         apply_mask = True
         Npx = acquisition_params.pattern_dimension_x
@@ -444,8 +444,8 @@ def _update_sequence(DMD: ALP4,
     for index,pattern_name in enumerate(tqdm(pattern_order, unit=' patterns', total=len(pattern_order))):
         # read numpy patterns
         path = path_base.joinpath(f'{pattern_prefix}_{pattern_name}.npy')
-        im = np.load(path) 
-        
+        im = np.load(path)
+
         patterns = np.zeros((dmd_height, dmd_width), dtype=np.uint8)
         
         if apply_mask == True: # for adaptative patterns into a ROI 
@@ -468,16 +468,19 @@ def _update_sequence(DMD: ALP4,
                 len_im = im_HD.shape
                 first_pass = False
                 
-            patterns[y_offset:y_offset+len_im[0], x_offset:x_offset+len_im[1]] = im_HD  
-        
-        # if pattern_name == 800:
-        #     plt.figure()
-        #     # plt.imshow(pat_c_re)
-        #     # plt.imshow(pat_mask_all_mat)
-        #     # plt.imshow(pat_mask_all_mat_DMD)
-        #     plt.imshow(np.rot90(patterns,2))
-        #     plt.colorbar()
-        #     plt.title('pattern n°' + str(pattern_name))
+            patterns[y_offset:y_offset+len_im[0], x_offset:x_offset+len_im[1]] = im_HD
+                  
+        if pattern_name == 4000 or pattern_name == 10:
+            if np.amax(patterns) == 1:
+                print('error pattern in 1 bit, not in 8 bits, please change the format')
+            else:
+                plt.figure()
+                # plt.imshow(pat_c_re)
+                # plt.imshow(pat_mask_all_mat)
+                # plt.imshow(pat_mask_all_mat_DMD)
+                plt.imshow(np.rot90(patterns,2))
+                plt.colorbar()
+                plt.title('pattern n°' + str(pattern_name) + ' / Np = ' + str(Np))
         
         patterns = patterns.ravel()
         
@@ -535,7 +538,7 @@ def _setup_patterns(DMD: ALP4,
         elif pattern_to_display == 'black':
             pattern_order = np.array(pattern_order[1:2], dtype=np.int16)
         elif pattern_to_display == 'gray':
-            index = int(np.where(pattern_order == 1953)[0])
+            index = int(np.where(pattern_order == int(acquisition_params.pattern_dimension_x**2/2))[0])
             print(index)
             pattern_order = np.array(pattern_order[index:index+1], dtype=np.int16)
         
@@ -633,7 +636,7 @@ def _setup_patterns_2arms(DMD: ALP4,
                 pattern_order[inc]  # except error from the end of array to stop the loop
                 if (inc % camPar.gate_period) == 0:#16) == 0:
                     pattern_order = np.insert(pattern_order, inc, -1) # double white pattern is required if integration time is shorter than 3.85 ms
-                    if camPar.int_time_spect < 3.85:
+                    if camPar.int_time_spect < 4.1:
                         pattern_order = np.insert(pattern_order, inc+1, -1)
                         if camPar.int_time_spect < 1.65:
                             pattern_order = np.insert(pattern_order, inc+2, -1)
@@ -1925,8 +1928,8 @@ def setup_tuneSpectro(spectrometer,
     data_name = 'test'
     # all_path = func_path(data_folder_name, data_name)
 
-    scan_mode   = 'Walsh'
-    Np          = 16
+    scan_mode   = 'Walsh'#'hadam1d_cat_8192'#'smatrix_cat_4095'#'Raster'#'raster_cat_4096'#
+    Np          = 64
     source      = ''
     object_name = ''
 
@@ -1944,8 +1947,8 @@ def setup_tuneSpectro(spectrometer,
         
     acquisition_parameters = AcquisitionParameters(
         pattern_compression = 1,
-        pattern_dimension_x = 16,
-        pattern_dimension_y = 16,
+        pattern_dimension_x = Np,
+        pattern_dimension_y = Np,
         zoom                = zoom,
         xw_offset           = xw_offset,
         yh_offset           = yh_offset,

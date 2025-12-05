@@ -500,10 +500,12 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path):
     size_x = GT.shape[0]
     size_y = GT.shape[1]
         
-    F_bin, wavelengths_bin, bin_width = spectral_binning(GT.T, acquisition_parameters.wavelengths, 530, 730, 8)
+    # F_bin, wavelengths_bin, bin_width = spectral_binning(GT.T, acquisition_parameters.wavelengths, 530, 730, 8)
+    F_bin, wavelengths_bin, bin_width = spectral_binning(GT.T, acquisition_parameters.wavelengths, acquisition_parameters.wavelengths[0], acquisition_parameters.wavelengths[-1], 8)
     F_bin_rot = np.rot90(F_bin, axes=(1,2))
     F_bin_flip = F_bin_rot[:,::-1,:]
-    F_bin_1px, wavelengths_bin, bin_width = spectral_slicing(GT.T, acquisition_parameters.wavelengths, 530, 730, 8)
+    # F_bin_1px, wavelengths_bin, bin_width = spectral_slicing(GT.T, acquisition_parameters.wavelengths, 530, 730, 8)
+    F_bin_1px, wavelengths_bin, bin_width = spectral_slicing(GT.T, acquisition_parameters.wavelengths, acquisition_parameters.wavelengths[0], acquisition_parameters.wavelengths[-1], 8)
     F_bin_1px_rot = np.rot90(F_bin_1px, axes=(1,2))
     F_bin_1px_flip = F_bin_1px_rot[:,::-1,:]
     ############### spatial view, wavelength bin #############
