@@ -101,37 +101,25 @@ if all_path.aborted == False:
               str(round(acquisition_parameters.pattern_amount*(ti+0.356)/1000 % 60)) + ' s')
 else:
     print('setup aborted')
-#%% Acquire
-# time.sleep(0)
-if camPar.acq_mode == 'video':
-    spectral_data = acquire_2arms(
-        ava                 = spectrometer,
-        DMD                 = DMD,
-        camPar              = camPar,
-        metadata            = metadata,
-        spectrometer_params = spectrometer_params,
-        DMD_params          = DMD_params,
-        acquisition_params  = acquisition_parameters,
-        repetitions         = 1,
-        reconstruct         = False)
-elif camPar.acq_mode == 'snapshot':
-    snapshot(camPar, all_path.pathIDSsnapshot, all_path.pathIDSsnapshot_overview)
-    spectral_data = acquire(
-        ava                 = spectrometer,
-        DMD                 = DMD,
-        metadata            = metadata,
-        spectrometer_params = spectrometer_params,
-        DMD_params          = DMD_params,
-        acquisition_params  = acquisition_parameters,
-        repetitions         = 1,
-        reconstruct         = False)
-    
-    save_metadata_2arms(metadata, DMD_params, spectrometer_params, camPar, acquisition_parameters)
+#%% Acquire to show the Raster scan
+
+snapshot(camPar, all_path.pathIDSsnapshot, all_path.pathIDSsnapshot_overview)
+spectral_data = acquire(
+    ava                 = spectrometer,
+    DMD                 = DMD,
+    metadata            = metadata,
+    spectrometer_params = spectrometer_params,
+    DMD_params          = DMD_params,
+    acquisition_params  = acquisition_parameters,
+    repetitions         = 1,
+    reconstruct         = False)
+
+save_metadata_2arms(metadata, DMD_params, spectrometer_params, camPar, acquisition_parameters)
 #%% Setup the raster scann
 Np                       = 64      # Number of pixels in one dimension of the image (image: NpxNp)
 ti                       = 8       # Integration time of the spectrometer   
 data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
-all_path = func_path(data_folder_name, data_name, ask_overwrite = True)
+all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
 
 metadata = MetaData(
     output_directory     = all_path.subfolder_path,
@@ -144,6 +132,14 @@ metadata = MetaData(
     filter               = 'Diffuser',
     description          = 'illumination: pair of lenses f=80mm. Collection: lens f=50mm + microscope objective x20 NA=0.5, spatial arm: objective lens, diaphragm aperture=811'
                     )    
+
+try: change_patterns(DMD = DMD, acquisition_params = acquisition_parameters, zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset,
+                     force_change = True)
+except: pass
+      
+acquisition_parameters = AcquisitionParameters(pattern_compression = pattern_compression, pattern_dimension_x = Np, pattern_dimension_y = Np, 
+                                               zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, mask_index = mask_index, 
+                                               x_mask_coord = x_mask_coord, y_mask_coord = y_mask_coord)
     
 spectrometer_params, DMD_params, camPar = setup_2arms(spectrometer = spectrometer, DMD = DMD, camPar = camPar, DMD_initial_memory = DMD_initial_memory, 
                                                       metadata = metadata, acquisition_params = acquisition_parameters, DMD_output_synch_pulse_delay = 0, 
@@ -167,24 +163,15 @@ spectral_data = acquire(
 save_metadata_2arms(metadata, DMD_params, spectrometer_params, camPar, acquisition_parameters)
 #%% Hadamard Reconstruction
 Q = wh.walsh_matrix_2d(Np)
-# scan_mode = 'Raster'
-# import numpy as np
-# a = np.load(metadata.pattern_source + '/hadam1d_cat_128x128_mask.npy')
-# # a = np.load(metadata.pattern_source + '/hadam1d_skew_128x128_mask.npy')
-# a_rot = a#np.rot90(a, 2)# a#.T#
-# b = np.where(a_rot.ravel() == True)[0]
-# acquisition_parameters.mask_index = np.where(a_rot.ravel() == True)[0]
-# acquisition_parameters.x_mask_coord = [44, 108]#[0, 128]
-# acquisition_parameters.y_mask_coord = [56, 120]#[0, 128]
 GT = reconstruction_hadamard(acquisition_parameters, scan_mode, Q, spectral_data, Np)
 plot_reco_without_NN(acquisition_parameters, GT, all_path)
 #%% setup Walsh Np = 64
-ti                       = 4       # Integration time of the spectrometer   
+ti                       = 4       # Integration time of the spectrometer  
+scan_mode                = 'Walsh' 
 data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
-scan_mode                = 'Walsh'
-all_path = func_path(data_folder_name, data_name, ask_overwrite = True)
 xw_offset                = 128
 yh_offset                = 0
+all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
 
 metadata = MetaData(
     output_directory     = all_path.subfolder_path,
@@ -237,10 +224,9 @@ mask_index, x_mask_coord, y_mask_coord = extract_ROI_coord(DMD_params, acquisiti
 ti                       = 4       # Integration time of the spectrometer 
 zoom                     = 2   
 data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
-scan_mode                = 'Walsh'
-xw_offset                = 392
-yh_offset                = 316
-all_path = func_path(data_folder_name, data_name, ask_overwrite = True)
+xw_offset                = 406
+yh_offset                = 49
+all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
 
 metadata = MetaData(
     output_directory     = all_path.subfolder_path,
@@ -319,7 +305,7 @@ import numpy as np
 zoom = 1
 data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
 scan_mode                = 'Walsh'
-all_path = func_path(data_folder_name, data_name, ask_overwrite = True)
+all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
 spectral_data_path = all_path.spectral_data_path
 spectral_data_file = np.load(spectral_data_path)
 spectral_data = spectral_data_file['spectral_data']
