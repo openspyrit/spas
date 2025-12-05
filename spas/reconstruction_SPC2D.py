@@ -4,9 +4,8 @@ __author__ = 'Guilherme Beneti Martins / mahieu'
 import time
 import pickle
 import numpy as np
-from spas.acquisition_SPC1D import read_metadata
 import spyrit.misc.walsh_hadamard as wh
-from spas.metadata_SPC2D import AcquisitionParameters
+from spas.metadata_SPC2D import AcquisitionParameters, read_metadata_2arms
 
 
 

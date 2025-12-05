@@ -7,7 +7,7 @@ performed after the acquisition and not in "real-time".
 
 from spas.acquisition_SPC2D import init_2arms, setup_cam, setup_2arms, acquire, acquire_2arms, snapshot, disconnect_2arms, captureVid, displaySpectro, setup_tuneSpectro, change_patterns
 from spas.metadata_SPC2D import MetaData, func_path, save_metadata_2arms, AcquisitionParameters
-from spas.reconstruction import reconstruction_hadamard, reconstruction_raster
+from spas.reconstruction_SPC2D import reconstruction_hadamard, reconstruction_raster
 from spas.reconstruction_nn import ReconstructionParameters, setup_reconstruction
 from spas.visualization import snapshotVisu, displayVid, plot_reco_without_NN, plot_reco_with_NN, extract_ROI_coord
 from spas.transfer_data_to_girder import transfer_data_2arms
@@ -48,24 +48,24 @@ zoom = 1 # Numerical zoom applied in the DMDq
 metadata, spectrometer_params, DMD_params, acquisition_parameters = setup_tuneSpectro(spectrometer = spectrometer, DMD = DMD, DMD_initial_memory = DMD_initial_memory,
                                                                                       pattern_to_display = pattern_to_display, ti = ti, zoom = zoom, xw_offset = 128, yh_offset = 0)
 displaySpectro(ava = spectrometer, DMD = DMD, metadata = metadata, spectrometer_params = spectrometer_params, DMD_params = DMD_params, acquisition_params = acquisition_parameters)
-#%% Setup acquisition and send pattern to the DMD
+#%% Setup Raster scan to display the micromirors
 setup_version            = 'setup_v1.3.3'
 collection_access        = 'public' #'private'#
-Np                       = 64      # Number of pixels in one dimension of the image (image: NpxNp)
-ti                       = 10       # Integration time of the spectrometer   
-zoom                     = 2        # Numerical zoom applied in the DMD
-xw_offset                = 128 + 192#362#128#       # Default = 128
-yh_offset                = 0 + 192#159#0#       # Default = 0
+Np                       = 8      # Number of pixels in one dimension of the image (image: NpxNp)
+ti                       = 100       # Integration time of the spectrometer   
+zoom                     = 1        # Numerical zoom applied in the DMD
+xw_offset                = 128# + 192#362#128#       # Default = 128
+yh_offset                = 0# + 192#159#0#       # Default = 0
 pattern_compression      = 1
-scan_mode                = 'Walsh' #'hadam2d_scrambled_8192'#'hadam2d_cat_32768'#'black_4096'#'black_8192'#'black_32768'#'smatrix_cat_4095'#'raster_cat_4096'#'hadam1d_cat_8192'#'black_4095'#'hadam1d_skew_16384' #'hadam2d_skew_32768'#######'raster_skew_8192'#'Raster'#'smatrix_skew_8191'# 'Walsh_inv' #'Raster_inv' #
+scan_mode                = 'Raster'#'Walsh' #'hadam2d_scrambled_8192'#'hadam2d_cat_32768'#'black_4096'#'black_8192'#'black_32768'#'smatrix_cat_4095'#'raster_cat_4096'#'hadam1d_cat_8192'#'black_4095'#'hadam1d_skew_16384' #'hadam2d_skew_32768'#######'raster_skew_8192'#'Raster'#'smatrix_skew_8191'# 'Walsh_inv' #'Raster_inv' #
 source                   = 'white_LED'#'No source'#'Ocean-optics_HL-2000-FHSA'#White_Zeiss_lamp'#No-light'#'Bioblock'#'Thorlabs_White_halogen_lamp'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#'HgAr multilines Source (HG-1 Oceanoptics)'
-object_name              = 'schweppes_motion_rot'#'StarSector' #'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
-data_folder_name         = '2025-12-05_motion_color'#'Patient-69_exvivo_LGG_BU'
+object_name              = 'cat_bicolor'#'StarSector' #'Arduino_box_position_1'#'biopsy-9-posterior-margin'#GP-without-sample'##-OP'#
+data_folder_name         = '2025-12-05_test_demo'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
 
-camPar.acq_mode          = 'video'   # 'snapshot'#
+camPar.acq_mode          = 'snapshot'#'video'   # 
 camPar.vidFormat         = 'avi'     #'bin'#
-camPar.insert_patterns   = 1         # 0: no insertion / 1: insert white patterns for the camera / In the case of snapshot, put 0 to avoid bad reco
+camPar.insert_patterns   = 0         # 0: no insertion / 1: insert white patterns for the camera / In the case of snapshot, put 0 to avoid bad reco
 camPar.gate_period       = 16        # a multiple of the integration time of the spectro, between [2 - 16] (2: insert one white pattern between each pattern)
 camPar.black_pattern_num = 1         # insert the picture number (in the pattern_source folder) of the pattern you want to insert
 all_path = func_path(data_folder_name, data_name, ask_overwrite = True)
@@ -127,6 +127,44 @@ elif camPar.acq_mode == 'snapshot':
         reconstruct         = False)
     
     save_metadata_2arms(metadata, DMD_params, spectrometer_params, camPar, acquisition_parameters)
+#%% Setup the raster scann
+Np                       = 64      # Number of pixels in one dimension of the image (image: NpxNp)
+ti                       = 8       # Integration time of the spectrometer   
+data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
+all_path = func_path(data_folder_name, data_name, ask_overwrite = True)
+
+metadata = MetaData(
+    output_directory     = all_path.subfolder_path,
+    pattern_order_source = 'C:/openspyrit/spas/stats/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz',
+    pattern_source       = 'C:/openspyrit/spas/Patterns/' + scan_mode + '_' + str(Np) + 'x' + str(Np),
+    pattern_prefix       = scan_mode + '_' + str(Np) + 'x' + str(Np),
+    experiment_name      = data_name,
+    light_source         = source,
+    object               = object_name,
+    filter               = 'Diffuser',
+    description          = 'illumination: pair of lenses f=80mm. Collection: lens f=50mm + microscope objective x20 NA=0.5, spatial arm: objective lens, diaphragm aperture=811'
+                    )    
+    
+spectrometer_params, DMD_params, camPar = setup_2arms(spectrometer = spectrometer, DMD = DMD, camPar = camPar, DMD_initial_memory = DMD_initial_memory, 
+                                                      metadata = metadata, acquisition_params = acquisition_parameters, DMD_output_synch_pulse_delay = 0, 
+                                                      integration_time = ti)
+
+if DMD_params.patterns != None:
+    print('Total expected acq time  : ' + str(int(acquisition_parameters.pattern_amount*(ti+0.356)/1000 // 60)) + ' min ' + 
+          str(round(acquisition_parameters.pattern_amount*(ti+0.356)/1000 % 60)) + ' s')
+#%% Acquire Raster scan Np = 64
+snapshot(camPar, all_path.pathIDSsnapshot, all_path.pathIDSsnapshot_overview)
+spectral_data = acquire(
+    ava                 = spectrometer,
+    DMD                 = DMD,
+    metadata            = metadata,
+    spectrometer_params = spectrometer_params,
+    DMD_params          = DMD_params,
+    acquisition_params  = acquisition_parameters,
+    repetitions         = 1,
+    reconstruct         = False)
+
+save_metadata_2arms(metadata, DMD_params, spectrometer_params, camPar, acquisition_parameters)
 #%% Hadamard Reconstruction
 Q = wh.walsh_matrix_2d(Np)
 # scan_mode = 'Raster'
@@ -140,6 +178,116 @@ Q = wh.walsh_matrix_2d(Np)
 # acquisition_parameters.y_mask_coord = [56, 120]#[0, 128]
 GT = reconstruction_hadamard(acquisition_parameters, scan_mode, Q, spectral_data, Np)
 plot_reco_without_NN(acquisition_parameters, GT, all_path)
+#%% setup Walsh Np = 64
+ti                       = 4       # Integration time of the spectrometer   
+data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
+scan_mode                = 'Walsh'
+all_path = func_path(data_folder_name, data_name, ask_overwrite = True)
+xw_offset                = 128
+yh_offset                = 0
+
+metadata = MetaData(
+    output_directory     = all_path.subfolder_path,
+    pattern_order_source = 'C:/openspyrit/spas/stats/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz',
+    pattern_source       = 'C:/openspyrit/spas/Patterns/' + scan_mode + '_' + str(Np) + 'x' + str(Np),
+    pattern_prefix       = scan_mode + '_' + str(Np) + 'x' + str(Np),
+    experiment_name      = data_name,
+    light_source         = source,
+    object               = object_name,
+    filter               = 'Diffuser',
+    description          = 'illumination: pair of lenses f=80mm. Collection: lens f=50mm + microscope objective x20 NA=0.5, spatial arm: objective lens, diaphragm aperture=811'
+                    )    
+
+acquisition_parameters = AcquisitionParameters(pattern_compression = pattern_compression, pattern_dimension_x = Np, pattern_dimension_y = Np, 
+                                               zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, mask_index = mask_index, 
+                                               x_mask_coord = x_mask_coord, y_mask_coord = y_mask_coord)
+
+try: change_patterns(DMD = DMD, acquisition_params = acquisition_parameters, zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset,
+                     force_change = True)
+except: pass
+    
+spectrometer_params, DMD_params, camPar = setup_2arms(spectrometer = spectrometer, DMD = DMD, camPar = camPar, DMD_initial_memory = DMD_initial_memory, 
+                                                      metadata = metadata, acquisition_params = acquisition_parameters, DMD_output_synch_pulse_delay = 0, 
+                                                      integration_time = ti)
+
+if DMD_params.patterns != None:
+    print('Total expected acq time  : ' + str(int(acquisition_parameters.pattern_amount*(ti+0.356)/1000 // 60)) + ' min ' + 
+          str(round(acquisition_parameters.pattern_amount*(ti+0.356)/1000 % 60)) + ' s')
+#%% Acquire Walsh scan Np = 64
+snapshot(camPar, all_path.pathIDSsnapshot, all_path.pathIDSsnapshot_overview)
+spectral_data = acquire(
+    ava                 = spectrometer,
+    DMD                 = DMD,
+    metadata            = metadata,
+    spectrometer_params = spectrometer_params,
+    DMD_params          = DMD_params,
+    acquisition_params  = acquisition_parameters,
+    repetitions         = 1,
+    reconstruct         = False)
+
+save_metadata_2arms(metadata, DMD_params, spectrometer_params, camPar, acquisition_parameters)
+#%% Hadamard Reconstruction => Walsh
+Q = wh.walsh_matrix_2d(Np)
+GT = reconstruction_hadamard(acquisition_parameters, scan_mode, Q, spectral_data, Np)
+plot_reco_without_NN(acquisition_parameters, GT, all_path)
+#%% Draw a ROI
+mask_index, x_mask_coord, y_mask_coord = extract_ROI_coord(DMD_params, acquisition_parameters, all_path, 
+                                                           data_folder_name, data_name, GT, ti, Np)
+#%% setup ROI
+ti                       = 4       # Integration time of the spectrometer 
+zoom                     = 2   
+data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
+scan_mode                = 'Walsh'
+xw_offset                = 392
+yh_offset                = 316
+all_path = func_path(data_folder_name, data_name, ask_overwrite = True)
+
+metadata = MetaData(
+    output_directory     = all_path.subfolder_path,
+    pattern_order_source = 'C:/openspyrit/spas/stats/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz',
+    pattern_source       = 'C:/openspyrit/spas/Patterns/' + scan_mode + '_' + str(Np) + 'x' + str(Np),
+    pattern_prefix       = scan_mode + '_' + str(Np) + 'x' + str(Np),
+    experiment_name      = data_name,
+    light_source         = source,
+    object               = object_name,
+    filter               = 'Diffuser',
+    description          = 'illumination: pair of lenses f=80mm. Collection: lens f=50mm + microscope objective x20 NA=0.5, spatial arm: objective lens, diaphragm aperture=811'
+                    )    
+
+try: change_patterns(DMD = DMD, acquisition_params = acquisition_parameters, zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset,
+                     force_change = True)
+except: pass
+
+acquisition_parameters = AcquisitionParameters(pattern_compression = pattern_compression, pattern_dimension_x = Np, pattern_dimension_y = Np, 
+                                               zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, mask_index = mask_index, 
+                                               x_mask_coord = x_mask_coord, y_mask_coord = y_mask_coord)
+    
+spectrometer_params, DMD_params, camPar = setup_2arms(spectrometer = spectrometer, DMD = DMD, camPar = camPar, DMD_initial_memory = DMD_initial_memory, 
+                                                      metadata = metadata, acquisition_params = acquisition_parameters, DMD_output_synch_pulse_delay = 0, 
+                                                      integration_time = ti)
+
+if DMD_params.patterns != None:
+    print('Total expected acq time  : ' + str(int(acquisition_parameters.pattern_amount*(ti+0.356)/1000 // 60)) + ' min ' + 
+          str(round(acquisition_parameters.pattern_amount*(ti+0.356)/1000 % 60)) + ' s')
+#%% Acquire ROI
+snapshot(camPar, all_path.pathIDSsnapshot, all_path.pathIDSsnapshot_overview)
+spectral_data = acquire(
+    ava                 = spectrometer,
+    DMD                 = DMD,
+    metadata            = metadata,
+    spectrometer_params = spectrometer_params,
+    DMD_params          = DMD_params,
+    acquisition_params  = acquisition_parameters,
+    repetitions         = 1,
+    reconstruct         = False)
+
+save_metadata_2arms(metadata, DMD_params, spectrometer_params, camPar, acquisition_parameters)
+#%% Hadamard Reconstruction => ROI
+Q = wh.walsh_matrix_2d(Np)
+GT = reconstruction_hadamard(acquisition_parameters, scan_mode, Q, spectral_data, Np)
+plot_reco_without_NN(acquisition_parameters, GT, all_path)
+
+if 'mask_index' not in locals(): mask_index = [];  x_mask_coord = []; y_mask_coord = []
 #%% Neural Network setup (executed it just one time)
 network_param = ReconstructionParameters(
     # Reconstruction network    
@@ -167,16 +315,18 @@ cov_path = Path(cov_folder) / f'Cov_8_{network_param.img_size}x{network_param.im
 model_folder = 'C:/openspyrit/models/'
 model, device = setup_reconstruction(cov_path, model_folder, network_param)
 #%% Neural Network Reconstruction
+import numpy as np
+zoom = 1
+data_name                = 'obj_' + object_name + '_source_' + source + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(ti)+'ms_zoom_x'+str(zoom)
+scan_mode                = 'Walsh'
+all_path = func_path(data_folder_name, data_name, ask_overwrite = True)
+spectral_data_path = all_path.spectral_data_path
+spectral_data_file = np.load(spectral_data_path)
+spectral_data = spectral_data_file['spectral_data']
 plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, network_param, all_path, cov_path)
 #%% transfer data to girder
 transfer_data_2arms(metadata, acquisition_parameters, spectrometer_params, DMD_params, camPar,
                     setup_version, data_folder_name, data_name, collection_access, upload_metadata = 1)
-#%% Draw a ROI
-# Comment data_folder_name & data_name to draw a ROI in the current acquisition, else specify the acquisition name
-# data_folder_name = '2025-11-10_test_HCERES'
-# data_name = 'obj_Cat_bicolor_thin_overlap_source_white_LED_Walsh_im_64x64_ti_9ms_zoom_x1'
-mask_index, x_mask_coord, y_mask_coord = extract_ROI_coord(DMD_params, acquisition_parameters, all_path, 
-                                                           data_folder_name, data_name, GT, ti, Np)
 #%% Disconnect
 disconnect_2arms(spectrometer, DMD, camPar)
 

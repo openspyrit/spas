@@ -1098,7 +1098,7 @@ class func_path:
             elif res == 'y':
                 aborted = False
             else:
-                print('bad answer, setup obarded')
+                print('bad answer, setup aborted')
                 aborted = True
         else:
             aborted = False
@@ -1112,6 +1112,7 @@ class func_path:
 
         self.data_name = data_name
         self.data_path = self.subfolder_path + '/' + data_name
+        self.spectral_data_path = self.data_path + '_spectraldata.npz'
         self.had_reco_path = self.data_path + '_had_reco.npz'         
         self.fig_had_reco_path = self.overview_path + '/' + data_name   
         self.pathIDSsnapshot = Path(self.data_path + '_IDScam_before_acq.npy')
