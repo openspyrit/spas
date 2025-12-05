@@ -6,10 +6,8 @@ import pickle
 import numpy as np
 from spas.acquisition_SPC1D import read_metadata
 import spyrit.misc.walsh_hadamard as wh
-from spas.metadata_SPC2D import AcquisitionParameters
 
-
-
+# from matplotlib import pyplot as plt
 
 def binArray(data, axis, binstep, binsize, func=np.nanmean):
     """
@@ -43,7 +41,8 @@ def binArray(data, axis, binstep, binsize, func=np.nanmean):
     data = np.array(data).transpose(argdims)
     return data
 
-def had_reco_1D(data_folder_name: str, data_name: str, mean_NA: bool = True, mean_NR: bool = False, save_spectral_data: bool = True, save_spatial_data: bool = False, bin_fact: float = 1):
+def hadamard_reco(data_folder_name: str, data_name: str, mean_NA: bool = True, mean_NR: bool = False, save_spectral_data: bool = True, 
+                  save_spatial_data: bool = False, bin_fact: float = 1, zoom: int = 1):
     """
     The Hadamard reconstruction for 1D acquisition
 
@@ -92,26 +91,39 @@ def had_reco_1D(data_folder_name: str, data_name: str, mean_NA: bool = True, mea
     height = saved_cam_spat_params.height
     width = saved_cam_spat_params.width  
     
-    spectral_data_all = np.empty((int(Ny/bin_fact), Nx, Npatterns, NR, NLc, NA), dtype = float)
+    # spectral_data_all = np.empty((int(Ny/bin_fact), Nx, Npatterns, NR, NLc, NA), dtype = float)
     spatial_data_all = np.empty((height, width, 3, spatial_Npatterns, NR, NLc, NA), dtype = float)
     # bin_image = np.empty((Npy, Nx), dtype = float)
-    had_reco_all = np.empty((int(Ny/bin_fact), Npx, Nx, NR, NLc, NA), dtype = float)# Ny must will be changed by the wavelength vector
+    # had_reco_all = np.empty((int(Ny/bin_fact), Npx, Nx, NR, NLc, NA), dtype = float)# Ny must will be changed by the wavelength vector
     t0 = time.time()
+    # save_image = ''#'pickle'
+    fisrt_pass = True
     for iNA in range(NA):
         for iLc in range(NLc):
             print(iLc)
             for iNR in range(NR): 
                 for iNp in range(Npatterns):
-                    data_path = output_path + '/raw_data/spectral_NR_' + str(iNR) + '_Gr_' + str(Lc[iLc][1]) + '_Lc_' + str(Lc[iLc][0]) + 'nm_NA_' + str(iNA) + '_NS_' + str(iNp) + '.pkl'
-                    with open(data_path, "rb") as fp:
-                        pickle_image = pickle.load(fp)
-                        if bin_fact != 1:
-                            bin_image = binArray(pickle_image, 0, bin_fact, bin_fact)
-                        else:
-                            bin_image = pickle_image
+                    data_path = output_path + '/raw_data/spectral_NR_' + str(iNR) + '_Gr_' + str(Lc[iLc][1]) + '_Lc_' + str(Lc[iLc][0]) + 'nm_NA_' + str(iNA) + '_NS_' + str(iNp) + '.npz'
                     
+                    file = np.load(data_path)    
+                    npz_image = file['arr_0']
+                    
+                    # delete the two fisrt rows
+                    npz_image = np.delete(npz_image, (0), axis=0)
+                    npz_image = np.delete(npz_image, (1), axis=0)
+                    
+                    if bin_fact != 1:
+                        bin_image = binArray(npz_image, 0, bin_fact, bin_fact)
+                    else:
+                        bin_image = npz_image
+                        
+                    if fisrt_pass == True:
+                        spectral_data_all = np.empty((bin_image.shape[0], bin_image.shape[1], Npatterns, NR, NLc, NA), dtype = float)
+                        had_reco_all = np.empty((bin_image.shape[0], Npx, Nx, NR, NLc, NA), dtype = float)
+                        fisrt_pass = False
+                     
                     spectral_data_all[:, :, iNp, iNR, iLc, iNA] = bin_image
-                    
+
                     if save_spatial_data:
                         if snapshot == False:
                             data_path = output_path + '/raw_data/spatial_NR_' + str(iNR) + '_Gr_' + str(Lc[iLc][1]) + '_Lc_' + str(Lc[iLc][0]) + 'nm_NA_' + str(iNA) + '_NS_' + str(iNp) + '.pkl'
@@ -129,10 +141,9 @@ def had_reco_1D(data_folder_name: str, data_name: str, mean_NA: bool = True, mea
                     
                 M_sub = spectral_data_all[:,:,0::2, iNR, iLc, iNA] - spectral_data_all[:,:,1::2, iNR, iLc, iNA]
                 had_reco = wh.fwht(M_sub) / Npy
-                had_reco = np.swapaxes(had_reco, 2, 1)
-    
+                had_reco = np.swapaxes(had_reco, 2, 1)    
                 had_reco_all[:, :, :, iNR, iLc, iNA] = had_reco
-                
+        
     print(' read raw data, elapsed time = ' + str(time.time() - t0))
     
     had_reco_all = np.flip(had_reco_all, axis = 0)
@@ -152,6 +163,7 @@ def had_reco_1D(data_folder_name: str, data_name: str, mean_NA: bool = True, mea
     
     if save_spectral_data:
         t0 = time.time()
+        spectral_data_all = np.squeeze(spectral_data_all)
         np.savez_compressed(output_path + '/spectral_data.npz', spectral_data = spectral_data_all)
         print(' save spectral data, elapsed time = ' + str(time.time() - t0))
         
@@ -165,72 +177,7 @@ def had_reco_1D(data_folder_name: str, data_name: str, mean_NA: bool = True, mea
     if save_spectral_data:
         return had_reco_all, spectral_data_all
     else:
-        return had_reco_all
-
-def reconstruction_hadamard(acquisition_parameters: AcquisitionParameters,
-                            scan_mode: str,
-                            Q: np.ndarray, 
-                            M: np.ndarray, 
-                            N: int = 64) -> np.ndarray:
-    """Reconstruct an image acquired with Hadamard patterns.
-
-    Args:
-        acquisition_parameters (AcquisitionParameters):
-            Object containing acquisition specifications
-        scan_mode (str):
-            Select if reconstruction is based on Raster, fht or Walsh generated 
-            patterns.
-        Q (np.ndarray):
-            Acquisition matrix used to generate Hadamard patterns.
-        M (np.ndarray):
-            Spectral data matrix containing acquired spectra.
-        N (int, optional): 
-            Reconstructed image dimension. Defaults to 64.
-
-    Returns:
-        [np.ndarray]: 
-            Reconstructed matrix of size NxN pixels.
-    """
-    
-    patterns = acquisition_parameters.patterns
-    
-<<<<<<< HEAD
-    if scan_mode == 'fht' or scan_mode == 'Walsh' or scan_mode == 'Walsh_inv' or scan_mode == 'hadam2d_cat_32768':
-=======
-    if mode == 'matlab':
-        ind_opt = patterns[1::2]
-    if mode == 'fht' or mode == 'walsh' or mode == 'Walsh':
->>>>>>> 55b1d23fe2c3d3fa19e3106096a011fc2751bbff
-        ind_opt = patterns[0::2]
-
-        ind_opt = np.array(ind_opt)/2
-    
-        ind_opt = ind_opt.astype('int')
-        M_breve = M[0::2,:] - M[1::2,:]
-        M_Had = np.zeros((N*N, M.shape[1]))
-        M_Had[ind_opt,:] = M_breve
-    
-        f = np.matmul(Q,M_Had) # Q.T = Q
-        frames = np.reshape(f,(N,N,M.shape[1]))
-        frames /= N*N
-        
-        mask_index = acquisition_parameters.mask_index
-        if len(mask_index) > 0:
-            x_mask_coord = acquisition_parameters.x_mask_coord
-            y_mask_coord = acquisition_parameters.y_mask_coord         
-            x_mask_length = x_mask_coord[1] - x_mask_coord[0]
-            y_mask_length = y_mask_coord[1] - y_mask_coord[0]
-    
-            GTnew_vec = np.zeros((x_mask_length*y_mask_length, frames.shape[2]))
-            GT_vec = frames.reshape(-1, frames.shape[-1])
-    
-            GTnew_vec[mask_index,:] = GT_vec[:len(mask_index),:]
-            frames = np.reshape(GTnew_vec, (y_mask_length, x_mask_length, frames.shape[2]))
-            
-    if scan_mode == 'Raster' or scan_mode == 'Raster_inv':
-        frames = np.reshape(M,(N,N,M.shape[1]))
-    
-    return frames
+        return had_reco_all, 0
 
 
 def reconstruction_raster(M: np.ndarray, N: int = 64) -> np.ndarray:    

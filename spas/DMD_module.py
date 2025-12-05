@@ -14,17 +14,21 @@ from typing import Optional, List, Tuple
 from dataclasses_json import dataclass_json
 import numpy as np
 from tqdm import tqdm
+import warnings
+import ctypes as ct
 
 ##### DLL for the DMD
 try:
-    from ALP4 import ALP4, ALP_FIRSTFRAME, ALP_LASTFRAME
+    import ALP4
+    from ALP4 import ALP_FIRSTFRAME, ALP_LASTFRAME
     from ALP4 import ALP_AVAIL_MEMORY, ALP_DEV_DYN_SYNCH_OUT1_GATE, tAlpDynSynchOutGate
-    # print('ALP4 is ok in Acquisition file')
+    # print('ALP4 is imported')
 except:
     class ALP4:
         pass
 
-from spas.metadata_SPC2D import MetaData, AcquisitionParameters
+# from spas.metadata_SPC2D import MetaData, AcquisitionParameters
+from spas.acquisition_SPC1D import AcquisitionParameters
 
 # connect to the DMD
 def init_DMD(dmd_lib_version: str = '4.2') -> Tuple[ALP4, int]:
@@ -45,10 +49,10 @@ def init_DMD(dmd_lib_version: str = '4.2') -> Tuple[ALP4, int]:
         stop_init = True
     elif dmd_lib_version == '4.2':
         dll_path = Path(__file__).parent.parent.joinpath('lib/alpV42').__str__()
-        DMD = ALP4(version='4.2',libDir=dll_path)
+        DMD = ALP4.ALP4(version='4.2',libDir=dll_path)
     elif dmd_lib_version == '4.3':
         dll_path = Path(__file__).parent.parent.joinpath('lib/alpV43').__str__()
-        DMD = ALP4(version='4.3',libDir=dll_path)
+        DMD = ALP4.ALP4(version='4.3',libDir=dll_path)
     else:
         print('unknown version of dmd library')
         stop_init = True
@@ -165,10 +169,6 @@ class DMDParameters:
     synch_polarity: Optional[str] = None
     trigger_edge: Optional[str] = None
     
-    # synch_polarity_OUT1: Optional[str] = None
-    # synch_period_OUT1: Optional[str] = None
-    # synch_gate_OUT1: Optional[str] = None
-    
     type: Optional[str] = None
     usb_connection: Optional[bool] = None
 
@@ -220,8 +220,8 @@ class DMDParameters:
                 self.trigger_edge = 'Falling'
             elif edge == 2009:
                 self.trigger_edge = 'Rising'
-                
-           # synch_polarity_OUT1 = 
+ 
+            # synch_polarity_OUT1 = 
                 
             self.type = DMDTypes(DMD.DevInquire(ALP4.ALP_DEV_DMDTYPE))
 
@@ -264,7 +264,7 @@ class DMDParameters:
 # setup
 def calculate_timings(integration_time: float = 1, 
                       integration_delay: int = 0, 
-                      add_illumination_time: int = 300, 
+                      add_illumination_time: int = 78, 
                       synch_pulse_delay: int = 0, 
                       dark_phase_time: int = 44,
                       ) -> Tuple[int, int, int]:
@@ -272,7 +272,7 @@ def calculate_timings(integration_time: float = 1,
 
     Args:
         integration_time (float) [ms]: 
-            Spectrometer exposure time during one scan in miliseconds. 
+            the maximum of the two exposure time of each camera. 
             Default is 1 ms.
         integration_delay (int) [µs]:
             Parameter used to start the integration time not immediately after 
@@ -311,7 +311,7 @@ def calculate_timings(integration_time: float = 1,
     return synch_pulse_width, illumination_time, picture_time
 
 
-def setup_DMD(DMD: ALP4, 
+def _setup_DMD(DMD: ALP4.ALP4, 
               add_illumination_time: int,
               initial_memory: int
               ) -> DMDParameters:
@@ -342,7 +342,7 @@ def setup_DMD(DMD: ALP4,
         DMD=DMD)
 
 
-def _sequence_limits(DMD: ALP4, 
+def _sequence_limits(DMD: ALP4.ALP4, 
                      pattern_compression: int, 
                      sequence_lenght: int,
                      pos_neg: bool = True) -> int:
@@ -380,8 +380,41 @@ def _sequence_limits(DMD: ALP4,
 
     return frames
 
+def binArray(data, axis, binstep, binsize, func=np.nanmean):
+    """
+    Binning on an array
+    
+    Parameters
+    ----------
+    data : TYPE
+        data is your array.
+    axis : TYPE
+        axis is the axis you want to been.
+    binstep : TYPE
+        binstep is the number of points between each bin (allow overlapping bins).
+    binsize : TYPE
+        binsize is the size of each bin.
+    func : TYPE, optional
+        func is the function you want to apply to the bin (np.max for maxpooling, np.mean for an average ...). The default is np.nanmean.
 
-def _update_sequence(DMD: ALP4,
+    Returns
+    -------
+    data : TYPE
+        The binning array.
+
+    """
+    data = np.array(data)
+    dims = np.array(data.shape)
+    argdims = np.arange(data.ndim)
+    argdims[0], argdims[axis]= argdims[axis], argdims[0]
+    data = data.transpose(argdims)
+    data = [func(np.take(data,np.arange(int(i*binstep),int(i*binstep+binsize)),0),0) for i in np.arange(dims[axis]//binstep)]
+    data = np.array(data).transpose(argdims)
+    return data
+
+from scipy.ndimage import rotate
+
+def _update_sequence(DMD: ALP4.ALP4,
                      DMD_params: DMDParameters,
                      acquisition_params: AcquisitionParameters,
                      pattern_source: str,
@@ -461,7 +494,7 @@ def _update_sequence(DMD: ALP4,
                 first_pass = False
                 len_im3 = pat_mask_all_mat_DMD.shape
                     
-            patterns[y_offset:y_offset+len_im3[0], x_offset:x_offset+len_im3[1]] = pat_mask_all_mat_DMD 
+            patterns[y_offset:y_offset+len_im3[0], x_offset:x_offset+len_im3[1]] = pat_mask_all_mat_DMD             
         else: # send the entire square pattern without the mask
             im_mat = np.reshape(im, [Np,Np])
             im_HD = cv2.resize(im_mat, (int(dmd_height/zoom), int(dmd_height/zoom)), interpolation = cv2.INTER_NEAREST)
@@ -471,12 +504,28 @@ def _update_sequence(DMD: ALP4,
                 first_pass = False
                 
             patterns[y_offset:y_offset+len_im[0], x_offset:x_offset+len_im[1]] = im_HD  
+            
+            # # To tilt of 90° the patterns 
+            # patterns_inside = patterns[:, 128:patterns.shape[1] - 128]
+            # patterns_inside = patterns_inside.T
+            # patterns[:, 128:patterns.shape[1] - 128] = patterns_inside
+            
+            # # To tilte of 45°
+            # patterns_inside = patterns[:, 128:patterns.shape[1] - 128]
+            # patterns_inside = rotate(patterns_inside, angle=45)
+            # bin_fact = patterns_inside.shape[0]/dmd_height
+            # bin_image = binArray(patterns_inside, 0, bin_fact, bin_fact)
+            # bin_image2 = binArray(bin_image, 1, bin_fact, bin_fact)
+            # bin_image2 = rotate(bin_image2, angle=90)
+            # patterns[:, 128:patterns.shape[1] - 128 ] = bin_image2
         
-        # if pattern_name == 800:
+        # if pattern_name == 4:
+        #     from matplotlib import pyplot as plt
         #     plt.figure()
         #     # plt.imshow(pat_c_re)
         #     # plt.imshow(pat_mask_all_mat)
         #     # plt.imshow(pat_mask_all_mat_DMD)
+        #     # plt.imshow(patterns_inside)
         #     plt.imshow(np.rot90(patterns,2))
         #     plt.colorbar()
         #     plt.title('pattern n°' + str(pattern_name))
@@ -492,11 +541,9 @@ def _update_sequence(DMD: ALP4,
           f'{(perf_counter_ns() - t)/1e+9} s')
 
 
-def setup_patterns(DMD: ALP4, 
-                    metadata: MetaData, 
+def setup_patterns(DMD: ALP4.ALP4, 
                     DMD_params: DMDParameters, 
                     acquisition_params: AcquisitionParameters,
-                    cov_path: str = None, 
                     pattern_to_display: str = 'white', 
                     loop: bool = False) -> None:
     """Read and send patterns to DMD.
@@ -511,9 +558,6 @@ def setup_patterns(DMD: ALP4,
     Args:
         DMD (ALP4):
             Connected DMD object.
-        metadata (MetaData):
-            Metadata concerning the experiment, paths, file inputs and file 
-            outputs. Must be created and filled up by the user.
         DMD_params (DMDParameters):
             DMD metadata object to be updated with pattern related data and with
             memory available after patterns are sent to DMD.
@@ -526,7 +570,7 @@ def setup_patterns(DMD: ALP4,
             in the doc for more detail). Default is False
     """
     
-    file = np.load(Path(metadata.pattern_order_source))
+    file = np.load(Path(acquisition_params.pattern_order_source))
     pattern_order = file['pattern_order']               
     pos_neg = file['pos_neg']
     
@@ -537,7 +581,7 @@ def setup_patterns(DMD: ALP4,
         elif pattern_to_display == 'black':
             pattern_order = np.array(pattern_order[1:2], dtype=np.int16)
         elif pattern_to_display == 'gray':
-            index = int(np.where(pattern_order == 1953)[0])
+            index = int(np.where(pattern_order == 4)[0])#
             print(index)
             pattern_order = np.array(pattern_order[index:index+1], dtype=np.int16)
         
@@ -557,7 +601,7 @@ def setup_patterns(DMD: ALP4,
         if (DMD.Seqs):
             DMD.FreeSeq()
 
-        _update_sequence(DMD, DMD_params, acquisition_params, metadata.pattern_source, metadata.pattern_prefix, 
+        _update_sequence(DMD, DMD_params, acquisition_params, acquisition_params.pattern_source, acquisition_params.pattern_prefix, 
                          pattern_order, bitplanes)
         print(f'DMD available memory after sequence allocation: '
         f'{DMD.DevInquire(ALP_AVAIL_MEMORY)}')
@@ -574,7 +618,7 @@ def setup_patterns(DMD: ALP4,
     DMD_params.update_memory(DMD.DevInquire(ALP_AVAIL_MEMORY))
 
 
-def setup_timings(DMD: ALP4, 
+def setup_timings(DMD: ALP4.ALP4, 
                    DMD_params: DMDParameters, 
                    picture_time: int, 
                    illumination_time: int, 
@@ -623,7 +667,7 @@ def setup_timings(DMD: ALP4,
     DMD_params.update_sequence_parameters(add_illumination_time, DMD=DMD)
 
 
-def change_patterns(DMD: ALP4, 
+def change_patterns(DMD: ALP4.ALP4, 
                     acquisition_params: AcquisitionParameters, 
                     zoom: int = 1, 
                     xw_offset: int = 0, 
@@ -655,8 +699,175 @@ def change_patterns(DMD: ALP4,
         if (DMD.Seqs):
             DMD.FreeSeq()
 
+def setup_DMD(DMD: ALP4,
+              DMD_initial_memory: int, 
+              acquisition_params: AcquisitionParameters,
+              integration_time: float = 1, 
+              integration_delay: int = 0,
+              DMD_output_synch_pulse_delay: int = 0, 
+              add_illumination_time: int = 78,
+              dark_phase_time: int = 44,
+              DMD_trigger_in_delay: int = 0,
+              pattern_to_display: str = 'white',
+              loop: bool = False
+              ) -> Tuple[DMDParameters]:
+    """Setup everything needed to start an acquisition.
 
-def disconnect_DMD(DMD: ALP4):
+    Sets all parameters for DMD, spectrometer, DMD patterns and DMD timings.
+    Must be called before every acquisition.
+
+    Args:
+        spectrometer (Avantes):
+            Connected spectrometer (Avantes object).
+        DMD (ALP4):
+            Connected DMD.
+        DMD_initial_memory (int):
+            Initial memory available in DMD after initialization.
+        metadata (MetaData):
+            Metadata concerning the experiment, paths, file inputs and file 
+            outputs. Must be created and filled up by the user.
+        acquisition_params (AcquisitionParameters):
+            Acquisition related metadata object. User must partially fill up
+            with pattern_compression, pattern_dimension_x, pattern_dimension_y.
+        start_pixel (int):
+            Initial pixel data received from spectrometer. Default is 0.
+        stop_pixel (int, optional):
+            Last pixel data received from spectrometer. Default is None if it
+            should be determined from the amount of available pixels in the
+            spectrometer.
+        integration_time (float):
+            Spectrometer exposure time during one scan in miliseconds. Default
+            is 1 ms.
+        integration_delay (int):
+            Parameter used to start the integration time not immediately after 
+            the measurement request (or on an external hardware trigger), but 
+            after a specified delay. Unit is based on internal FPGA clock cycle.
+            Default is 0 us.
+        DMD_output_synch_pulse_delay (int):
+            Time in microseconds between start of the frame synch output pulse 
+            and the start of the pattern display (in master mode). Default is
+            0 us.
+        add_illumination_time (int):
+            Extra time in microseconds to account for the spectrometer's 
+            "dead time". Default is 365 us.
+        dark_phase_time (int):
+            Time in microseconds taken by the DMD mirrors to completely tilt. 
+            Minimum time for XGA type DMD is 44 us. Default is 44 us.
+        DMD_trigger_in_delay (int):
+            Time in microseconds between the incoming trigger edge and the start
+            of the pattern display on DMD (slave mode). Default is 0 us.
+        pattern_to_display (string):
+            display one pattern on the DMD to tune the spectrometer. Default is white 
+            pattern
+        loop (bool):
+            is to projet in loop, one or few patterns continuously (see AlpProjStartCont
+            in the doc for more detail). Default is False
+    Raises:
+        ValueError: Sum of dark phase and additional illumination time is lower
+        than 400 us.
+
+    Returns:
+        Tuple[SpectrometerParameters, DMDParameters, List]: Tuple containing DMD
+        and spectrometer relate metadata, as well as wavelengths.
+            spectrometer_params (SpectrometerParameters):
+                Spectrometer metadata object with spectrometer configurations.
+            DMD_params (DMDParameters):
+                DMD metadata object with DMD configurations.
+    """
+
+    # if loop == False:
+    #     path = Path(metadata.output_directory)
+    #     if not path.exists():
+    #         path.mkdir()
+
+    if dark_phase_time + add_illumination_time < 0:
+        raise ValueError(f'Sum of dark phase and additional illumination time '
+                         f'is {dark_phase_time + add_illumination_time}.'
+                         f' Must be greater than 270 µs.')
+
+    elif dark_phase_time + add_illumination_time < 314:
+        warnings.warn(f'Sum of dark phase and additional illumination time '
+                      f'is {dark_phase_time + add_illumination_time}.'
+                      f' It is recomended to choose at least 314 µs.')
+
+    synch_pulse_width, illumination_time, picture_time = calculate_timings(
+        integration_time, 
+        integration_delay, 
+        add_illumination_time, 
+        DMD_output_synch_pulse_delay, 
+        dark_phase_time)
+    
+    Gate = tAlpDynSynchOutGate()
+    Gate.byref[0] = ct.c_ubyte(1)     # Period [1 to 16] (it is a multiple of the trig period which go to the spectro)
+    Gate.byref[1] = ct.c_ubyte(1)   # Polarity => 0: active pulse is low, 1: high
+    Gate.byref[2] = ct.c_ubyte(1)   # Gate1 ok to send TTL 
+    Gate.byref[3] = ct.c_ubyte(0)   # Gate2 do not send TTL
+    Gate.byref[4] = ct.c_ubyte(0)   # Gate3 do not send TTL
+    DMD.DevControlEx(ALP_DEV_DYN_SYNCH_OUT1_GATE, Gate)
+
+    # acquisition_params.wavelengths = np.asarray(np.zeros(1280), dtype=np.float64)
+
+    DMD_params = _setup_DMD(DMD, add_illumination_time, DMD_initial_memory)
+
+    setup_patterns(DMD=DMD, DMD_params=DMD_params, 
+                    acquisition_params=acquisition_params, loop=loop,
+                    pattern_to_display=pattern_to_display)
+    
+    setup_timings(DMD, DMD_params, picture_time, illumination_time, 
+                   DMD_output_synch_pulse_delay, synch_pulse_width, 
+                   DMD_trigger_in_delay, add_illumination_time)
+
+    return DMD_params
+
+
+def play_one_pattern(DMD, DMD_initial_memory, cam_Par, zoom: int = 1,
+                     pattern_to_display: str = 'white'):
+    """
+    play an unique pattern on the DMD in continue mode
+
+    Parameters
+    ----------
+    DMD (ALP4):
+        Connected DMD.
+    DMD_initial_memory (int):
+        Initial memory available in DMD after initialization.
+    cam_Par : class
+        A class containing the parameters of the camera.
+    pattern_to_display : str, optional
+        the pattern to be dispalyed. The default is 'white'.
+
+    Returns
+    -------
+    None.
+
+    """
+    ti = cam_Par.exposure_time_μs / 1000
+    AcquisitionParameters.pattern_amount = 1
+    AcquisitionParameters.pattern_compression = 1
+    AcquisitionParameters.wavelengths = np.asarray(np.zeros(2048), dtype=np.float64)
+    scan_mode = 'Walsh' 
+    Np = 64
+    AcquisitionParameters.pattern_dimension_x = Np
+    AcquisitionParameters.pattern_dimension_y = Np
+    AcquisitionParameters.zoom = zoom
+    AcquisitionParameters.xw_offset = int((1024 - 768/zoom) / 2)
+    AcquisitionParameters.yh_offset = int((768 - 768/zoom) / 2)
+    if 'mask_index' not in locals(): mask_index = [];  x_mask_coord = []; y_mask_coord = [] # execute "mask_index = []" to not apply the mask
+    AcquisitionParameters.mask_index = mask_index
+    AcquisitionParameters.x_mask_coord = x_mask_coord
+    AcquisitionParameters.y_mask_coord = y_mask_coord
+    AcquisitionParameters.pattern_order_source = 'C:/openspyrit/spas/stats/2D/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz'
+    AcquisitionParameters.pattern_source       = 'C:/openspyrit/spas/Patterns/2D/' + scan_mode + '_' + str(Np) + 'x' + str(Np)
+    AcquisitionParameters.pattern_prefix       = scan_mode + '_' + str(Np) + 'x' + str(Np)
+    
+    loop = True
+    print('before setup_DMD')
+    DMD_params = setup_DMD(DMD = DMD, DMD_initial_memory = DMD_initial_memory, acquisition_params = AcquisitionParameters, integration_time = ti, pattern_to_display = pattern_to_display, loop = loop)    
+    DMD.Run(loop=loop) # if loop=False : Run the whole sequence only once, if loop=True : Run continuously one pattern 
+    
+    return DMD_params
+    
+def disconnect_DMD(DMD: ALP4.ALP4):
     if DMD is not None:       
         # Stop the sequence display
         try:
@@ -670,6 +881,8 @@ def disconnect_DMD(DMD: ALP4):
             
         except:
             print('probelm to Halt the DMD')   
+    else:
+        print("DMD doesn't exist")
 
 
 

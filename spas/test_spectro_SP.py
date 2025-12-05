@@ -7,7 +7,7 @@ Created on Tue Mar  4 13:27:41 2025
 """
 
 import sys
-sys.path.append('/home/mahieu/openspyrit/spas')
+sys.path.append('c:/openspyrit/spas')
 
 from spas.spectro_SP_module import Spectro_SP_parameters, init_spectro_SP, setup_spectro_SP
 

@@ -14,13 +14,10 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from spas.plot_spec_to_rgb_image import plot_spec_to_rgb_image
 from spas.noise import noiseClass
 from spas.reconstruction_nn import reorder_subsample, reconstruct
-from spas.metadata_SPC2D import DMDParameters, read_metadata
+# from spas.DMD_module import DMDParameters 
+from spas.acquisition_SPC1D import read_metadata
 import time
-# Libraries for the IDS CAMERA
-try:
-    from pyueye import ueye
-except:
-    print('ueye DLL not installed')
+
 
 def spectral_binning(F: np.ndarray, wavelengths: np.ndarray, lambda_min: int, 
     lambda_max: int, n_bin: int, noise: noiseClass=None
@@ -409,90 +406,15 @@ def plot_color(F: np.ndarray, wavelengths: np.ndarray, filename: str = None,
         
     # plt.show()
 
-######################### IDS CAM visualisationtion ###########################    
-def snapshotVisu(camPar):
-    """
-    Snapshot of the IDS camera
-    
-    Args:
-        camPar: a structure containing the parameters of the IDS camera
-    """
-    array = ueye.get_data(camPar.pcImageMemory, camPar.rectAOI.s32Width, camPar.rectAOI.s32Height, camPar.nBitsPerPixel, camPar.pitch, copy=False)
-    
-    # ...reshape it in an numpy array...
-    frame = np.reshape(array,(camPar.rectAOI.s32Height.value, camPar.rectAOI.s32Width.value, camPar.bytes_per_pixel))
-    maxi = np.amax(frame)
-    # print()
-    # print('frame max = ' + str(maxi))
-    # print('frame min = ' + str(np.amin(frame)))
-    if maxi >= 255:
-        print('Saturation detected')
-        
-    plt.figure
-    plt.imshow(frame)#, cmap='gray', vmin=mini, vmax=maxi)  
-    plt.colorbar();
-    
-    
-def displayVid(camPar):
-    """
-    Continuous image display of the IDS camera
-    
-    Args:
-        CAM: a structure containing the parameters of the IDS camera
-    """
-    
-    import cv2
-    # Creating a cv2 window
-    window_name = "Camera of the Spatial Arm"
-    cv2.namedWindow(window_name) 
-    
-    # Create a function 'nothing' for creating trackbar 
-    def nothing(x): 
-        pass
-    
-    # waiting time inside the loop of the display of the window
-    t1 = camPar.exposureTime/1000
-    t2 = 1/camPar.fps
-    t_wait = max(t1, t2)
 
-    first_passage = True
-    while 1:
-        time.sleep(t_wait) # Sleep for 1 seconds
-        
-        # extract the data of the image memory
-        array = ueye.get_data(camPar.pcImageMemory, camPar.rectAOI.s32Width, camPar.rectAOI.s32Height, camPar.nBitsPerPixel, camPar.pitch, copy=False)
-        
-        # reshape it in an numpy array
-        frame = np.reshape(array,(camPar.rectAOI.s32Height.value, camPar.rectAOI.s32Width.value, camPar.bytes_per_pixel))
-        
-        if first_passage == True:
-            maxi = np.max(frame)
-            print('maxi = ' + str(maxi))
-            print('press "q" to exit')
-            # Creating trackbars for color change 
-            cv2.createTrackbar('brightness', window_name, maxi, 510, nothing) 
-            first_passage = False
-        
-        # Get current positions of trackbar 
-        brightness = cv2.getTrackbarPos('brightness', window_name) 
-    
-        frame = frame.astype(np.float64)
-        frame2=frame*brightness/maxi
-        frame3=frame2.astype(np.uint8)
-        #*brightness/maxi
-        cv2.imshow(window_name, frame3)
-    
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            cv2.destroyWindow(window_name)
-            break
-
-
-def plot_reco_without_NN(acquisition_parameters, GT, all_path):
+def plot_reco_without_NN(acquisition_parameters, GT, all_path, overwrite = True):
     
     had_reco_path = all_path.had_reco_path
     fig_had_reco_path = all_path.fig_had_reco_path
     
     GT = np.rot90(GT, 2)
+    
+    save_fig = False
     
     if not os.path.exists(had_reco_path):
         np.savez_compressed(had_reco_path, GT)
@@ -500,31 +422,35 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path):
     size_x = GT.shape[0]
     size_y = GT.shape[1]
         
-    # F_bin, wavelengths_bin, bin_width = spectral_binning(GT.T, acquisition_parameters.wavelengths, 530, 730, 8)
     F_bin, wavelengths_bin, bin_width = spectral_binning(GT.T, acquisition_parameters.wavelengths, acquisition_parameters.wavelengths[0], acquisition_parameters.wavelengths[-1], 8)
+    # F_bin, wavelengths_bin, bin_width = spectral_binning(GT.T, acquisition_parameters.wavelengths, 530, 730, 8)
     F_bin_rot = np.rot90(F_bin, axes=(1,2))
     F_bin_flip = F_bin_rot[:,::-1,:]
-    # F_bin_1px, wavelengths_bin, bin_width = spectral_slicing(GT.T, acquisition_parameters.wavelengths, 530, 730, 8)
     F_bin_1px, wavelengths_bin, bin_width = spectral_slicing(GT.T, acquisition_parameters.wavelengths, acquisition_parameters.wavelengths[0], acquisition_parameters.wavelengths[-1], 8)
+    # F_bin_1px, wavelengths_bin, bin_width = spectral_slicing(GT.T, acquisition_parameters.wavelengths, 530, 730, 8)
     F_bin_1px_rot = np.rot90(F_bin_1px, axes=(1,2))
     F_bin_1px_flip = F_bin_1px_rot[:,::-1,:]
     ############### spatial view, wavelength bin #############
     # plt.figure()
     plot_color(F_bin_flip, wavelengths_bin)
-    plt.savefig(fig_had_reco_path + '_BIN_IMAGE_had_reco.png')
+    if overwrite == True:
+        plt.savefig(fig_had_reco_path + '_BIN_IMAGE_had_reco.png')
+        print('save image')
     plt.show()
 
     ############### spatial view, one wavelength #############
     # plt.figure()
     plot_color(F_bin_1px_flip, wavelengths_bin)
-    plt.savefig(fig_had_reco_path + '_SLICE_IMAGE_had_reco.png')
+    if overwrite == True:
+        plt.savefig(fig_had_reco_path + '_SLICE_IMAGE_had_reco.png')
     plt.show()
 
     ############### spatial view, wavelength sum #############
     # plt.figure()
-    plt.imshow(np.mean(GT[:,:,100:-100], axis=2))#[:,:,193:877] #(540-625 nm)
+    plt.imshow(np.mean(GT[:,:,33:-33], axis=2))#[:,:,193:877] #(540-625 nm)
     plt.title('Sum of all wavelengths')
-    plt.savefig(fig_had_reco_path + '_GRAY_IMAGE_had_reco.png')
+    if overwrite == True:
+        plt.savefig(fig_had_reco_path + '_GRAY_IMAGE_had_reco.png')
     plt.show()
 
     ####################### RGB view ########################
@@ -535,7 +461,8 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path):
     plt.imshow(image_arr) #, extent=[0, 10.5, 0, 10.5])
     # plt.xlabel('X (mm)')
     # plt.ylabel('Y (mm)')
-    plt.savefig(fig_had_reco_path + '_RGB_IMAGE_had_reco.png')
+    if overwrite == True:
+        plt.savefig(fig_had_reco_path + '_RGB_IMAGE_had_reco.png')
     plt.show()
     ####################### spectral view ###################
     GT50 = GT[round(size_x/4):round(size_x*3/4), round(size_y/4):round(size_y*3/4), :]
@@ -548,7 +475,8 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path):
     plt.title("% of region from the center of the image")
     plt.legend(['25%', '50%', '100%'])
     plt.xlabel(r'$\lambda$ (nm)')
-    plt.savefig(fig_had_reco_path + '_SPECTRA_PLOT_had_reco.png')
+    if overwrite == True:
+        plt.savefig(fig_had_reco_path + '_SPECTRA_PLOT_had_reco.png')
     plt.show()
 
 
