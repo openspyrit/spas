@@ -49,6 +49,7 @@ metadata, spectrometer_params, DMD_params, acquisition_parameters = setup_tuneSp
                                                                                       pattern_to_display = pattern_to_display, ti = ti, zoom = zoom, xw_offset = 128, yh_offset = 0)
 displaySpectro(ava = spectrometer, DMD = DMD, metadata = metadata, spectrometer_params = spectrometer_params, DMD_params = DMD_params, acquisition_params = acquisition_parameters)
 #%% Setup Raster scan to display the micromirors
+if 'mask_index' in locals(): mask_index = [];  x_mask_coord = []; y_mask_coord = []
 setup_version            = 'setup_v1.3.3'
 collection_access        = 'public' #'private'#
 Np                       = 8      # Number of pixels in one dimension of the image (image: NpxNp)
@@ -68,7 +69,7 @@ camPar.vidFormat         = 'avi'     #'bin'#
 camPar.insert_patterns   = 0         # 0: no insertion / 1: insert white patterns for the camera / In the case of snapshot, put 0 to avoid bad reco
 camPar.gate_period       = 16        # a multiple of the integration time of the spectro, between [2 - 16] (2: insert one white pattern between each pattern)
 camPar.black_pattern_num = 1         # insert the picture number (in the pattern_source folder) of the pattern you want to insert
-all_path = func_path(data_folder_name, data_name, ask_overwrite = True)
+all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
 if 'mask_index' not in locals(): mask_index = [];  x_mask_coord = []; y_mask_coord = [] # execute "mask_index = []" to not apply the mask
 
 if all_path.aborted == False:
