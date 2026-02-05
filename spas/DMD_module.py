@@ -16,6 +16,8 @@ import numpy as np
 from tqdm import tqdm
 import warnings
 import ctypes as ct
+import os
+import imageio.v3 as iio
 
 ##### DLL for the DMD
 try:
@@ -27,8 +29,8 @@ except:
     class ALP4:
         pass
 
-# from spas.metadata_SPC2D import MetaData, AcquisitionParameters
-from spas.acquisition_SPC1D import AcquisitionParameters
+from spas.acquisition_SPIM1D import AcquisitionParameters
+
 
 # connect to the DMD
 def init_DMD(dmd_lib_version: str = '4.2') -> Tuple[ALP4, int]:
@@ -264,7 +266,7 @@ class DMDParameters:
 # setup
 def calculate_timings(integration_time: float = 1, 
                       integration_delay: int = 0, 
-                      add_illumination_time: int = 78, 
+                      add_illumination_time: int = 10000, 
                       synch_pulse_delay: int = 0, 
                       dark_phase_time: int = 44,
                       ) -> Tuple[int, int, int]:
@@ -280,8 +282,8 @@ def calculate_timings(integration_time: float = 1,
             after a specified delay. Unit is based on internal FPGA clock cycle.
             Default is 0 us.
         add_illumination_time (int) [µs]: 
-            Extra time in microseconds to account for the spectrometer's 
-            "dead time". Default is 365 us.
+            Extra time in microseconds to account for the camera's 
+            "dead time". Default is 10000 us.
         synch_pulse_delay (int) [µs]: 
             Time in microseconds between start of the frame synch output pulse 
             and the start of the pattern display (in master mode). Default is
@@ -301,6 +303,7 @@ def calculate_timings(integration_time: float = 1,
             microseconds.
     """
 
+    print('add_illumination_time set to: ' + str(add_illumination_time))
     illumination_time = (integration_delay/1000 + integration_time*1000 + 
         add_illumination_time)
     picture_time = illumination_time + dark_phase_time
@@ -412,7 +415,7 @@ def binArray(data, axis, binstep, binsize, func=np.nanmean):
     data = np.array(data).transpose(argdims)
     return data
 
-from scipy.ndimage import rotate
+# from scipy.ndimage import rotate
 
 def _update_sequence(DMD: ALP4.ALP4,
                      DMD_params: DMDParameters,
@@ -475,51 +478,64 @@ def _update_sequence(DMD: ALP4.ALP4,
         x_mask_length = x_mask_coord[1] - x_mask_coord[0]
         y_mask_length = y_mask_coord[1] - y_mask_coord[0]
     
+    # read the first file of the pattern folder to know if pattern are in 'npy' or 'png'
+    pattern_first_file = os.listdir(path_base)[0]
+    pattern_format = pattern_first_file[-3:]
+    
     first_pass = True
     for index,pattern_name in enumerate(tqdm(pattern_order, unit=' patterns', total=len(pattern_order))):
-        # read numpy patterns
-        path = path_base.joinpath(f'{pattern_prefix}_{pattern_name}.npy')
-        im = np.load(path) 
-        
-        patterns = np.zeros((dmd_height, dmd_width), dtype=np.uint8)
-        
-        if apply_mask == True: # for adaptative patterns into a ROI 
-            pat_mask_all = np.zeros(y_mask_length*x_mask_length) # initialize a vector of lenght = size of the cropped mask           
-            pat_mask_all[mask_index] = im[:mask_element_nbr] #pat_re_vec[:mask_element_nbr] # put the pattern into the vector    
-            pat_mask_all_mat = np.reshape(pat_mask_all, [y_mask_length, x_mask_length]) # reshape the vector into a matrix of the 2d cropped mask
-            # resize the matrix to the DMD size
-            pat_mask_all_mat_DMD = cv2.resize(pat_mask_all_mat, (int(dmd_height*x_mask_length/(Npx*zoom)), int(dmd_height*y_mask_length/(Npy*zoom))), interpolation = cv2.INTER_NEAREST)
+        if pattern_format == 'npy': # read numpy patterns
+            path = path_base.joinpath(f'{pattern_prefix}_{pattern_name}.npy')
+            im = np.load(path) 
             
-            if first_pass == True:
-                first_pass = False
-                len_im3 = pat_mask_all_mat_DMD.shape
-                    
-            patterns[y_offset:y_offset+len_im3[0], x_offset:x_offset+len_im3[1]] = pat_mask_all_mat_DMD             
-        else: # send the entire square pattern without the mask
-            im_mat = np.reshape(im, [Np,Np])
-            im_HD = cv2.resize(im_mat, (int(dmd_height/zoom), int(dmd_height/zoom)), interpolation = cv2.INTER_NEAREST)
+            patterns = np.zeros((dmd_height, dmd_width), dtype=np.uint8)
             
-            if first_pass == True:
-                len_im = im_HD.shape
-                first_pass = False
+            if apply_mask == True: # for adaptative patterns into a ROI 
+                pat_mask_all = np.zeros(y_mask_length*x_mask_length) # initialize a vector of lenght = size of the cropped mask           
+                pat_mask_all[mask_index] = im[:mask_element_nbr] #pat_re_vec[:mask_element_nbr] # put the pattern into the vector    
+                pat_mask_all_mat = np.reshape(pat_mask_all, [y_mask_length, x_mask_length]) # reshape the vector into a matrix of the 2d cropped mask
+                # resize the matrix to the DMD size
+                pat_mask_all_mat_DMD = cv2.resize(pat_mask_all_mat, (int(dmd_height*x_mask_length/(Npx*zoom)), int(dmd_height*y_mask_length/(Npy*zoom))), interpolation = cv2.INTER_NEAREST)
                 
-            patterns[y_offset:y_offset+len_im[0], x_offset:x_offset+len_im[1]] = im_HD  
+                if first_pass == True:
+                    first_pass = False
+                    len_im3 = pat_mask_all_mat_DMD.shape
+                        
+                patterns[y_offset:y_offset+len_im3[0], x_offset:x_offset+len_im3[1]] = pat_mask_all_mat_DMD             
+            else: # send the entire square pattern without the mask
+                im_mat = np.reshape(im, [Np,Np])
+                im_HD = cv2.resize(im_mat, (int(dmd_height/zoom), int(dmd_height/zoom)), interpolation = cv2.INTER_NEAREST)
+                
+                if first_pass == True:
+                    len_im = im_HD.shape
+                    first_pass = False
+                    
+                patterns[y_offset:y_offset+len_im[0], x_offset:x_offset+len_im[1]] = im_HD  
+                
+                # # To tilt of 90° the patterns 
+                # patterns_inside = patterns[:, 128:patterns.shape[1] - 128]
+                # patterns_inside = patterns_inside.T
+                # patterns[:, 128:patterns.shape[1] - 128] = patterns_inside
+                
+                # # To tilte of 45°
+                # patterns_inside = patterns[:, 128:patterns.shape[1] - 128]
+                # patterns_inside = rotate(patterns_inside, angle=45)
+                # bin_fact = patterns_inside.shape[0]/dmd_height
+                # bin_image = binArray(patterns_inside, 0, bin_fact, bin_fact)
+                # bin_image2 = binArray(bin_image, 1, bin_fact, bin_fact)
+                # bin_image2 = rotate(bin_image2, angle=90)
+                # patterns[:, 128:patterns.shape[1] - 128 ] = bin_image2
+        elif pattern_format == 'png': # read png patterns
+            path = path_base.joinpath(f'{pattern_prefix}_{pattern_name}.png')
+            # im = np.load(path, allow_pickle=True) 
+            # patterns = np.zeros((dmd_height, dmd_width), dtype=np.uint8)
+            # patterns = im
+            patterns = iio.imread(path)
             
-            # # To tilt of 90° the patterns 
-            # patterns_inside = patterns[:, 128:patterns.shape[1] - 128]
-            # patterns_inside = patterns_inside.T
-            # patterns[:, 128:patterns.shape[1] - 128] = patterns_inside
-            
-            # # To tilte of 45°
-            # patterns_inside = patterns[:, 128:patterns.shape[1] - 128]
-            # patterns_inside = rotate(patterns_inside, angle=45)
-            # bin_fact = patterns_inside.shape[0]/dmd_height
-            # bin_image = binArray(patterns_inside, 0, bin_fact, bin_fact)
-            # bin_image2 = binArray(bin_image, 1, bin_fact, bin_fact)
-            # bin_image2 = rotate(bin_image2, angle=90)
-            # patterns[:, 128:patterns.shape[1] - 128 ] = bin_image2
+            if first_pass == True:
+                first_pass = False
         
-        # if pattern_name == 4:
+        # if pattern_name == 33:
         #     from matplotlib import pyplot as plt
         #     plt.figure()
         #     # plt.imshow(pat_c_re)
@@ -581,7 +597,7 @@ def setup_patterns(DMD: ALP4.ALP4,
         elif pattern_to_display == 'black':
             pattern_order = np.array(pattern_order[1:2], dtype=np.int16)
         elif pattern_to_display == 'gray':
-            index = int(np.where(pattern_order == 4)[0])#
+            index = int(np.where(pattern_order == 33)[0])#
             print(index)
             pattern_order = np.array(pattern_order[index:index+1], dtype=np.int16)
         
@@ -705,7 +721,7 @@ def setup_DMD(DMD: ALP4,
               integration_time: float = 1, 
               integration_delay: int = 0,
               DMD_output_synch_pulse_delay: int = 0, 
-              add_illumination_time: int = 78,
+              add_illumination_time: int = 10000,
               dark_phase_time: int = 44,
               DMD_trigger_in_delay: int = 0,
               pattern_to_display: str = 'white',
@@ -748,8 +764,8 @@ def setup_DMD(DMD: ALP4,
             and the start of the pattern display (in master mode). Default is
             0 us.
         add_illumination_time (int):
-            Extra time in microseconds to account for the spectrometer's 
-            "dead time". Default is 365 us.
+            Extra time in microseconds to account for the camera's 
+            "dead time". Default is 10000 us.
         dark_phase_time (int):
             Time in microseconds taken by the DMD mirrors to completely tilt. 
             Minimum time for XGA type DMD is 44 us. Default is 44 us.
@@ -821,7 +837,8 @@ def setup_DMD(DMD: ALP4,
 
 
 def play_one_pattern(DMD, DMD_initial_memory, cam_Par, zoom: int = 1,
-                     pattern_to_display: str = 'white'):
+                     pattern_to_display: str = 'white', pattern_dim: str = '1D',
+                     scan_mode: str = 'Walsh', Np: int = 64, pattern_thickness: int = 64):
     """
     play an unique pattern on the DMD in continue mode
 
@@ -831,11 +848,19 @@ def play_one_pattern(DMD, DMD_initial_memory, cam_Par, zoom: int = 1,
         Connected DMD.
     DMD_initial_memory (int):
         Initial memory available in DMD after initialization.
-    cam_Par : class
+    cam_Par: class
         A class containing the parameters of the camera.
     pattern_to_display : str, optional
         the pattern to be dispalyed. The default is 'white'.
-
+    pattern_dim: str.
+        the dimension of patterns, 1D or 2D. Default is '1D'
+    scan_mode: str. 
+        the type of the patterns. Default is 'Walsh'. 
+    Np: int.
+        the dimension of the image and the y size of the pattern. Default is 64.
+    thickness: int.
+        the x size of the pattern for the sheet light (SPIM). Default is 64.
+        
     Returns
     -------
     None.
@@ -845,9 +870,8 @@ def play_one_pattern(DMD, DMD_initial_memory, cam_Par, zoom: int = 1,
     AcquisitionParameters.pattern_amount = 1
     AcquisitionParameters.pattern_compression = 1
     AcquisitionParameters.wavelengths = np.asarray(np.zeros(2048), dtype=np.float64)
-    scan_mode = 'Walsh' 
-    Np = 64
-    AcquisitionParameters.pattern_dimension_x = Np
+    
+    AcquisitionParameters.pattern_dimension_x = pattern_thickness
     AcquisitionParameters.pattern_dimension_y = Np
     AcquisitionParameters.zoom = zoom
     AcquisitionParameters.xw_offset = int((1024 - 768/zoom) / 2)
@@ -856,13 +880,13 @@ def play_one_pattern(DMD, DMD_initial_memory, cam_Par, zoom: int = 1,
     AcquisitionParameters.mask_index = mask_index
     AcquisitionParameters.x_mask_coord = x_mask_coord
     AcquisitionParameters.y_mask_coord = y_mask_coord
-    AcquisitionParameters.pattern_order_source = 'C:/openspyrit/spas/stats/2D/pattern_order_' + scan_mode + '_' + str(Np) + 'x' + str(Np) + '.npz'
-    AcquisitionParameters.pattern_source       = 'C:/openspyrit/spas/Patterns/2D/' + scan_mode + '_' + str(Np) + 'x' + str(Np)
-    AcquisitionParameters.pattern_prefix       = scan_mode + '_' + str(Np) + 'x' + str(Np)
+    AcquisitionParameters.pattern_order_source = '../stats/' + pattern_dim + '/pattern_order_' + scan_mode + '_' + str(pattern_thickness) + 'x' + str(Np) + '.npz'
+    AcquisitionParameters.pattern_source       = '../Patterns/' + pattern_dim + '/' + scan_mode + '_' + str(pattern_thickness) + 'x' + str(Np)
+    AcquisitionParameters.pattern_prefix       = scan_mode + '_' + str(pattern_thickness) + 'x' + str(Np)
     
     loop = True
-    print('before setup_DMD')
-    DMD_params = setup_DMD(DMD = DMD, DMD_initial_memory = DMD_initial_memory, acquisition_params = AcquisitionParameters, integration_time = ti, pattern_to_display = pattern_to_display, loop = loop)    
+    DMD_params = setup_DMD(DMD = DMD, DMD_initial_memory = DMD_initial_memory, acquisition_params = AcquisitionParameters, 
+                           integration_time = ti, pattern_to_display = pattern_to_display, loop = loop)    
     DMD.Run(loop=loop) # if loop=False : Run the whole sequence only once, if loop=True : Run continuously one pattern 
     
     return DMD_params

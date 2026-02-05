@@ -20,7 +20,7 @@ setup(
         'kiwisolver',
         'matplotlib', #==3.7.5
         'numpy',
-        'msl-equipment @ git+https://github.com/MSLNZ/msl-equipment.git',
+        # 'msl-equipment @ git+https://github.com/MSLNZ/msl-equipment.git',
         'Pillow',
         'pyparsing',
         'python-dateutil',

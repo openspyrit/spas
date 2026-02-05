@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+♠#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Tue Mar  4 09:08:24 2025
@@ -12,7 +12,7 @@ The main software to acquire in 1D an hyperspectral cube with the single pixel c
 import time
 import math
 import os
-os.chdir('C:\\openspyrit\\spas\\scripts')
+os.chdir('E:\\openspyrit\\spas\\scripts')
 from spas.DMD_module import init_DMD, disconnect_DMD, change_patterns, setup_DMD, play_one_pattern
 from spas.spectro_SP_module import init_spectrograph, disconnect_spectrograph, setup_spectrograph
 from spas.cam_Ximea_module import init_cam_spat, init_cam_spec, disconnect_cam, setup_cam, snapshot_cam, display_cam

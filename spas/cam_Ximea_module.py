@@ -570,7 +570,7 @@ def display_cam(cam, display_max: bool = False):
             #get data and pass them from cameras to img
             cam.get_image(img)
             
-            data = img.get_image_data_numpy()
+            i = img.get_image_data_numpy()
             
             maxi = np.max(data)
             if maxi != maxii:
