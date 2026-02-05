@@ -13,10 +13,11 @@ The main software to acquire in 1D an hyperspectral cube with the single pixel c
 import math
 import os
 os.chdir('E:\\openspyrit\\spas\\scripts')
+import numpy as np
 from spas.DMD_module import init_DMD, disconnect_DMD, change_patterns, setup_DMD, play_one_pattern
 from spas.spectro_ShamrockAndor_module import init_spectrograph, disconnect_spectrograph, setup_spectrograph
 from spas.cam_Andor_module import init_cam_spat, init_cam_spec, disconnect_cam, setup_cam, snapshot_cam, display_cam
-from spas.PI_module import init_PI, disconnect_stage, read_position, move_to_middle, manual_adjustment_stage
+from spas.PI_module import init_PI, disconnect_stage, read_position, move_to_middle, stage_adjustment, stage_parameters
 from spas.acquisition_SPIM1D import AcquisitionParameters, func_path, acquire, define_wavelengths_matrix, plot_spectrum
 # from spas.reconstruction_SPC1D import hadamard_reco
 # from spas.visualization_SCP1D import plot_reco_without_NN
@@ -56,7 +57,7 @@ DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params
 data = snapshot_cam(cam = cam_spat, tilt_image = True) # data_format accepted: 8 or 16 bits
 DMD.Halt()
 #%% display spatial camera in continous mode
-manual_adjustment_stage(pidevice)
+stage_adjustment(pidevice)
 play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray', pattern_dim = '1D', 
                               scan_mode = 'Walsh', Np = 256, pattern_thickness = 16) 
 # display_cam(cam = cam_spat, binningX = 1, binningY = 1)
@@ -93,6 +94,7 @@ ti                       = cam_spec_params.exposure_time_μs / 1000 # Integratio
 NAverages                = 1        # Number of avegare (the acquisition is accumulated before moving the grating)
 NRepetitions             = 1        # Number of repetitions (grating change after that, the acquisition is repeated)
 Lc                       = [(spectrograph_params.position, spectrograph_params.grating.current_grating_nbr)]#, (570, 1), (600, 1), (630, 1), (660, 1), (690, 1), (720, 1)]#, (922, 1), (927, 1)] # [(0, 1), (780, 1), (785, 1), (795, 1), (805, 1), (810, 1)] #[(0, 1), (676, 1), (686, 1), (696, 1), (706, 1), (716, 1)] #[(0, 1), (557, 1), (567, 1), (577, 1), (587, 1), (597, 1)] #[(0, 1), (526, 1), (536, 1), (546, 1), (556, 1), (566, 1)] #[(0, 1), (416, 1), (426, 1), (436, 1), (446, 1), (456, 1)] ##, (832, 2), (852, 2), (872, 2), (892, 2), (912, 2), (932, 2), (952, 2), (972, 2), (992, 2)]## # a vector containig the central wavelength following by the grating number
+array_to_move            = np.linspace(1, 10, 10, endpoint=True)
 zoom                     = 1        # Numerical zoom applied in the DMD
 xw_offset                = 128      # Default = 128
 yh_offset                = 0        # Default = 0
@@ -127,6 +129,9 @@ if all_path.aborted == False:
     
     acquisition_params.wavelengths = define_wavelengths_matrix(cam_spec_params, Lc, display_figure = True, verbose = True)  
     acquisition_params.wavelengths = acquisition_params.wavelengths[0, :]
+    
+    stage_params = stage_parameters
+    stage_params.array_to_move = array_to_move
                         
     try: 
         change_patterns(DMD = DMD, acquisition_params = acquisition_params, zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, 

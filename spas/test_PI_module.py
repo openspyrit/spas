@@ -8,7 +8,7 @@ Created on Fri Jan 30 12:46:21 2026
 # import pipython
 # from pipython import GCSDevice, pitools
 
-from spas.PI_module import init_PI, disconnect_stage, read_position, move_to_middle, go_to_zero, move_an_axis
+from spas.PI_module import init_PI, disconnect_stage, read_position, move_to_middle, go_to_zero, move_an_axis, PIJogControl
 import numpy as np
 
 pidevice, stage_tools = init_PI(Model = 'C-884', SN = '0000000000', verbose = True)
@@ -23,6 +23,10 @@ move_an_axis(pidevice, stage_tools, axes = ['2'], array_to_move = array_to_move,
 pidevice.MOV('3', 5)
 
 go_to_zero(pidevice, stage_tools)
+
+
+
+
 
 disconnect_stage(pidevice, stage_tools)
 

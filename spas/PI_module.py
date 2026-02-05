@@ -83,14 +83,17 @@ def init_PI(Model: str = 'C-884', SN: str = '0000000000', verbose: bool = False)
 
 @dataclass_json
 @dataclass
-class stage_params:
+class stage_parameters:
     """
     
     """
     array_to_move: Optional[float] = None
+    class_description: str = None
     
     def __post_init__(self, array_to_move):
         self.array_to_move = array_to_move
+        self.class_description = 'Stage translation PI parameters' 
+
 
 def read_position(pidevice: object, stage_tools: object, axes_xyz: list = ['X', 'Y', 'Z'], verbose: bool = False):
     """
@@ -327,7 +330,7 @@ class PIJogControl:
 # jog.run()
 
 
-def manual_adjustment_stage(pidevice):
+def stage_adjustment(pidevice):
     # On crée une fonction interne qui servira de cible au thread
     def start_gui():
         gui = PIJogControl(pidevice)
