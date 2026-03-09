@@ -648,6 +648,7 @@ def acquire(DMD: ALP4,
             cam_spec_params,
             spectrograph,
             spectrograph_params,
+            shutter,
             acquisition_params,
             all_path,
             verbose,
@@ -673,6 +674,8 @@ def acquire(DMD: ALP4,
         DESCRIPTION. The default is spectrograph.
     spectrograph_params : TYPE, optional
         DESCRIPTION. The default is spectrograph_params.
+    shutter: Class.
+        DESCRIPTION. To control the shutter
     acquisition_params : TYPE, optional
         DESCRIPTION. The default is acquisition_params.
         
@@ -693,7 +696,9 @@ def acquire(DMD: ALP4,
     verbose = False
     first_acqui = True
     boucle = 0
+    shutter.open()
     for NR in range(acquisition_params.NRepetitions):#tqdm(range(acquisition_params.NRepetitions)):
+        
         for iLc in range(len(acquisition_params.Lc)):#tqdm(range(len(acquisition_params.Lc))):
             setup_spectrograph(spectrograph,
                                grating_nbr =  acquisition_params.Lc[iLc][1], print_select   = False,
@@ -733,7 +738,8 @@ def acquire(DMD: ALP4,
                 DMD.Halt()
                 print('DMD stopped')
                 first_acqui = False
-                
+    
+    shutter.close()
     acquisition_params.total_spectrometer_acquisition_time_s = time.time() - begin_acqui
     
     print('\n')

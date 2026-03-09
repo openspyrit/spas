@@ -2,7 +2,7 @@
 """
 Created on Fri Jan 30 12:46:21 2026
 
-@author: equipe-onli
+@author: mahieu
 """
 
 # import pipython

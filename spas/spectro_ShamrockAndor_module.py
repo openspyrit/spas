@@ -29,7 +29,8 @@ def init_spectrograph(model : str = 'andor_shamrock'):
     """
     if model == 'andor_shamrock':
         spectrograph = Spectrograph()
-        pll.par["devices/dlls/" + model] = "F:/#Sources_logiciels/#OLD/Andor/Drivers/Shamrock64/ShamrockCIF.dll"
+        # pll.par["devices/dlls/" + model] = "F:/#Sources_logiciels/#OLD/Andor/Drivers/Shamrock64/ShamrockCIF.dll"
+        pll.par["devices/dlls/" + model] = "E:/laurent/lib"
 
         spectro_list = Andor.list_shamrock_spectrographs()
         print('list of spectrograph : ' + spectro_list[0] + ' detected')

@@ -15,6 +15,7 @@ from typing import Optional
 from dataclasses import dataclass, InitVar
 from dataclasses_json import dataclass_json
 from scipy import signal
+from collections import deque
 
 
 def init_cam_spat(SN : str = ''):
@@ -456,7 +457,7 @@ def snapshot_cam(cam, tilt_image: bool = False):
 
 
 # def display_cam(cam, display_max: bool = False, binningX: int = 1, binningY: int = 1):
-def display_cam(cam, cam_params, display_max: bool = False):
+def display_cam(cam, cam_params, display_max: bool = False, display_integral: bool = False):
     """
     Continuous image display of a camera
     
@@ -466,6 +467,8 @@ def display_cam(cam, cam_params, display_max: bool = False):
             a object to drive the Ximea camera  
         display_max (bool):
             display the maximum value in the image. Default is True.
+        display_integral (bool):
+            display the mean value of the image. Default is False.
     Returns:
     -------
         None
@@ -499,9 +502,17 @@ def display_cam(cam, cam_params, display_max: bool = False):
         t_wait = current_exposure_time
         print('wait time = ' + str(t_wait))
         
-        # gain = cam.get_gain(PreAmpGain)
-        # gain_min = 1
-        # gain_max = cam.get_gain_maximum()
+        if display_integral == True:
+            # Fenêtre de 50 valeurs
+            max_points = 50
+            vector = deque(maxlen=max_points)
+            
+            plt.ion()
+            fig, ax = plt.subplots()
+            line, = ax.plot([], [], 'o-')        
+            # limites fixes pour la fenêtre glissante
+            ax.set_xlim(0, max_points)
+            ax.set_ylim(0, 255)
     
         first_passage = True
         
@@ -510,13 +521,9 @@ def display_cam(cam, cam_params, display_max: bool = False):
         cam.start_acquisition()
         
         first_passage2 = True
-        data_center_old = 0
+        # data_center_old = 0
         maxii = 0
         while True:
-            # time.sleep(t_wait) # Sleep for 1 seconds
-            # time.sleep(1)
-            # cam.wait_for_frame()
-            # data = cam.read_newest_image()
             
             data = cam.snap(timeout = current_exposure_time + 5)
             data_8b = cv2.convertScaleAbs(data, alpha=(255.0/4095))           
@@ -561,7 +568,7 @@ def display_cam(cam, cam_params, display_max: bool = False):
             cam.set_attribute_value("ExposureTime", exposure_time/1e6)
             
 
-            data_64b = data_8b.astype(np.float64)
+            data_64b = data_8b.astype(np.float64)           
             data2 = data_64b*brightness/maxi
             data_8b = data2.astype(np.uint8)
             data_8b_resize = cv2.resize(data_8b, (width_win, height_win)) 
@@ -575,29 +582,32 @@ def display_cam(cam, cam_params, display_max: bool = False):
                 cam.stop_acquisition()
 
                 break
-        
+            
+            if display_integral == True:
+                integral = np.mean(np.mean(data_64b, axis=1), axis=0)
+                vector.append(integral)
+                
+                x = list(range(len(vector)))
+                y = list(vector)
+            
+                line.set_data(x, y)
+                
+                ax.relim()
+                ax.autoscale_view()
+    
+                # on ajuste seulement Y
+                ax.set_ylim(min(y)-0.5, max(y)+0.5)
+            
+                fig.canvas.draw()
+                fig.canvas.flush_events()
+                plt.pause(0.01)
+                
     except:
         cv2.destroyWindow(window_name)
         cam.stop_acquisition()
         print('try function encoutered a exception')
 
-
-# def counter_trigger(cam):
-#     """
-#     Arg:
-#         cam (obj): 
-#             a object to drive the Ximea camera
-#     Returns:
-#         a tuple containing counter of the trigger skipped and received
-#     """
-#     cam.set_counter_selector('XI_CNT_SEL_TRANSPORT_SKIPPED_FRAMES')
-#     transport_skipped_trig = cam.get_counter_value()
-#     cam.set_counter_selector('XI_CNT_SEL_API_SKIPPED_FRAMES')
-#     api_skipped_trig = cam.get_counter_value()
-#     cam.set_counter_selector('XI_CNT_SEL_TRANSPORT_TRANSFERRED_FRAMES')
-#     transported_frames = cam.get_counter_value()
     
-#     return [transport_skipped_trig, api_skipped_trig, transported_frames]        
         
         
         
