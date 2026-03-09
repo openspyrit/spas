@@ -18,22 +18,44 @@ from spas.DMD_module import init_DMD, disconnect_DMD, change_patterns, setup_DMD
 from spas.spectro_ShamrockAndor_module import init_spectrograph, disconnect_spectrograph, setup_spectrograph
 from spas.cam_Andor_module import init_cam_spat, init_cam_spec, disconnect_cam, setup_cam, snapshot_cam, display_cam
 from spas.PI_module import init_PI, disconnect_stage, read_position, move_to_middle, stage_adjustment, stage_parameters
+
+# from spas.test_new_PI_module import PIStage
+
+# from spas.PI_module import PIController
 from spas.shutter_TSC001_module import ThorlabsShutter
 from spas.acquisition_SPIM1D import AcquisitionParameters, func_path, acquire, define_wavelengths_matrix, plot_spectrum
 # from spas.reconstruction_SPC1D import hadamard_reco
 # from spas.visualization_SCP1D import plot_reco_without_NN
 # from spas.transfer_data_to_girder import transfer_data_SPC1D
+import time
 #%% Initialize hardware
 DMD, DMD_initial_memory = init_DMD(dmd_lib_version = '4.3')
 spectrograph = init_spectrograph(model = 'andor_shamrock')
 cam_spat = init_cam_spat(SN = 'VSC-10323')
 cam_spec = init_cam_spec(SN = 'VSC-23585')
 # pidevice, stage_tools = init_PI(Model = 'C-884', SN = '0000000000', verbose = True)
-PI_stage = init_PI(Model = 'C-884', SN = '0000000000', verbose = True)
+stage = init_PI(Model = 'C-884', SN = '0000000000', verbose = True)
+
+# stage = PIStage(Model='C-884', SN='0000000000', verbose=True)
+
+
+
+
+# PI = init_PI(Model = 'C-884', SN = '0000000000', verbose = True)
+
+# PI_stage = PIController(model = 'C-884', sn = '0000000000', verbose = True).connect()
 shutter = ThorlabsShutter("85855593")
 #%% Move the PI stage to the middle
-move_to_middle(PI_stage.pidevice, PI_stage.stage_tools)
-position = read_position(PI_stage.pidevice, PI_stage.stage_tools, verbose = True)
+move_to_middle(stage.pidevice, stage.stage_tools)
+position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
+
+# stage.move_to_middle()
+# stage.read_position()
+
+# # stage.stage_adjustment()
+# # stage.go_to_zero()
+# # stage.disconnect()
+# stage.move_axis('2', [1])
 #%%
 # here add manual displacment
 # Emergency stop
@@ -58,7 +80,9 @@ DMD.Halt()
 shutter.close()
 #%% display spatial camera in continous mode
 shutter.open()
-stage_adjustment(pidevice)
+# stage.stage_adjustment()
+stage_adjustment(stage.pidevice)
+time.sleep(1)
 play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray', pattern_dim = '1D', 
                               scan_mode = 'Walsh', Np = 256, pattern_thickness = 16) 
 # display_cam(cam = cam_spat, binningX = 1, binningY = 1)
@@ -172,6 +196,7 @@ raw_data = acquire(DMD                 = DMD,
                    cam_spec_params     = cam_spec_params,
                    spectrograph        = spectrograph,
                    spectrograph_params = spectrograph_params,
+                   stage               = stage,
                    shutter             = shutter,
                    acquisition_params  = acquisition_params,
                    all_path            = all_path,
@@ -332,7 +357,7 @@ disconnect_DMD(DMD)
 disconnect_spectrograph(spectrograph, goto_zero = False)
 disconnect_cam(cam_spat)
 disconnect_cam(cam_spec)
-disconnect_stage(pidevice, stage_tools)
+disconnect_stage(stage.pidevice, stage.stage_tools)
 shutter.disconnect()
 #%% below, old prog
 

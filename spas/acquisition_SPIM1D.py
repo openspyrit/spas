@@ -648,6 +648,7 @@ def acquire(DMD: ALP4,
             cam_spec_params,
             spectrograph,
             spectrograph_params,
+            stage,
             shutter,
             acquisition_params,
             all_path,
@@ -674,6 +675,8 @@ def acquire(DMD: ALP4,
         DESCRIPTION. The default is spectrograph.
     spectrograph_params : TYPE, optional
         DESCRIPTION. The default is spectrograph_params.
+    stage: class.
+        DESCRIPTION. To control the PI stage for a 3D acquisition
     shutter: Class.
         DESCRIPTION. To control the shutter
     acquisition_params : TYPE, optional
