@@ -36,6 +36,7 @@ from progress.bar import Bar
 from spas.spectro_ShamrockAndor_module import setup_spectrograph
 # from spas.cam_Andor_module import counter_trigger
 from scipy import interpolate
+from spas.PI_module import move_an_axis
 
 # import PIL.Image
 
@@ -162,6 +163,8 @@ class AcquisitionParameters:
     receive_last_trig_spat:Optional[bool] = field(default=False, repr=False)
     receive_last_trig_spec:Optional[bool] = field(default=False, repr=False)
     
+    Nz: Optional[Union[np.ndarray, str]] = field(default=None, repr=True)
+    
     class_description: str = 'Acquisition parameters'
 
 
@@ -272,6 +275,15 @@ class AcquisitionParameters:
         else:
             print('Lc not present in metadata.'
             ' Reading data in legacy mode.')
+            
+        if self.Nz:
+            self.Nz = (
+                self.Nz.strip('[').strip(']').split(', '))
+            self.Nz = to_float(self.Nz)
+            self.Nz = np.asarray(self.Nz)
+        else:
+            print('Nz not present in metadata.'
+            ' Reading data in legacy mode.')
 
         
     @staticmethod
@@ -339,6 +351,9 @@ class AcquisitionParameters:
         
         readable_dict['Lc'] = _hard_coded_conversion_for_list(
             readable_dict['Lc'])
+        
+        readable_dict['Nz'] = _hard_coded_conversion(
+            readable_dict['Nz'])
 
         return readable_dict
 
@@ -543,6 +558,7 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
     start_chrono = time.time()
     # time_stmp_0 = (img.tsSec) + ((img.tsUSec)/1000000)
     i = 0
+    bar = Bar('Processing', max = acquisition_params.pattern_amount)
     # acquire snapshot
     if cam.snapshot:
         print("not implemented yet")
@@ -601,6 +617,7 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
                     acquisition_params.receive_last_trig_spat = True
                     acquisition_params.spat_timestamps = timestamps
                 print('\n iteration reach (' + arm + ') : ' + str(i) + ' in the thread \n')
+                bar.finish()
                 return data_np
                 break
             elif counter_time > math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4:
@@ -618,9 +635,12 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
                 i = i + 1  
                 
                 # if i % 10:
-                print('i = ' + str(i))     
+                # print('i = ' + str(i))     
                 # print(counter_time)
                 
+                bar.next()
+                # print('\n')
+                # 
                 
                 counter_time2 = time.time() - start_chrono
                 if counter_time2 - counter_time > (cam.get_exposure() + 2):
@@ -701,7 +721,7 @@ def acquire(DMD: ALP4,
     boucle = 0
     shutter.open()
     for NR in range(acquisition_params.NRepetitions):#tqdm(range(acquisition_params.NRepetitions)):
-        
+        move_an_axis(stage.pidevice, stage.stage_tools, axes = ['2'], array_to_move = [acquisition_params.Nz[NR]], verbose = True)
         for iLc in range(len(acquisition_params.Lc)):#tqdm(range(len(acquisition_params.Lc))):
             setup_spectrograph(spectrograph,
                                grating_nbr =  acquisition_params.Lc[iLc][1], print_select   = False,
@@ -734,14 +754,19 @@ def acquire(DMD: ALP4,
                 
                 while not cam_thread.finished.is_set():
                     time.sleep(0.01)   # laisse Windows respirer
-                    # print('ici')
                     
                 raw_data = cam_thread.data_np
 
                 DMD.Halt()
-                print('DMD stopped')
-                first_acqui = False
-    
+                # print('DMD stopped')
+                if first_acqui == True:
+                    raw_data_arr = np.empty((raw_data.shape + (acquisition_params.NAverages, 
+                                                               len(acquisition_params.Lc), 
+                                                               acquisition_params.NRepetitions)))
+                    first_acqui = False
+                                
+                raw_data_arr[:, :, :, NA, iLc, NR] = raw_data
+                
     shutter.close()
     acquisition_params.total_spectrometer_acquisition_time_s = time.time() - begin_acqui
     
@@ -761,9 +786,9 @@ def acquire(DMD: ALP4,
             print('warning, timestamps for spatial camera is empty')
     elif acquisition_arm == 'spectral':   
         cam_spec.stop_acquisition()
-        print('spectral cam stopped')
+        # print('spectral cam stopped')
         try:
-            a = acquisition_params.spec_timestamps[0]
+            # a = acquisition_params.spec_timestamps[0]
             acquisition_params.spat_timestamps = []
         except:
             acquisition_params.spec_timestamps = np.empty(0)
@@ -772,10 +797,9 @@ def acquire(DMD: ALP4,
             print('warning, timestamps for spectral camera is empty')
     
     
-    
     save_metadata(DMD_params, spectrograph_params, cam_spat_params, cam_spec_params, acquisition_params)
     
-    return raw_data
+    return raw_data_arr
 
 def find_nearest(array, value):
     array = np.asarray(array)

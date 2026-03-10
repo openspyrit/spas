@@ -222,7 +222,8 @@ def move_an_axis(pidevice: object, stage_tools: object, axes: list = ['2'], arra
     maxrange = list(maxrange_dict.values())[0]
 
     if max(array_to_move) > maxrange:
-        print('Warning, array_to_move is greater than the maximum travel range, please decrase the maximum value below: ' + str(maxrange))
+        print('Warning, array_to_move is greater than the maximum travel range, please decrase the maximum value below: ' + 
+              str(maxrange) + ' or above "0"')
     else:
         for i in array_to_move:
             pidevice.MOV(axes, i)

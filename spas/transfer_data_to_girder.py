@@ -9,6 +9,201 @@ import girder_client
 import os
 import shutil
 
+def transfer_data_SPIM1D(DMD_params, cam_spat_params, cam_spec_params, spectrograph_params, acquisition_params,
+                            setup_version, data_folder_name, data_name, collection_access, upload_metadata):
+    """
+    
+
+    Parameters
+    ----------
+    DMD_params : TYPE
+        DESCRIPTION.
+    cam_spat_params : TYPE
+        DESCRIPTION.
+    cam_spec_params : TYPE
+        DESCRIPTION.
+    spectrograph_params : TYPE
+        DESCRIPTION.
+    acquisition_params : TYPE
+        DESCRIPTION.
+    setup_version : TYPE
+        DESCRIPTION.
+    data_folder_name : TYPE
+        DESCRIPTION.
+    data_name : TYPE
+        DESCRIPTION.
+    collection_access : TYPE
+        DESCRIPTION.
+    upload_metadata : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
+    #%%########################## Girder info #################################    
+    url = 'https://pilot-warehouse.creatis.insa-lyon.fr/api/v1'
+    if collection_access == 'private':
+        parent_data_folder = 'private_data'
+    else:
+        parent_data_folder = 'data'  
+        
+    collectionId = '63caa9497bef31845d991351'# '6140ba6929e3fc10d47dbe3e'
+    txt_file = open('E:/laurent/girder/no_name.txt', 'r', encoding='utf8')
+    apiKey = txt_file.read()
+    txt_file.close()
+    #%%############################## path ####################################
+    data_path = '../../data/' + data_folder_name + '/' + data_name  # here, data_name is the subfolder
+    temp_path = '../../temp/' + parent_data_folder + '/' + setup_version + '/' + data_folder_name + '/' + data_name
+    #%%######################## erase temp folder #############################
+    if len(os.listdir('../../temp')) != 0:      
+        list_TempFolder = os.listdir('../../temp')
+        for list_temp in list_TempFolder:
+            shutil.rmtree('../../temp/' + list_temp) 
+    #%%################## copy data to temp folder ############################  
+    shutil.copytree(data_path, temp_path)
+    #%%################### Girder authentification ############################
+    gc = girder_client.GirderClient(apiUrl=url)  # Generate the warehouse client
+    gc.authenticate(apiKey=apiKey)  # Authentication to the warehouse
+    #%%##################### begin data transfer ##############################
+    gc.upload('../../temp/' + parent_data_folder + '/', collectionId, 'collection', reuseExisting=True)
+    #%%############## find data folder id to uplaod metada ####################
+    if collection_access == 'private':
+        girder_data_folder_id = '??'
+    else:
+        girder_data_folder_id = '63caaa937bef31845d991353'
+        
+    version_list = gc.listFolder(girder_data_folder_id, 'folder')
+    for version_folder in version_list:
+        if version_folder['name'] == setup_version:  
+            version_folder_id = version_folder['_id']
+            data_folder_list = gc.listFolder(version_folder_id, 'folder')
+            for temp_data_folder_name in data_folder_list:
+                if temp_data_folder_name['name'] == data_folder_name:
+                    data_folder_name_id = temp_data_folder_name['_id']                    
+                    data_list = gc.listFolder(data_folder_name_id, 'folder')
+                    for data_folder in data_list:
+                        if data_folder['name'] == data_name:
+                            data_folder_id = data_folder['_id']
+                            #print('data_folder_id = ' + data_folder_id)                   
+    #%%####################### prepare metadata dict ############################
+    if upload_metadata == 1:
+        acquisition_dict = acquisition_params.__dict__
+        spectrograph_dict = spectrograph_params.__dict__
+        DMD_dict = DMD_params.__dict__
+        cam_spec_dict = cam_spec_params.__dict__
+        cam_spat_dict = cam_spat_params.__dict__
+            
+        acquisition_dict2 = {}
+        for key in acquisition_dict.keys():
+            new_key = 'a)_ACQ_' + key
+            if key == 'light_source':
+                acquisition_dict2[new_key] = acquisition_dict[key][0]
+            elif key == 'Lc':
+                new_key = 'a)_ACQ_spectro_(central wavelength, grating)'
+                value = str(acquisition_dict[key]) 
+                acquisition_dict2[new_key] = value[1:-1]
+            elif key == 'Nz':
+                new_key = 'a)_ACQ_Stage_position(mm))'
+                value = str(acquisition_dict[key]) 
+                print(value)
+                acquisition_dict2[new_key] = value
+            else:
+                acquisition_dict2[new_key] = acquisition_dict[key] 
+        
+        spectrograph_dict2 = {}
+        for key in spectrograph_dict.keys():
+            if key == 'grating':
+                for key2 in dir(spectrograph_dict[key]):
+                    if key2.startswith('__') == False:
+                        if key2 == 'grooves':
+                            new_key = 'b)_SPECTRO_' + key + '_' + key2 + ' (gr/mm)'
+                            spectrograph_dict2[new_key] = spectrograph_dict[key].grooves
+                        elif key2 == 'blaze':
+                            new_key = 'b)_SPECTRO_' + key + '_' + key2 + ' (nm)'
+                            spectrograph_dict2[new_key] = spectrograph_dict[key].blaze
+                        elif key2 == 'current_grating_nbr':
+                            new_key = 'b)_SPECTRO_' + key2
+                            spectrograph_dict2[new_key] = spectrograph_dict[key].current_grating_nbr    
+                        elif key2 == 'number_of_grating':
+                            new_key = 'b)_SPECTRO_' + '_nbr_of_grating'
+                            spectrograph_dict2[new_key] = spectrograph_dict[key].current_grating_nbr 
+
+            else:
+                if key == 'slit_width':
+                    new_key = 'b)_SPECTRO_' + key + ' (µm)'
+                elif key == 'slit_height':
+                    new_key = 'b)_SPECTRO_' + key + ' (µm)'
+                elif key == 'resolution_th':
+                    new_key = 'b)_SPECTRO_' + key + ' (nm)'    
+                else:
+                    new_key = 'b)_SPECTRO_' + key
+                spectrograph_dict2[new_key] = spectrograph_dict[key]
+        
+        DMD_dict2 = {}
+        for key in DMD_dict.keys():
+            new_key = 'c)_DMD_' + key
+            DMD_dict2[new_key] = DMD_dict[key]
+               
+        cam_spec_dict2 = {}
+        for key in cam_spec_dict.keys():
+            if key == 'height' or key == 'width':
+                new_key = 'd)_CAM_SPEC_size_' + key
+            else:
+                new_key = 'd)_CAM_SPEC_' + key
+            cam_spec_dict2[new_key] = cam_spec_dict[key]
+            
+        cam_spat_dict2 = {}
+        for key in cam_spat_dict.keys():
+            if key == 'height' or key == 'width':
+                new_key = 'e)_CAM_SPAT_FOV_' + key
+            else:
+                new_key = 'e)_CAM_SPAT_' + key
+            cam_spat_dict2[new_key] = cam_spat_dict[key]
+            
+        dict = {}
+        dict.update(acquisition_dict2)
+        dict.update(spectrograph_dict2)
+        dict.update(DMD_dict2)
+        dict.update(cam_spec_dict2)
+        dict.update(cam_spat_dict2)
+        
+        del dict['a)_ACQ_class_description']
+        del dict['a)_ACQ_patterns']
+        del dict['a)_ACQ_patterns_wp']
+        del dict['a)_ACQ_measurement_time']
+        del dict['a)_ACQ_spat_timestamps']
+        del dict['a)_ACQ_spec_timestamps']
+        del dict['a)_ACQ_wavelengths']
+        del dict['a)_ACQ_mask_index']
+        del dict['a)_ACQ_x_mask_coord']
+        del dict['a)_ACQ_y_mask_coord']
+        del dict['a)_ACQ_output_directory']
+        del dict['a)_ACQ_pattern_order_source']
+        del dict['a)_ACQ_pattern_source']
+                 
+        del dict['c)_DMD_apps_fpga_temperature']
+        del dict['c)_DMD_class_description']
+        del dict['c)_DMD_ddc_fpga_temperature']
+        del dict['c)_DMD_device_number']         
+        del dict['c)_DMD_id']
+        del dict['c)_DMD_initial_memory']         
+        del dict['c)_DMD_pcb_temperature'] 
+        del dict['c)_DMD_bitplanes']  
+        del dict['c)_DMD_type'] 
+        del dict['c)_DMD_usb_connection']    
+        del dict['c)_DMD_ALP_version']  
+        
+        #%%################### begin metadata transfer ############################
+        gc.addMetadataToFolder(data_folder_id, dict)     
+    #%%##################### erase temp folder ################################
+    if len(os.listdir('../../temp')) != 0:      
+        list_TempFolder = os.listdir('../../temp')
+        for list_temp in list_TempFolder:
+            shutil.rmtree('../../temp/' + list_temp) 
+
+
 def transfer_data_SPC1D(DMD_params, cam_spat_params, cam_spec_params, spectrograph_params, acquisition_params,
                             setup_version, data_folder_name, data_name, collection_access, upload_metadata):
     """
@@ -42,24 +237,6 @@ def transfer_data_SPC1D(DMD_params, cam_spat_params, cam_spec_params, spectrogra
     None.
 
     """
-
-    # #unwrap structure into camPar
-    # try:
-    #     camPar.AOI_X = camPar.rectAOI.s32X.value
-    #     camPar.AOI_Y = camPar.rectAOI.s32Y.value
-    #     camPar.AOI_Width = camPar.rectAOI.s32Width.value
-    #     camPar.AOI_Height = camPar.rectAOI.s32Height.value
-    # except:
-    #     try:
-    #         camPar['AOI_X'] = camPar['rectAOI'].s32X.value
-    #         camPar['AOI_Y'] = camPar['rectAOI'].s32Y.value
-    #         camPar['AOI_Width'] = camPar['rectAOI'].s32Width.value
-    #         camPar['AOI_Height'] = camPar['rectAOI'].s32Height.value
-    #     except:
-    #         camPar.AOI_X = camPar.rectAOI['s32X']
-    #         camPar.AOI_Y = camPar.rectAOI['s32Y']
-    #         camPar.AOI_Width = camPar.rectAOI['s32Width']
-    #         camPar.AOI_Height = camPar.rectAOI['s32Height']
     #%%########################## Girder info #################################    
     url = 'https://pilot-warehouse.creatis.insa-lyon.fr/api/v1'
     if collection_access == 'private':
