@@ -34,10 +34,6 @@ shutter = ThorlabsShutter("85855593")
 #%% Move the PI stage to the middle
 move_to_middle(stage.pidevice, stage.stage_tools)
 position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
-#%%
-# here add manual displacment
-# Emergency stop
-# stage_tools.stopall(pidevice)
 #%% setup Spatial Camera
 cam_spat_params = setup_cam(cam = cam_spat, 
                             expos_time  = 0.2,  # (s)
@@ -48,7 +44,7 @@ cam_spat_params = setup_cam(cam = cam_spat,
                             offsetY     = 1,        # 1
                             binningX    = 1,        # int < 2048
                             binningY    = 1,        # int < 2048
-                            snapshot    = False)    # if false => acquire video, if True => acquire an image 
+                            snapshot    = True)    # if false => acquire video, if True => acquire an image 
 #%% get a snapshot of the spatial camera
 shutter.open()
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, zoom = 1, pattern_to_display = 'gray', pattern_dim = '1D',
@@ -116,8 +112,8 @@ pattern_compression      = 1
 pattern_dim              = '1D'
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
 source                   = 'laser-532nm'#white_LED'#'No source'#'White_Zeiss_lamp'#'Thorlabs_White_halogen_lamp'#'HG-1_Oceanoptics'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
-object_name              = 'fluo_µsphere-gel-bin' 
-data_folder_name         = '2026-03-10_test_SPIM'#'Patient-69_exvivo_LGG_BU'
+object_name              = 'fluo_µsphere-gel-bin_3' 
+data_folder_name         = '2026-03-13_test_SPIM'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_Lc_' + str(Lc[0][0]) + 'nm_Gr_' + str(Lc[0][1]) + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(round(ti))+'ms_zoom_x'+str(zoom)
 
 all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
@@ -178,7 +174,7 @@ raw_data = acquire(DMD                 = DMD,
                    shutter             = shutter,
                    acquisition_params  = acquisition_params,
                    all_path            = all_path,
-                   verbose             = True,
+                   verbose             = False,
                    acquisition_arm     = 'spectral')
 #%% Hadamard Reconstruction
 had_reco_all = live_hadamard_reco(raw_data, acquisition_params)
