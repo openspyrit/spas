@@ -75,7 +75,7 @@ Ny = saved_cam_spec_params.height
 Lc = saved_acquisition_params.Lc
 NLc = len(Lc)
 
-# exeption
+# exception
 if Gr == 2 and (Lc_acq == 763 or Lc_acq == 811):
     del Lc[9]
     NLc = len(Lc)

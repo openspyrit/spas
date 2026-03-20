@@ -34,7 +34,7 @@ except: # in the cas the DLL of the spectrometer is not installed
     class MeasConfigType:
         pass
     MeasConfigType =  None
-    print('DLL of the spectrometer not installed !!!')
+    print('DLL of the Avantes spectrometer not installed !!!')
 
 ##### DLL for the camera
 try:

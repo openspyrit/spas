@@ -315,6 +315,10 @@ def setup_cam(cam: Andor.AndorSDK3Camera, expos_time: float = 0.1, ExternalTrigg
         cam.set_attribute_value("TriggerMode", "External")
         TriggerMode = cam.get_attribute_value("TriggerMode")
         print("Trigger Mode is :", TriggerMode)
+    # if TriggerMode != "Internal":
+    #     cam.set_attribute_value("TriggerMode", "Internal")
+    #     TriggerMode = cam.get_attribute_value("TriggerMode")
+    #     print("Trigger Mode is :", TriggerMode)
     ################# set External Trigger Delay ##############################
     ExternalTriggerDelay_current = cam.get_attribute_value("ExternalTriggerDelay")
     if ExternalTriggerDelay_current != ExternalTriggerDelay:
@@ -330,16 +334,18 @@ def setup_cam(cam: Andor.AndorSDK3Camera, expos_time: float = 0.1, ExternalTrigg
     print("BitDepth =", BitDepth)
     
     #################### setting the exposure timre ###########################
-    # # NB: the exposure time must be an interger in s 
-    # exposure_time = round(expos_time * 1000)
-    # if exposure_time < cam.get_exposure_minimum():
-    #     exposure_time = cam.get_exposure_minimum()
-    #     print('the exposure time is below the minimum value, it is set to ' + str(cam.get_exposure_minimum()))
-    # if exposure_time > cam.get_exposure_maximum():
-    #     exposure_time = cam.get_exposure_maximum()
-    #     print('the exposure time is above the maximum value, it is set to ' + str(cam.get_exposure_maximum()))
+    # NB: the exposure time must be an interger in s 
+    exposure_mini = 0.000984
+    exposure_maxi = 4.9
+    exposure_time = expos_time #round(expos_time * 1000)
+    if exposure_time < exposure_mini:
+        exposure_time = exposure_mini
+        print('the exposure time is below the minimum value, it is set to ' + str(exposure_time))
+    if exposure_time > exposure_maxi:
+        exposure_time = exposure_maxi
+        print('the exposure time is above the maximum value, it is set to ' + str(exposure_time))
         
-    cam.set_attribute_value("ExposureTime", expos_time)
+    cam.set_attribute_value("ExposureTime", exposure_time)
     exposure_time_get = cam.get_attribute_value("ExposureTime")
     print('exposure time set to : ' + str(exposure_time_get) + ' s')
     ######################### get the frame rate ##############################
@@ -349,52 +355,12 @@ def setup_cam(cam: Andor.AndorSDK3Camera, expos_time: float = 0.1, ExternalTrigg
     # cam.set_framerate(frame_rate)
     # current_frame_rate = cam.get_framerate()
     # print('new frame rate set to : ' + str(current_frame_rate))
-    # ########################### get bandwidth #################################
-    # cam.set_limit_bandwidth_mode('XI_ON')
-    # interface_data_rate = cam.get_limit_bandwidth_maximum()
-    # camera_data_rate = int(interface_data_rate / cameras_nbr)
-
-    # min_data_rate_cam = cam.get_limit_bandwidth_minimum()
-    # max_data_rate_cam = cam.get_limit_bandwidth_maximum()
-    
-    # if camera_data_rate < min_data_rate_cam:
-    #     camera_data_rate = min_data_rate_cam
-    #     print('camera_data_rate is below the minimum value, it is set to its miminum value')        
-    # elif camera_data_rate > max_data_rate_cam:
-    #     camera_data_rate = max_data_rate_cam
-    #     print('camera_data_rate is above the maximum value, it is set to its maxinum value')
-   
-    # cam.set_limit_bandwidth(camera_data_rate)
-    # print('BandWidth = ' + str(cam.get_limit_bandwidth()))
-    ########################## set buffer #####################################
-    # cam.set_buffer_policy('XI_BP_SAFE')#
-    # cam.set_acq_buffer_size(int(cam.get_acq_buffer_size_maximum()/4)) # divide by 4 because if higher, we lose triggers, to set max, you need too wait 2.6s between star_acquisition and receive the first trig (DMD.run), to set max/2 => wait 1.5s, max/4 => wait 1s
-
-    # print('buffer size = ' + str(cam.get_acq_buffer_size()))
-    # print('min buffers queue size = ' + str(cam.get_buffers_queue_size_minimum()))
-    # print('max buffers queue size = ' + str(cam.get_buffers_queue_size_maximum()))
-    
-    # cam.set_buffers_queue_size(cam.get_buffers_queue_size_maximum())
-    
-    # buffers_queue_size = cam.get_buffers_queue_size()
-    # print('buffers queue size  = ' + str(buffers_queue_size))
-    
     ########################## setting gain ###################################
     curent_gain = cam.get_attribute_value("PreAmpGain")
     if curent_gain != 'x' + str(gain):
         cam.set_attribute_value("PreAmpGain", 'x' + str(gain))
         get_gain = cam.get_attribute_value("PreAmpGain")
         print('the gain is set to : ' + str(get_gain))
-    ######################## setting white balance ############################
-    
-    ################# acquire waiting an internal trigger #####################
-    # gpi_mode = 'XI_GPI_TRIGGER'
-    # cam.set_gpi_mode(gpi_mode)
-    # trigger_source = 'XI_TRG_EDGE_RISING'
-    # cam.set_trigger_source(trigger_source)
-    # trigger_selector = 'XI_TRG_SEL_FRAME_START'
-    # cam.set_trigger_selector(trigger_selector)
-    # cam.set_trigger_overlap('XI_TRG_OVERLAP_OFF') # in the case of 'XI_TRG_OVERLAP_PREV_FRAME', a stray line appear in the image => desastrous for the Hadamard reco
     ################♠ acquisition mode: snapshot or video #####################
     cam.snapshot = snapshot
     
@@ -496,7 +462,7 @@ def display_cam(cam, cam_params, display_max: bool = False, display_integral: bo
         def nothing(x): 
             pass
         
-        min_exposure_time = 0
+        min_exposure_time = 0.000984 * 1e6
         max_exposure_time = 4.9 * 1e6
         current_exposure_time = cam.get_attribute_value("ExposureTime")
         t_wait = current_exposure_time
@@ -567,14 +533,14 @@ def display_cam(cam, cam_params, display_max: bool = False, display_integral: bo
             
             cam.set_attribute_value("ExposureTime", exposure_time/1e6)
             
-
             data_64b = data_8b.astype(np.float64)           
             data2 = data_64b*brightness/maxi
             data_8b = data2.astype(np.uint8)
             data_8b_resize = cv2.resize(data_8b, (width_win, height_win)) 
 
             cv2.imshow(window_name, data_8b_resize)
-
+            cv2.moveWindow(window_name, 0, 0)
+            
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 cv2.destroyWindow(window_name)
                 #stop data acquisition
@@ -601,6 +567,9 @@ def display_cam(cam, cam_params, display_max: bool = False, display_integral: bo
                 fig.canvas.draw()
                 fig.canvas.flush_events()
                 plt.pause(0.01)
+                
+                manager = plt.get_current_fig_manager()
+                manager.window.wm_geometry("+950+0")
                 
     except:
         cv2.destroyWindow(window_name)

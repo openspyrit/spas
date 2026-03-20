@@ -22,11 +22,11 @@ from spas.cam_Andor_module import init_cam_spat, init_cam_spec, disconnect_cam, 
 from spas.PI_module import init_PI, disconnect_stage, read_position, move_to_middle, stage_adjustment, stage_parameters
 from spas.shutter_TSC001_module import ThorlabsShutter
 from spas.acquisition_SPIM1D import AcquisitionParameters, func_path, acquire, define_wavelengths_matrix, plot_spectrum
-from spas.reconstruction_SPIM1D import live_hadamard_reco
-from spas.visualization_SPIM1D import plot_reco_without_NN
+from spas.reconstruction_SPIM1D import live_hadamard_reco, spatial_reco
+from spas.visualization_SPIM1D import plot_acqui
 #%% Initialize hardware
-DMD, DMD_initial_memory = init_DMD(dmd_lib_version = '4.3')
 spectrograph = init_spectrograph(model = 'andor_shamrock')
+DMD, DMD_initial_memory = init_DMD(dmd_lib_version = '4.3')
 cam_spat = init_cam_spat(SN = 'VSC-10323')
 cam_spec = init_cam_spec(SN = 'VSC-23585')
 stage = init_PI(Model = 'C-884', SN = '0000000000', verbose = True)
@@ -47,19 +47,17 @@ cam_spat_params = setup_cam(cam = cam_spat,
                             snapshot    = True)    # if false => acquire video, if True => acquire an image 
 #%% get a snapshot of the spatial camera
 shutter.open()
-DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, zoom = 1, pattern_to_display = 'gray', pattern_dim = '1D',
+DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, zoom = 1, pattern_to_display = 'white', pattern_dim = '1D',
                               scan_mode = 'Walsh', Np = 256, pattern_thickness = 16) # white, black or gray
 data = snapshot_cam(cam = cam_spat, tilt_image = True) # data_format accepted: 8 or 16 bits
 DMD.Halt()
 shutter.close()
 #%% display spatial camera in continous mode
 shutter.open()
-# stage.stage_adjustment()
 stage_adjustment(stage.pidevice)
 time.sleep(1)
-play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray', pattern_dim = '1D', 
-                              scan_mode = 'Walsh', Np = 256, pattern_thickness = 16) 
-# display_cam(cam = cam_spat, binningX = 1, binningY = 1)
+play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'white', pattern_dim = '1D', 
+                 scan_mode = 'Walsh', Np = 256, pattern_thickness = 16) 
 display_cam(cam = cam_spat, cam_params = cam_spat_params)
 DMD.Halt()
 shutter.close()
@@ -67,11 +65,11 @@ shutter.close()
 spectrograph_params = setup_spectrograph(spectrograph,
                                          grating_nbr =   1, print_select   = True,   # Arg:  1 
                                          position    = 600, print_position = True,   # the central wavelength of the grating
-                                         slit_width  = 200)                          # the width of the slit in (µm)
+                                         slit_width  = 20000)                          # the width of the slit in (µm)
 #%% setup Spectral Camera
 cam_spec_params = setup_cam(cam = cam_spec, 
-                            expos_time  = 0.25,        # (s)
-                            gain        = 2,        # 1 or 2                              
+                            expos_time  = 0.1,        # (s)
+                            gain        = 1,        # 1 or 2                              
                             width       = 2048,     # max = 2048
                             height      = 2048,     # max = 2048
                             offsetX     = 1,        # 1
@@ -97,13 +95,13 @@ shutter.close()
 #%% setup acquisition
 setup_version            = 'setup_v1.0'
 collection_access        = 'public' #'private'#
-Np                       = 256      # Number of pixels in one dimension of the image (image: NpxNp)
-Nz                       = np.array([6, 8])# to move the stage to acquire the third spatial dimension
+Np                       = 1      # Number of pixels in one dimension of the image (image: NpxNp)
+Nz                       = np.array([7.5, 8])# to move the stage to acquire the third spatial dimension
 pattern_thickness        = 16
 ti                       = cam_spec_params.exposure_time_μs / 1000 # Integration time of the spectral camera
 NAverages                = 1        # Number of avegare (the acquisition is accumulated before moving the grating)
 NRepetitions             = len(Nz)        # Number of repetitions (grating change after that, the acquisition is repeated)
-Lc                       = [(spectrograph_params.position, spectrograph_params.grating.current_grating_nbr)]#, (570, 1), (600, 1), (630, 1), (660, 1), (690, 1), (720, 1)]#, (922, 1), (927, 1)] # [(0, 1), (780, 1), (785, 1), (795, 1), (805, 1), (810, 1)] #[(0, 1), (676, 1), (686, 1), (696, 1), (706, 1), (716, 1)] #[(0, 1), (557, 1), (567, 1), (577, 1), (587, 1), (597, 1)] #[(0, 1), (526, 1), (536, 1), (546, 1), (556, 1), (566, 1)] #[(0, 1), (416, 1), (426, 1), (436, 1), (446, 1), (456, 1)] ##, (832, 2), (852, 2), (872, 2), (892, 2), (912, 2), (932, 2), (952, 2), (972, 2), (992, 2)]## # a vector containig the central wavelength following by the grating number
+Lc                       = [(spectrograph_params.position, spectrograph_params.grating.current_grating_nbr), (630, 1)]#, (600, 1), (630, 1), (660, 1), (690, 1), (720, 1)]#, (922, 1), (927, 1)] # [(0, 1), (780, 1), (785, 1), (795, 1), (805, 1), (810, 1)] #[(0, 1), (676, 1), (686, 1), (696, 1), (706, 1), (716, 1)] #[(0, 1), (557, 1), (567, 1), (577, 1), (587, 1), (597, 1)] #[(0, 1), (526, 1), (536, 1), (546, 1), (556, 1), (566, 1)] #[(0, 1), (416, 1), (426, 1), (436, 1), (446, 1), (456, 1)] ##, (832, 2), (852, 2), (872, 2), (892, 2), (912, 2), (932, 2), (952, 2), (972, 2), (992, 2)]## # a vector containig the central wavelength following by the grating number
 array_to_move            = np.linspace(1, 10, 10, endpoint=True)
 zoom                     = 1        # Numerical zoom applied in the DMD
 xw_offset                = 128      # Default = 128
@@ -112,8 +110,8 @@ pattern_compression      = 1
 pattern_dim              = '1D'
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
 source                   = 'laser-532nm'#white_LED'#'No source'#'White_Zeiss_lamp'#'Thorlabs_White_halogen_lamp'#'HG-1_Oceanoptics'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
-object_name              = 'fluo_µsphere-gel-bin_3' 
-data_folder_name         = '2026-03-13_test_SPIM'#'Patient-69_exvivo_LGG_BU'
+object_name              = 'fluo_µsphere-gel-bin_15' 
+data_folder_name         = '2026-03-20_test_SPIM'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_Lc_' + str(Lc[0][0]) + 'nm_Gr_' + str(Lc[0][1]) + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(round(ti))+'ms_zoom_x'+str(zoom)
 
 all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
@@ -139,6 +137,7 @@ if all_path.aborted == False:
     
     acquisition_params.wavelengths = define_wavelengths_matrix(cam_spec_params, Lc, display_figure = True, verbose = True)  
     acquisition_params.wavelengths = acquisition_params.wavelengths[0, :]
+    acquisition_params.wavelengths = np.linspace(550,650,512)
     
     stage_params = stage_parameters
     stage_params.array_to_move = array_to_move
@@ -155,48 +154,46 @@ if all_path.aborted == False:
     
 
     if DMD_params.patterns != None:
-        print('Total expected acq time  : ' + str(int(acquisition_params.pattern_amount*(ti + 30)/1000 // 60)) + ' min ' + 
-              str(math.floor(acquisition_params.pattern_amount*(ti + 30)/1000 % 60)) + ' s ' + 
-              str(round((acquisition_params.pattern_amount*(ti + 30) / 1000 % 1) * 1000)) + ' ms')
+        acq_time = Np*NRepetitions*NAverages*len(Lc)*(ti + DMD_params.add_illumination_time_us / 1000)
+        print('Total expected acq time  : ' + str(int(acq_time/1000 // 60)) + ' min ' + 
+              str(math.floor(acq_time/1000 % 60)) + ' s ' + str(round((acq_time / 1000 % 1) * 1000)) + ' ms')
 else:
     print('setup aborted')
 #%% Acquire
 # time.sleep(20)
-raw_data = acquire(DMD                 = DMD,
-                   DMD_params          = DMD_params,
-                   cam_spat            = cam_spat,
-                   cam_spat_params     = cam_spat_params,
-                   cam_spec            = cam_spec,
-                   cam_spec_params     = cam_spec_params,
-                   spectrograph        = spectrograph,
-                   spectrograph_params = spectrograph_params,
-                   stage               = stage,
-                   shutter             = shutter,
-                   acquisition_params  = acquisition_params,
-                   all_path            = all_path,
-                   verbose             = False,
-                   acquisition_arm     = 'spectral')
-#%% Hadamard Reconstruction
+raw_data =  acquire(DMD                 = DMD,
+                    DMD_params          = DMD_params,
+                    cam_spat            = cam_spat,
+                    cam_spat_params     = cam_spat_params,
+                    cam_spec            = cam_spec,
+                    cam_spec_params     = cam_spec_params,
+                    spectrograph        = spectrograph,
+                    spectrograph_params = spectrograph_params,
+                    stage               = stage,
+                    shutter             = shutter,
+                    acquisition_params  = acquisition_params,
+                    all_path            = all_path,
+                    verbose             = False,
+                    acquisition_arm     = 'spectral')
+#%% Reconstruction
 had_reco_all = live_hadamard_reco(raw_data, acquisition_params)
+spatial_acqui = spatial_reco(acquisition_params, all_path)
 #%% Plot
-if len(had_reco_all.shape) > 3: 
-    NR = had_reco_all.shape[3]
-    path_temp = all_path.fig_had_reco_path
-    for iNR in range(NR):
-        all_path.fig_had_reco_path = path_temp + '_NR_' + str(iNR) + '_'
-        plot_reco_without_NN(acquisition_params, had_reco_all[:, :, :, iNR], all_path)
-else:
-    plot_reco_without_NN(acquisition_params, had_reco_all, all_path)    
+plot_acqui(had_reco_all, spatial_acqui, acquisition_params, all_path)
+#%% plot raw data
+from matplotlib import pyplot as plt
 
+plt.figure()
+plt.imshow(np.squeeze(raw_data[:, :, 0, 0, 0, 0]))
 #%% transfer data to girder
 transfer_data_SPIM1D(DMD_params, cam_spat_params, cam_spec_params, spectrograph_params, acquisition_params,
                     setup_version, data_folder_name, data_name, collection_access, upload_metadata = 1)
 #%% Disconnect
-disconnect_DMD(DMD)
 disconnect_spectrograph(spectrograph, goto_zero = False)
+disconnect_DMD(DMD)
 disconnect_cam(cam_spat)
 disconnect_cam(cam_spec)
-disconnect_stage(stage.pidevice, stage.stage_tools)
+disconnect_stage(stage)
 shutter.disconnect()
 #%% below, old prog
 

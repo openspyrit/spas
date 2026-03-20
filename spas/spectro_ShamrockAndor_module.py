@@ -42,7 +42,7 @@ def init_spectrograph(model : str = 'andor_shamrock'):
         
         return spectrograph
     else:
-        print('Error, the model of the spectrograph must be : CM110. For another spectrograph, change the package that import the function init_spectrograph')
+        print('Error, the model of the spectrograph must be : Shamrock. For another spectrograph, change the package that import the function init_spectrograph')
 
 
 @dataclass_json
@@ -59,7 +59,7 @@ class Spectrograph_Parameters:
     position: Optional[int] = None
     grating: Optional[grating] = None
     slit_width: Optional[int] = None
-    slit_height: Optional[int] = 4000
+    slit_height: Optional[int] = 10000
     resolution_th: Optional[float] = None
     # speed: Optional[int] = None
     # size: Optional[int] = None
@@ -88,7 +88,7 @@ class Spectrograph_Parameters:
             self.position        = Spectrograph.query_position(spectrograph)
             self.grating         = Spectrograph.query_grating(spectrograph, grating)
             self.slit_width      = Spectrograph.slit_width
-            self.resolution_th   = self.slit_width * 7.44 / self.grating.grooves
+            self.resolution_th   = 0.378 * 300 / self.grating.grooves
             # self.speed         = Spectrograph.query_speed(spectrograph, print_speed = False)
             # self.size          = Spectrograph.query_size(spectrograph, print_size = False)
     
@@ -143,7 +143,7 @@ class Spectrograph_Parameters:
 def setup_spectrograph(spectrograph: object,
                        grating_nbr: int = 1, print_select: bool = False,
                        position: int = 600,  print_position: bool = False,
-                       slit_width: int = 200):
+                       slit_width: int = 20000):
     """ Setup the spectrograph to tune the cameras
     Parameters
     ----------
@@ -179,11 +179,11 @@ def setup_spectrograph(spectrograph: object,
     current_position = Spectrograph.query_position(spectrograph)
     if current_position == position:
         if print_position:
-            print('position already set to : ' + str(position) + ' nm. Nothing to do')
+            print('grating position already set to : ' + str(position) + ' nm. Nothing to do')
     else:
         Spectrograph.cmd_goto(spectrograph, position = position)
         if print_position:
-            print('position set to : ' + str(Spectrograph.query_position(spectrograph)) + ' nm.')
+            print('grating position set to : ' + str(Spectrograph.query_position(spectrograph)) + ' nm.')
     
     Spectrograph.slit_width = slit_width            
     

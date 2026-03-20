@@ -454,7 +454,7 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path, overwrite = True)
     plt.show()
 
     ####################### RGB view ########################
-    print('Beging RGB convertion ...')
+    print('Beging RGB conversion ...')
     image_arr = plot_spec_to_rgb_image(GT, acquisition_parameters.wavelengths)
     print('RGB convertion finished')
     # plt.figure()
@@ -552,6 +552,91 @@ def plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, netw
     plt.xlabel(r'$\lambda$ (nm)')
     plt.savefig(fig_nn_reco_path + '_SPECTRA_PLOT_nn_reco.png')
     plt.show()
+    
+    
+def plot_spatial_acqui(acquisition_parameters, spatial_acqui, all_path):
+    """
+    plot the spatial arm acquisition
+
+    Parameters
+    ----------
+    acquisition_parameters : TYPE
+        DESCRIPTION.
+    spatial_acqui : TYPE
+        DESCRIPTION.
+    all_path : TYPE
+        DESCRIPTION.
+    overwrite : TYPE, optional
+        DESCRIPTION. The default is True.
+
+    Returns
+    -------
+    None.
+
+    """
+    
+    fig_spatial_path = all_path.fig_spatial_path
+    
+    plt.figure()
+    plt.imshow(spatial_acqui)
+    plt.xlabel('X')
+    plt.ylabel('Y')
+    plt.savefig(fig_spatial_path + '_view.png')
+    plt.show()
+    
+    
+
+def plot_acqui(had_reco_all, spatial_acqui, acquisition_params, all_path):
+    """
+    """
+
+    Lc = acquisition_params.Lc
+    Nz = acquisition_params.Nz
+    
+    path_spec_temp = all_path.fig_had_reco_path
+    path_spat_temp = all_path.fig_spatial_path
+    if len(had_reco_all.shape) == 3:
+        plot_reco_without_NN(acquisition_params, had_reco_all, all_path)
+        plot_spatial_acqui(acquisition_params, spatial_acqui, all_path)
+    elif len(had_reco_all.shape) == 4:
+        if len(Nz) > 1:
+            for iNR in range(len(Nz)):
+                ### spectral ###
+                add_info_path = '_Ny_' + str(Nz[iNR]) + 'mm_Lc_' + str(Lc[0][0]) + '_'
+                all_path.fig_had_reco_path = path_spec_temp + add_info_path                
+                plot_reco_without_NN(acquisition_params, np.squeeze(had_reco_all[:, :, :, iNR]), all_path)
+                all_path.fig_had_reco_path = path_spec_temp
+                ### spatial ###
+                add_info_path = '_Ny_' + str(Nz[iNR]) + '_'
+                all_path.fig_spatial_path = path_spat_temp + add_info_path
+                plot_spatial_acqui(acquisition_params, np.squeeze(spatial_acqui[:, :, iNR]), all_path)
+                all_path.fig_spatial_path = path_spat_temp
+        elif len(Lc) > 1:
+            for iLc in range(len(Lc)):
+                ### spectral ###
+                add_info_path = '_Ny_' + str(Nz[iNR]) + 'mm_Lc_' + str(Lc[iLc][0]) + '_'
+                all_path.fig_had_reco_path = path_spec_temp + add_info_path                
+                plot_reco_without_NN(acquisition_params, np.squeeze(had_reco_all[:, :, :, 0, iLc]), all_path)
+                all_path.fig_had_reco_path = path_spec_temp
+                ### spatial ###
+                if iLc == 0:
+                    add_info_path = '_Ny_' + str(Nz[iNR]) + 'mm_'
+                    all_path.fig_spatial_path = path_spat_temp + add_info_path
+                    plot_spatial_acqui(acquisition_params, np.squeeze(spatial_acqui[:, :, iLc]), all_path)
+                    all_path.fig_spatial_path = path_spat_temp
+    elif len(had_reco_all.shape) == 5:
+        for iNR in range(len(Nz)):
+            for iLc in range(len(Lc)):
+                add_info_path = '_Ny_' + str(Nz[iNR]) + 'mm_Lc_' + str(Lc[iLc][0]) + '_'
+                all_path.fig_had_reco_path = path_spec_temp + add_info_path                
+                plot_reco_without_NN(acquisition_params, np.squeeze(had_reco_all[:, :, :, iNR, iLc]), all_path)
+                all_path.fig_had_reco_path = path_spec_temp
+                if iLc == 0:
+                    add_info_path = '_Ny_' + str(Nz[iNR]) + 'mm_'
+                    all_path.fig_spatial_path = path_spat_temp + add_info_path
+                    plot_spatial_acqui(acquisition_params, np.squeeze(spatial_acqui[:, :, iNR]), all_path)
+                    all_path.fig_spatial_path = path_spat_temp
+
     
 def extract_ROI_coord(DMD_params, acquisition_parameters, all_path, data_folder_name: str, 
                       data_name: str, GT: np.ndarray, ti: float, Np: int) -> Tuple[np.ndarray, np.array, np.array]:

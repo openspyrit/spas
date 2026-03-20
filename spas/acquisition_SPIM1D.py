@@ -18,14 +18,11 @@ import numpy as np
 ##### DLL for the DMD
 try:
     from ALP4 import ALP4
-    # from ALP4 import ALP_AVAIL_MEMORY, ALP_DEV_DYN_SYNCH_OUT1_GATE, tAlpDynSynchOutGate
-    # print('ALP4 is ok in Acquisition file')
 except:
     class ALP4:
         pass
 
 from pylablib.devices import Andor
-# from spas.reconstruction_nn import reconstruct_process, plot_recon, ReconstructionParameters
 
 import time
 import threading
@@ -34,15 +31,8 @@ from dataclasses import dataclass, field
 from dataclasses_json import dataclass_json
 from progress.bar import Bar
 from spas.spectro_ShamrockAndor_module import setup_spectrograph
-# from spas.cam_Andor_module import counter_trigger
 from scipy import interpolate
 from spas.PI_module import move_an_axis
-
-# import PIL.Image
-
-# from spas.DMD_module import  DMDParameters
-# import spas.DMD_module as DMD_mod
-# init_DMD, calculate_timings, setup_DMD, setup_patterns, setup_timings, _sequence_limits, _update_sequence, disconnect_DMD,
 
 @dataclass_json
 @dataclass
@@ -524,6 +514,15 @@ def save_metadata(DMD_params,#: DMDParameters,
 import tkinter as tk
 
 def popup():
+    """
+    A popup to tell that the spectral data were acquired, it is need to swhitch the miror to acquire the spatial data
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
+    """
     result = {"choice": None}
 
     def on_ok():
@@ -558,7 +557,7 @@ def popup():
     return result["choice"]
 
    
-def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iLc: int = 1, NA: int = 1, first_acqui: bool = True, verbose: bool = False): 
+def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 0, iLc: int = 0, NA: int = 0, first_acqui: bool = True, verbose: bool = False): 
     """Acquire video with the Ximea camera in a thread
 
     Parameters:
@@ -584,7 +583,7 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
     exp_time = cam.get_attribute_value("ExposureTime")
     acquisition_params.receive_last_trig_spec = False
     arm = cam.arm
-    file_name = arm + '_NR_' + str(NR) + '_Gr_' + str(acquisition_params.Lc[iLc][1]) + '_Lc_' + str(acquisition_params.Lc[iLc][0]) + 'nm_NA_' + str(NA)# + '_NS_'
+    file_name = arm + '_Ny_' + str(acquisition_params.Nz[NR]) + 'mm_Gr_' + str(acquisition_params.Lc[iLc][1]) + '_Lc_' + str(acquisition_params.Lc[iLc][0]) + 'nm_NA_' + str(NA)# + '_NS_'
     ####################### start data acquisition ############################
     
     if first_acqui:
@@ -594,59 +593,48 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
     start_chrono = time.time()
     i = 0
     # acquire snapshot
-    if cam.snapshot:
-        data_np = np.zeros((cam.get_attribute_value("AOIHeight"), cam.get_attribute_value("AOIWidth"), 1))
-        if arm == "spatial":
-            stop_it = 2
-            timestamps = np.zeros((stop_it),dtype=np.float64)
-        elif arm == "spectral":
-            stop_it = 1
-            timestamps = np.zeros((stop_it),dtype=np.float64)
+    if cam.snapshot:     
+        data_np = np.empty((cam.get_attribute_value("AOIHeight"), cam.get_attribute_value("AOIWidth"), 1))
+        timestamps = np.zeros((1),dtype=np.float64)
+        ############## wait for next frame and read it #################
+        cam.wait_for_frame(timeout = exp_time + 2) # wait for the next available frame    
+        data_np = cam.snap()
         
-        cam.setup_acquisition(mode = "sequence", nframes = stop_it)
-        while True: 
-            counter_time = time.time() - start_chrono            
-            if i >= stop_it: 
-                outp = all_path.raw_data_path + '/' + file_name
-                np.savez(outp, data_np, allow_pickle = False)
-                if arm == 'spectral':
-                    acquisition_params.receive_last_trig_spec = True
-                elif arm == 'spatial':
-                    acquisition_params.receive_last_trig_spat = True
-                if verbose:
-                    print('\n iteration reach (' + arm + ') : ' + str(i) + ' in the thread \n')
-                break
-            elif counter_time > math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4:
-                print('delay > ' + str(math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4) + 's in the thread \n')
-                break        
-            else:
-                ############## get data and pass them from cameras to img #################
-                cam.wait_for_frame(timeout = exp_time + 2) # wait for the next available frame
-                data_np = cam.read_oldest_image()     
-                
-                i = i + 1
+        if arm == "spatial":
+            acquisition_params.receive_last_trig_spat = True
+            acquisition_params.spat_timestamps = timestamps
+        elif arm == "spectral":
+            acquisition_params.receive_last_trig_spec = True
+            acquisition_params.spec_timestamps = timestamps
+            acquisition_params.pattern_amount = 1
+            return data_np
+            
+        outp = all_path.raw_data_path + '/' + file_name
+        np.savez(outp, data_np, allow_pickle = False)
                 
     # acquire all the frames
     else:
         bar = Bar('Processing', max = acquisition_params.pattern_amount)
         timestamps = np.zeros((acquisition_params.pattern_amount),dtype=np.float64)
         cam.setup_acquisition(mode="sequence", nframes = acquisition_params.pattern_amount) 
+        # data_np = np.empty((acquisition_params.pattern_amount, cam.get_attribute_value("AOIHeight"), cam.get_attribute_value("AOIWidth")), dtype=np.int16)  
         data_np = np.zeros((cam.get_attribute_value("AOIHeight"), cam.get_attribute_value("AOIWidth"), acquisition_params.pattern_amount))
+        
         while True: 
             counter_time = time.time() - start_chrono
             if i >= acquisition_params.pattern_amount:
-                outp = all_path.raw_data_path + '/' + file_name# + str(i)
+                # data_np = np.transpose(data_np, (1, 2, 0))
+                outp = all_path.raw_data_path + '/' + file_name
                 np.savez(outp, data_np, allow_pickle = False)
                 
                 if arm == 'spectral':
                     acquisition_params.receive_last_trig_spec = True
                     acquisition_params.spec_timestamps = timestamps
-                    print('value :')
-                    print(data_np[100,100,2])
                 elif arm == 'spatial':
                     acquisition_params.receive_last_trig_spat = True
                     acquisition_params.spat_timestamps = timestamps
                 print('\n iteration reach (' + arm + ') : ' + str(i) + ' in the thread \n')
+                
                 bar.finish()
                 return data_np
                 break
@@ -654,12 +642,14 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 1, iL
                 print('delay > ' + str(math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4) + 's in the thread \n')
                 break        
             else:
-                ############## get data and pass them from cameras to img #################
+                ############## wait for next frame and read it #################
                 cam.wait_for_frame(timeout = exp_time + 2) # wait for the next available frame
-                data = cam.read_oldest_image()
+                data = cam.read_oldest_image()                
                 ################### timestamp #################################
                 timestamps[i] = cam.get_attribute_value("TimestampClock")       
                 ################### get image data as numpy array #########################
+                # print('write in data_np')
+                # data_np[i, :, :] = data
                 data_np[:, :, i] = data
                 
                 i = i + 1  
@@ -734,71 +724,83 @@ def acquire(DMD: ALP4,
     None.
 
     """   
-    first_acqui = True
 
     total_loop = acquisition_params.NRepetitions * acquisition_params.NAverages * len(acquisition_params.Lc)
-    total_iter = acquisition_params.pattern_amount * total_loop
+    # total_iter = acquisition_params.pattern_amount * total_loop
 
-    bar = Bar('Processing', max = total_loop)
+    # bar = Bar('Processing', max = total_loop)
     first_acqui = True
     boucle = 0
     shutter.open()
-    for NR in range(acquisition_params.NRepetitions):#tqdm(range(acquisition_params.NRepetitions)):
-        move_an_axis(stage.pidevice, stage.stage_tools, axes = ['2'], array_to_move = [acquisition_params.Nz[NR]], verbose = True)
+    for iNR in range(acquisition_params.NRepetitions):#tqdm(range(acquisition_params.NRepetitions)):
+        print('\n')
+        move_an_axis(stage.pidevice, stage.stage_tools, axes = ['2'], array_to_move = [acquisition_params.Nz[iNR]], verbose = True)
         for iLc in range(len(acquisition_params.Lc)):#tqdm(range(len(acquisition_params.Lc))):
             setup_spectrograph(spectrograph,
                                grating_nbr =  acquisition_params.Lc[iLc][1], print_select   = False,
-                               position    =  acquisition_params.Lc[iLc][0], print_position = False)
+                               position    =  acquisition_params.Lc[iLc][0], print_position = True)
             for NA in range(acquisition_params.NAverages):#tqdm(range(acquisition_params.NAverages)):
-                if verbose:
-                    boucle = boucle + 1
+                boucle = boucle + 1                
+                print('Iteration : ' + str(boucle) + ' / ' + str(total_loop))
+                acq_aborded = False
+                if verbose:            
                     print('-----------------------------------------')
-                    print('loop = ' + str(boucle) + ' / ' + str(acquisition_params.NRepetitions * len(acquisition_params.Lc) * acquisition_params.NAverages))
-                    
-                    print('[NR = ' + str(NR + 1) + '/' + str(acquisition_params.NRepetitions) + ' --- Lc = ' + str(iLc + 1) + '/' + str(len(acquisition_params.Lc)) + ' --- NA = ' + str(NA + 1) + '/' + str(acquisition_params.NAverages) + ']')
-                
-                bar.next()
-                print('\n')
-                
-                if acquisition_arm == 'spatial':
-                    cam_thread = CamThread(cam_spat, acquisition_params, DMD_params, all_path, NR, iLc, NA, first_acqui, verbose)
+                    print('loop = ' + str(boucle) + ' / ' + str(acquisition_params.NRepetitions * len(acquisition_params.Lc) * acquisition_params.NAverages))                    
+                    print('[NR = ' + str(iNR + 1) + '/' + str(acquisition_params.NRepetitions) + ' --- Lc = ' + str(iLc + 1) + '/' + str(len(acquisition_params.Lc)) + ' --- NA = ' + str(NA + 1) + '/' + str(acquisition_params.NAverages) + ']')
+                                
+                if acquisition_arm == 'spatial' and iLc == 0:
+                    cam_thread = CamThread(cam_spat, acquisition_params, DMD_params, all_path, iNR, iLc, NA, first_acqui, verbose)
                     cam_thread.start()
                 elif acquisition_arm == 'spectral':  
-                    cam_thread = CamThread(cam_spec, acquisition_params, DMD_params, all_path, NR, iLc, NA, first_acqui, verbose)
+                    cam_thread = CamThread(cam_spec, acquisition_params, DMD_params, all_path, iNR, iLc, NA, first_acqui, verbose)
                     cam_thread.start()
                 else:
-                    print('Please, specify the acquisition arm: "spectral" or "spatial"')
+                    if iLc == 0:
+                        print('Please, specify the acquisition arm: "spectral" or "spatial"')
+                    else:
+                        print('iLc > 0')
+                    acq_aborded = True
 
-                if first_acqui:
-                    time.sleep(1.2)
-                    begin_acqui = time.time()
-                
-                DMD.Run(loop=False)
-                
-                while not cam_thread.finished.is_set():
-                    time.sleep(0.01)   # laisse Windows respirer
+                if acq_aborded == False:
+                    if first_acqui:
+                        time.sleep(1.2)
+                        begin_acqui = time.time()
                     
-                raw_data = cam_thread.data_np
-
-                DMD.Halt()
-                # print('DMD stopped')
-                if first_acqui == True:
-                    raw_data_arr = np.empty((raw_data.shape + (acquisition_params.NAverages, 
-                                                               len(acquisition_params.Lc), 
-                                                               acquisition_params.NRepetitions)))
-                    first_acqui = False
+                    DMD.Run(loop=False)
+                    
+                    while not cam_thread.finished.is_set():
+                        time.sleep(0.01)   # laisse Windows respirer
+                    
+                    raw_data = cam_thread.data_np
+                    
+                    DMD.Halt()
+                    print('DMD stopped')
+                    if first_acqui == True:
+                        if raw_data is not None:
+                            raw_data_arr = np.empty((raw_data.shape + (acquisition_params.NAverages, 
+                                                                       len(acquisition_params.Lc), 
+                                                                       acquisition_params.NRepetitions)))
+                        else:
+                            raw_data_arr = np.empty((2048, 2048, acquisition_params.pattern_amount) + 
+                                                    (acquisition_params.NAverages, 
+                                                     len(acquisition_params.Lc), 
+                                                     acquisition_params.NRepetitions))
+                        first_acqui = False
+                    
+                    if acquisition_arm == 'spectral':
+                        if cam_spec.snapshot:
+                            raw_data_arr[:, :, NA, iLc, iNR] = raw_data[iNR]
+                        else:
+                            raw_data_arr[:, :, :, NA, iLc, iNR] = raw_data[iNR]
+                    
                 
-                if acquisition_arm == 'spectral':
-                    raw_data_arr[:, :, :, NA, iLc, NR] = raw_data
-                
-    shutter.close()
     acquisition_params.total_spectrometer_acquisition_time_s = time.time() - begin_acqui
-    
     print('\n')
     print('\nTotal acquisition time = ' + str(round(acquisition_params.total_spectrometer_acquisition_time_s * 1000) / 1000) + ' s')
-
-    bar.finish()
     
+    shutter.close()
+    print('shutter closed')
+
     if acquisition_arm == 'spectral':
         if acquisition_arm == 'spatial':
             cam_spat.stop_acquisition()
@@ -811,6 +813,7 @@ def acquire(DMD: ALP4,
                 print('warning, timestamps for spatial camera is empty')
         elif acquisition_arm == 'spectral':   
             cam_spec.stop_acquisition()
+            print('\n')
             print('spectral cam stopped')
             try:
                 # a = acquisition_params.spec_timestamps[0]
@@ -820,9 +823,8 @@ def acquire(DMD: ALP4,
                 acquisition_params.spat_timestamps = []
                 print('warning, timestamps for spatial camera set to zero')
                 print('warning, timestamps for spectral camera is empty')
+
         
-        
-        save_metadata(DMD_params, spectrograph_params, cam_spat_params, cam_spec_params, acquisition_params)
         
         choice = popup()
 
@@ -831,17 +833,17 @@ def acquire(DMD: ALP4,
             acquisition_arm = 'spatial'
             first_acqui = True
             shutter.open()
-            for NR in range(acquisition_params.NRepetitions):#tqdm(range(acquisition_params.NRepetitions)):
-                move_an_axis(stage.pidevice, stage.stage_tools, axes = ['2'], array_to_move = [acquisition_params.Nz[NR]], verbose = True)
-                cam_thread = CamThread(cam_spat, acquisition_params, DMD_params, all_path, NR, iLc, NA, first_acqui, verbose)
+            print('----------------- other arm --------------------')
+            for iNR in range(acquisition_params.NRepetitions):#tqdm(range(acquisition_params.NRepetitions)):
+                iLc = 0
+                move_an_axis(stage.pidevice, stage.stage_tools, axes = ['2'], array_to_move = [acquisition_params.Nz[iNR]], verbose = True)
+                cam_thread = CamThread(cam_spat, acquisition_params, DMD_params, all_path, iNR, iLc, NA, first_acqui, verbose)
                 cam_thread.start()
                 
                 DMD.Run(loop=False)
                 
                 while not cam_thread.finished.is_set():
                     time.sleep(0.01)   # laisse Windows respirer
-                    
-                # spatial_data = cam_thread.data_np
 
                 DMD.Halt()
                 cam_spat.stop_acquisition()
@@ -851,8 +853,13 @@ def acquire(DMD: ALP4,
         else:
             print("Spatial acquisition aborted")
         
+        try:
+            acquisition_params.spec_timestamps[0]
+        except:
+            acquisition_params.spec_timestamps = np.empty(0)
+            print('warning, timestamps for spectral camera is empty')
         
-        
+        save_metadata(DMD_params, spectrograph_params, cam_spat_params, cam_spec_params, acquisition_params)
         return raw_data_arr
 
 def find_nearest(array, value):
@@ -870,7 +877,7 @@ def define_wavelengths_matrix(cam_spec_params, Lc: list = [], display_figure: bo
     cam_spec_params: class.
         the class containing the parameters of the spectral camera
     Lc : list, optional
-        The list af the central wavelength aof the spectrograph. The default is [].
+        The list af the central wavelength of the spectrograph. The default is [].
 
     Returns
     -------
@@ -999,6 +1006,7 @@ class func_path:
     fig_had_reco_path: str
     nn_reco_path: str
     fig_nn_reco_path: str
+    fig_spatial_path: str
     
     def __init__(self, data_folder_name, data_name, ask_overwrite=False):        
         if not os.path.exists('../../data/' + data_folder_name):
@@ -1036,7 +1044,7 @@ class func_path:
         self.fig_had_reco_path = self.overview_path + '/spectral'   
         self.nn_reco_path = self.data_path + 'nn_reco.npz'
         self.fig_nn_reco_path = self.overview_path + '/spectral' 
-
+        self.fig_spatial_path = self.overview_path + '/spatial_arm' 
 
 
 

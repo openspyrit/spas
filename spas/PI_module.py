@@ -355,15 +355,13 @@ def stage_adjustment(pidevice):
     # print("Fenêtre de contrôle lancée en arrière-plan. Vous avez la main !")
     
     
-def disconnect_stage(pidevice: object, stage_tools: object, go_home: bool = True):
+def disconnect_stage(stage: object, go_home: bool = True):
     """
     disconnect the PI translation stage
 
     Parameters
     ----------
-    pidevice: object.
-        to parameter (servo, referencement, ...) the stages
-    stage_tools : object
+    stage : object
         Contain all the commands of the stage.
     go_home: bool.
         set the three stage to zero before disconnection
@@ -373,9 +371,9 @@ def disconnect_stage(pidevice: object, stage_tools: object, go_home: bool = True
 
     """
     if go_home:
-        go_to_zero(pidevice, stage_tools)
+        go_to_zero(stage.pidevice, stage.stage_tools)
         
-    pidevice.CloseConnection()
+    stage.pidevice.CloseConnection()
     print('PI tanslation stage disconnected')
     
     

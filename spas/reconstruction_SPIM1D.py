@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 __author__ = 'Guilherme Beneti Martins / mahieu'
 
-import time
-import pickle
+# import time
+# import pickle
 import numpy as np
 # from spas.acquisition_SPC1D import read_metadata
 import spyrit.misc.walsh_hadamard as wh
@@ -65,32 +65,73 @@ def live_hadamard_reco(raw_data: np.array, acquisition_params):
     Nx = raw_data.shape[0]
     Npatterns = acquisition_params.pattern_amount
     bin_fact = Nx / (Npatterns/2)
+    if Npatterns > 1:
+        for iNA in range(NA):
+            for iLc in range(NLc):
+                for iNR in range(NR): 
+                    for iNp in range(Npatterns):
+                        temp = raw_data[:, :, iNp, iNA, iLc, iNR]
+                        # M_sub = temp[:, :, 0::2, :, :, :] - raw_data[:, :, 1::2, :, :, :]
+                        if bin_fact != 1:
+                            bin_image = binArray(temp, 0, bin_fact, bin_fact)
+                        else:
+                            bin_image = temp
+                            
+                        if fisrt_pass == True:
+                            spectral_data_all = np.empty((bin_image.shape[0], bin_image.shape[1], Npatterns, NR, NLc, NA), dtype = float)
+                            had_reco_all = np.empty((bin_image.shape[0], int(Npatterns/2), bin_image.shape[1], NR, NLc, NA), dtype = float)
+                            fisrt_pass = False
+                            
+                        spectral_data_all[:, :, iNp, iNR, iLc, iNA] = bin_image
+                        
+                    M_sub = spectral_data_all[:,:,0::2, iNR, iLc, iNA] - spectral_data_all[:,:,1::2, iNR, iLc, iNA]
+                    temp_had_reco = wh.fwht(M_sub) / Npatterns
+                    had_reco_all[:, :, :, iNR, iLc, iNA] = np.swapaxes(temp_had_reco, 2, 1)  
+        
+        had_reco_all = np.squeeze(had_reco_all)
+        return had_reco_all
+    else:
+        had_reco_all = None
+                
+
+def spatial_reco(acquisition_params, all_path):
+    """
+
+    Parameters
+    ----------
+    acquisition_params : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
+    arm = 'spatial'
+    NA = acquisition_params.NAverages
+    NLc = 1#len(acquisition_params.Lc)
+    NR = acquisition_params.NRepetitions
+    Npatterns = acquisition_params.pattern_amount
+    fisrt_pass = True
     
     for iNA in range(NA):
         for iLc in range(NLc):
             for iNR in range(NR): 
                 for iNp in range(Npatterns):
-                    temp = raw_data[:, :, iNp, iNA, iLc, iNR]
-                    # M_sub = temp[:, :, 0::2, :, :, :] - raw_data[:, :, 1::2, :, :, :]
-                    if bin_fact != 1:
-                        bin_image = binArray(temp, 0, bin_fact, bin_fact)
-                    else:
-                        bin_image = temp
-                        
+                    file_name = arm + '_Ny_' + str(acquisition_params.Nz[iNR]) + 'mm_Gr_' + str(acquisition_params.Lc[iLc][1]) + '_Lc_' + str(acquisition_params.Lc[iLc][0]) + 'nm_NA_' + str(iNA)
+                    path_name = all_path.raw_data_path + '/' + file_name + '.npz'
+                    raw_data_file = np.load(path_name)
+                    raw_data = raw_data_file['arr_0']
+                    raw_data_file.close()
+                    
                     if fisrt_pass == True:
-                        spectral_data_all = np.empty((bin_image.shape[0], bin_image.shape[1], Npatterns, NR, NLc, NA), dtype = float)
-                        had_reco_all = np.empty((bin_image.shape[0], int(Npatterns/2), bin_image.shape[1], NR, NLc, NA), dtype = float)
+                        spatial_acqui = np.empty((raw_data.shape + (NR, NLc, NA)), dtype = np.int16)
                         fisrt_pass = False
                         
-                    spectral_data_all[:, :, iNp, iNR, iLc, iNA] = bin_image
-                    
-                M_sub = spectral_data_all[:,:,0::2, iNR, iLc, iNA] - spectral_data_all[:,:,1::2, iNR, iLc, iNA]
-                temp_had_reco = wh.fwht(M_sub) / Npatterns
-                had_reco_all[:, :, :, iNR, iLc, iNA] = np.swapaxes(temp_had_reco, 2, 1)  
+                    spatial_acqui[:, :, iNR, iLc, iNA] = raw_data
     
-    had_reco_all = np.squeeze(had_reco_all)
-    return had_reco_all
-                
+    spatial_acqui = np.squeeze(spatial_acqui)                
+    return spatial_acqui
 
 # def hadamard_reco(data_folder_name: str, data_name: str, mean_NA: bool = True, mean_NR: bool = False, save_spectral_data: bool = True, 
 #                   save_spatial_data: bool = False, bin_fact: float = 1, zoom: int = 1):
