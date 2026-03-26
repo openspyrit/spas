@@ -4,6 +4,8 @@ Created on Mon Mar 24 12:48:30 2025
 
 @author: mahieu
 """
+
+# to read all attribute vlaues : cam.get_all_attribute_values()
 encoding = 'utf-8'
 
 import pylablib as pll
@@ -303,9 +305,9 @@ def setup_cam(cam: Andor.AndorSDK3Camera, expos_time: float = 0.1, ExternalTrigg
         StaticBlemishCorrection = cam.get_attribute_value("StaticBlemishCorrection")
         print("StaticBlemishCorrection set to", StaticBlemishCorrection)
     ################## read Pixel Readout Rate #################################
+    cam.set_attribute_value("PixelReadoutRate",'100 MHz')# other possibiliti is "270 MHz", it is faster and noiser
     PixelReadoutRate = cam.get_attribute_value("PixelReadoutRate")
     print("Pixel Readout Rate =", PixelReadoutRate)
-    print("for information, 216 or 540 MHz is not available")
     #################### read Trigger Mode ####################################
     # cam.set_attribute_value("TriggerMode", "Internal")    
     # TriggerMode = cam.get_attribute_value("TriggerMode")
@@ -332,7 +334,10 @@ def setup_cam(cam: Andor.AndorSDK3Camera, expos_time: float = 0.1, ExternalTrigg
     ################# read the Bit depth ######################################
     BitDepth = cam.get_attribute_value("BitDepth")
     print("BitDepth =", BitDepth)
-    
+    ################# Pixel Encoding ######################################
+    cam.set_attribute_value("PixelEncoding", "Mono16") #possible value: "Mono12Packed" => output on 12 bit (max=4095)
+    PixelEncoding = cam.get_attribute_value("PixelEncoding")
+    print("Pixel Encoding =", PixelEncoding)
     #################### setting the exposure timre ###########################
     # NB: the exposure time must be an interger in s 
     exposure_mini = 0.000984
@@ -396,7 +401,7 @@ def snapshot_cam(cam, tilt_image: bool = False):
     data = signal.medfilt2d(data, kernel_size=3)
     ######################## check saturation #################################
     data_max = np.max(data)
-    if (data_max >= 255 and image_bit_depth == 8) or (data_max >= 1023 and image_bit_depth == 10) or (data_max >= 65535 and image_bit_depth == 16):
+    if (data_max >= 255 and image_bit_depth == 8) or (data_max >= 1023 and image_bit_depth == 10) or (data_max >= 4095 and image_bit_depth == 12) or (data_max >= 65535 and image_bit_depth == 16):
         print('!!!!!!!!!! Warning, saturation detected !!!!!!!!!!!!')
     ########################## tilt image ####################################
     if tilt_image:
@@ -447,6 +452,9 @@ def display_cam(cam, cam_params, display_max: bool = False, display_integral: bo
     height_win = 900
     width_win = int(height_win * ratio)
     
+    image_bit_depth_str = cam.get_attribute_value("BitDepth")
+    image_bit_depth = int(image_bit_depth_str[:image_bit_depth_str.index(' Bit')])
+    
     try:
         # cam.set_buffers_queue_size(2)
         import cv2
@@ -489,10 +497,23 @@ def display_cam(cam, cam_params, display_max: bool = False, display_integral: bo
         first_passage2 = True
         # data_center_old = 0
         maxii = 0
+        
+        # # it is a dummy frame acquisition to 
+        # try:
+        #     cam.wait_for_frame(timeout = current_exposure_time + 2)
+        #     data = cam.read_oldest_image()
+        #     print('dummy frame acquired in the "try" function')
+        # except Exception as e:
+        #     print(f"Erreur lors de la première acquisition : {e}")
+        #     # Relancer l'acquisition
+        #     cam.wait_for_frame(timeout = current_exposure_time + 2)
+        #     data = cam.read_oldest_image()
+        #     print('dummy frame acquired in the "Except" function')
+        
         while True:
             
             data = cam.snap(timeout = current_exposure_time + 5)
-            data_8b = cv2.convertScaleAbs(data, alpha=(255.0/4095))           
+            data_8b = cv2.convertScaleAbs(data, alpha=(255.0/(2**image_bit_depth - 1)))       
             
             maxi = np.max(data_8b)
             print("max = " + str(maxi))

@@ -581,6 +581,7 @@ def plot_spatial_acqui(acquisition_parameters, spatial_acqui, all_path):
     plt.imshow(spatial_acqui)
     plt.xlabel('X')
     plt.ylabel('Y')
+    plt.colorbar()
     plt.savefig(fig_spatial_path + '_view.png')
     plt.show()
     

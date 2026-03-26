@@ -34,6 +34,8 @@ from spas.spectro_ShamrockAndor_module import setup_spectrograph
 from scipy import interpolate
 from spas.PI_module import move_an_axis
 
+from matplotlib import pyplot as plt
+
 @dataclass_json
 @dataclass
 class AcquisitionParameters:
@@ -585,7 +587,7 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 0, iL
     arm = cam.arm
     file_name = arm + '_Ny_' + str(acquisition_params.Nz[NR]) + 'mm_Gr_' + str(acquisition_params.Lc[iLc][1]) + '_Lc_' + str(acquisition_params.Lc[iLc][0]) + 'nm_NA_' + str(NA)# + '_NS_'
     ####################### start data acquisition ############################
-    
+    cam.setup_acquisition(mode="sequence", nframes = acquisition_params.pattern_amount) 
     if first_acqui:
         print('Starting ' + arm + ' data acquisition...\n')
         cam.start_acquisition()
@@ -594,7 +596,7 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 0, iL
     i = 0
     # acquire snapshot
     if cam.snapshot:     
-        data_np = np.empty((cam.get_attribute_value("AOIHeight"), cam.get_attribute_value("AOIWidth"), 1))
+        data_np = np.empty((cam.get_attribute_value("AOIHeight"), cam.get_attribute_value("AOIWidth"), 1), dtype=np.uint16)
         timestamps = np.zeros((1),dtype=np.float64)
         ############## wait for next frame and read it #################
         cam.wait_for_frame(timeout = exp_time + 2) # wait for the next available frame    
@@ -615,10 +617,9 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 0, iL
     # acquire all the frames
     else:
         bar = Bar('Processing', max = acquisition_params.pattern_amount)
-        timestamps = np.zeros((acquisition_params.pattern_amount),dtype=np.float64)
-        cam.setup_acquisition(mode="sequence", nframes = acquisition_params.pattern_amount) 
+        timestamps = np.zeros((acquisition_params.pattern_amount),dtype=np.float64)        
         # data_np = np.empty((acquisition_params.pattern_amount, cam.get_attribute_value("AOIHeight"), cam.get_attribute_value("AOIWidth")), dtype=np.int16)  
-        data_np = np.zeros((cam.get_attribute_value("AOIHeight"), cam.get_attribute_value("AOIWidth"), acquisition_params.pattern_amount))
+        data_np = np.zeros((cam.get_attribute_value("AOIHeight"), cam.get_attribute_value("AOIWidth"), acquisition_params.pattern_amount), dtype=np.uint16)
         
         while True: 
             counter_time = time.time() - start_chrono
@@ -643,15 +644,13 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 0, iL
                 break        
             else:
                 ############## wait for next frame and read it #################
-                cam.wait_for_frame(timeout = exp_time + 2) # wait for the next available frame
-                data = cam.read_oldest_image()                
+                cam.wait_for_frame(timeout = exp_time + 5) # wait for the next available frame
+                data = cam.read_oldest_image()  
                 ################### timestamp #################################
                 timestamps[i] = cam.get_attribute_value("TimestampClock")       
                 ################### get image data as numpy array #########################
-                # print('write in data_np')
-                # data_np[i, :, :] = data
                 data_np[:, :, i] = data
-                
+       
                 i = i + 1  
                 
                 bar.next()
@@ -727,8 +726,6 @@ def acquire(DMD: ALP4,
 
     total_loop = acquisition_params.NRepetitions * acquisition_params.NAverages * len(acquisition_params.Lc)
     # total_iter = acquisition_params.pattern_amount * total_loop
-
-    # bar = Bar('Processing', max = total_loop)
     first_acqui = True
     boucle = 0
     shutter.open()
@@ -751,7 +748,7 @@ def acquire(DMD: ALP4,
                 if acquisition_arm == 'spatial' and iLc == 0:
                     cam_thread = CamThread(cam_spat, acquisition_params, DMD_params, all_path, iNR, iLc, NA, first_acqui, verbose)
                     cam_thread.start()
-                elif acquisition_arm == 'spectral':  
+                elif acquisition_arm == 'spectral':                      
                     cam_thread = CamThread(cam_spec, acquisition_params, DMD_params, all_path, iNR, iLc, NA, first_acqui, verbose)
                     cam_thread.start()
                 else:
@@ -760,6 +757,7 @@ def acquire(DMD: ALP4,
                     else:
                         print('iLc > 0')
                     acq_aborded = True
+                    print('!!!!! warning = acquisition aborted !!!!!')
 
                 if acq_aborded == False:
                     if first_acqui:
@@ -779,21 +777,23 @@ def acquire(DMD: ALP4,
                         if raw_data is not None:
                             raw_data_arr = np.empty((raw_data.shape + (acquisition_params.NAverages, 
                                                                        len(acquisition_params.Lc), 
-                                                                       acquisition_params.NRepetitions)))
+                                                                       acquisition_params.NRepetitions)), dtype=np.uint16)
                         else:
-                            raw_data_arr = np.empty((2048, 2048, acquisition_params.pattern_amount) + 
-                                                    (acquisition_params.NAverages, 
-                                                     len(acquisition_params.Lc), 
-                                                     acquisition_params.NRepetitions))
+                            if acquisition_arm == 'spatial':
+                                raw_data_arr = np.empty((cam_spat.get_attribute_value("AOIHeight"), 
+                                                         cam_spat.get_attribute_value("AOIWidth"), 
+                                                         acquisition_params.pattern_amount) + 
+                                                        (acquisition_params.NAverages, 
+                                                         len(acquisition_params.Lc), 
+                                                         acquisition_params.NRepetitions), dtype=np.uint16)
                         first_acqui = False
                     
                     if acquisition_arm == 'spectral':
                         if cam_spec.snapshot:
-                            raw_data_arr[:, :, NA, iLc, iNR] = raw_data[iNR]
+                            raw_data_arr[:, :, NA, iLc, iNR] = raw_data
                         else:
-                            raw_data_arr[:, :, :, NA, iLc, iNR] = raw_data[iNR]
-                    
-                
+                            raw_data_arr[:, :, :, NA, iLc, iNR] = raw_data                    
+               
     acquisition_params.total_spectrometer_acquisition_time_s = time.time() - begin_acqui
     print('\n')
     print('\nTotal acquisition time = ' + str(round(acquisition_params.total_spectrometer_acquisition_time_s * 1000) / 1000) + ' s')
@@ -825,15 +825,15 @@ def acquire(DMD: ALP4,
                 print('warning, timestamps for spectral camera is empty')
 
         
-        
         choice = popup()
+        print('choice = ' + choice)
 
         if choice == "ok":
+            print('----------------- other arm --------------------')
             print("Spatial acquisition is beginning")
             acquisition_arm = 'spatial'
             first_acqui = True
-            shutter.open()
-            print('----------------- other arm --------------------')
+            shutter.open()           
             for iNR in range(acquisition_params.NRepetitions):#tqdm(range(acquisition_params.NRepetitions)):
                 iLc = 0
                 move_an_axis(stage.pidevice, stage.stage_tools, axes = ['2'], array_to_move = [acquisition_params.Nz[iNR]], verbose = True)
@@ -860,7 +860,7 @@ def acquire(DMD: ALP4,
             print('warning, timestamps for spectral camera is empty')
         
         save_metadata(DMD_params, spectrograph_params, cam_spat_params, cam_spec_params, acquisition_params)
-        return raw_data_arr
+        return raw_data_arr 
 
 def find_nearest(array, value):
     array = np.asarray(array)

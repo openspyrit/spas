@@ -36,7 +36,7 @@ move_to_middle(stage.pidevice, stage.stage_tools)
 position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
 #%% setup Spatial Camera
 cam_spat_params = setup_cam(cam = cam_spat, 
-                            expos_time  = 0.2,  # (s)
+                            expos_time  = 0.07,  # (s)
                             gain        = 1,        # 1 or 2                              
                             width       = 2048,     # max = 2048
                             height      = 2048,     # max = 2048
@@ -64,12 +64,12 @@ shutter.close()
 #%% setup the Spectrograph
 spectrograph_params = setup_spectrograph(spectrograph,
                                          grating_nbr =   1, print_select   = True,   # Arg:  1 
-                                         position    = 600, print_position = True,   # the central wavelength of the grating
+                                         position    = 590, print_position = True,   # the central wavelength of the grating
                                          slit_width  = 20000)                          # the width of the slit in (µm)
 #%% setup Spectral Camera
 cam_spec_params = setup_cam(cam = cam_spec, 
-                            expos_time  = 0.1,        # (s)
-                            gain        = 1,        # 1 or 2                              
+                            expos_time  = 0.5,        # (s)
+                            gain        = 2,        # 1 or 2                              
                             width       = 2048,     # max = 2048
                             height      = 2048,     # max = 2048
                             offsetX     = 1,        # 1
@@ -95,13 +95,13 @@ shutter.close()
 #%% setup acquisition
 setup_version            = 'setup_v1.0'
 collection_access        = 'public' #'private'#
-Np                       = 1      # Number of pixels in one dimension of the image (image: NpxNp)
-Nz                       = np.array([7.5, 8])# to move the stage to acquire the third spatial dimension
+Np                       = 256      # Number of pixels in one dimension of the image (image: NpxNp)
+Nz                       = np.array([7.9])# to move the stage to acquire the third spatial dimension
 pattern_thickness        = 16
 ti                       = cam_spec_params.exposure_time_μs / 1000 # Integration time of the spectral camera
 NAverages                = 1        # Number of avegare (the acquisition is accumulated before moving the grating)
 NRepetitions             = len(Nz)        # Number of repetitions (grating change after that, the acquisition is repeated)
-Lc                       = [(spectrograph_params.position, spectrograph_params.grating.current_grating_nbr), (630, 1)]#, (600, 1), (630, 1), (660, 1), (690, 1), (720, 1)]#, (922, 1), (927, 1)] # [(0, 1), (780, 1), (785, 1), (795, 1), (805, 1), (810, 1)] #[(0, 1), (676, 1), (686, 1), (696, 1), (706, 1), (716, 1)] #[(0, 1), (557, 1), (567, 1), (577, 1), (587, 1), (597, 1)] #[(0, 1), (526, 1), (536, 1), (546, 1), (556, 1), (566, 1)] #[(0, 1), (416, 1), (426, 1), (436, 1), (446, 1), (456, 1)] ##, (832, 2), (852, 2), (872, 2), (892, 2), (912, 2), (932, 2), (952, 2), (972, 2), (992, 2)]## # a vector containig the central wavelength following by the grating number
+Lc                       = [(spectrograph_params.position, spectrograph_params.grating.current_grating_nbr)]#, (630, 1), (600, 1), (630, 1), (660, 1), (690, 1), (720, 1)]#, (922, 1), (927, 1)] # [(0, 1), (780, 1), (785, 1), (795, 1), (805, 1), (810, 1)] #[(0, 1), (676, 1), (686, 1), (696, 1), (706, 1), (716, 1)] #[(0, 1), (557, 1), (567, 1), (577, 1), (587, 1), (597, 1)] #[(0, 1), (526, 1), (536, 1), (546, 1), (556, 1), (566, 1)] #[(0, 1), (416, 1), (426, 1), (436, 1), (446, 1), (456, 1)] ##, (832, 2), (852, 2), (872, 2), (892, 2), (912, 2), (932, 2), (952, 2), (972, 2), (992, 2)]## # a vector containig the central wavelength following by the grating number
 array_to_move            = np.linspace(1, 10, 10, endpoint=True)
 zoom                     = 1        # Numerical zoom applied in the DMD
 xw_offset                = 128      # Default = 128
@@ -110,8 +110,8 @@ pattern_compression      = 1
 pattern_dim              = '1D'
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
 source                   = 'laser-532nm'#white_LED'#'No source'#'White_Zeiss_lamp'#'Thorlabs_White_halogen_lamp'#'HG-1_Oceanoptics'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
-object_name              = 'fluo_µsphere-gel-bin_15' 
-data_folder_name         = '2026-03-20_test_SPIM'#'Patient-69_exvivo_LGG_BU'
+object_name              = 'fluo_µsphere-gel-bin_5' 
+data_folder_name         = '2026-03-23_test_velocity'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_Lc_' + str(Lc[0][0]) + 'nm_Gr_' + str(Lc[0][1]) + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(round(ti))+'ms_zoom_x'+str(zoom)
 
 all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
@@ -137,7 +137,8 @@ if all_path.aborted == False:
     
     acquisition_params.wavelengths = define_wavelengths_matrix(cam_spec_params, Lc, display_figure = True, verbose = True)  
     acquisition_params.wavelengths = acquisition_params.wavelengths[0, :]
-    acquisition_params.wavelengths = np.linspace(550,650,512)
+    acquisition_params.wavelengths = np.linspace(spectrograph_params.position - 50,
+                                                 spectrograph_params.position + 50,512)
     
     stage_params = stage_parameters
     stage_params.array_to_move = array_to_move
@@ -185,6 +186,20 @@ from matplotlib import pyplot as plt
 
 plt.figure()
 plt.imshow(np.squeeze(raw_data[:, :, 0, 0, 0, 0]))
+plt.title('pattern n° 0')
+
+plt.figure()
+plt.imshow(np.squeeze(raw_data[:, 0, :, 0, 0, 0]))
+plt.title('y = 0')
+
+plt.figure()
+plt.imshow(np.squeeze(raw_data[0, :, :, 0, 0, 0]))
+plt.title('x = 0')
+
+plt.figure()
+plt.plot(np.squeeze(np.mean(np.mean(raw_data, axis=1),axis=0)))
+plt.title('mean for each pattern')
+plt.xlabel('pattern number')
 #%% transfer data to girder
 transfer_data_SPIM1D(DMD_params, cam_spat_params, cam_spec_params, spectrograph_params, acquisition_params,
                     setup_version, data_folder_name, data_name, collection_access, upload_metadata = 1)
@@ -196,54 +211,6 @@ disconnect_cam(cam_spec)
 disconnect_stage(stage)
 shutter.disconnect()
 #%% below, old prog
-
-
-#%% plot
-# from matplotlib import pyplot as plt
-
-
-# for iNR in range(acquisition_params.NRepetitions):
-#     had_reco = had_reco_all[:, :, :, iNR]
-    
-#     plt.figure()
-#     plt.imshow(had_reco.sum(axis=2))
-#     plt.colorbar()
-#     plt.title('sum of wavelength, NR = ' + str(iNR))
-    
-#     plt.figure()
-#     plt.plot(acquisition_params.wavelengths, np.sum(np.sum(had_reco, axis=1), axis=0))
-#     plt.xlabel('wavelength (nm)')
-#     plt.grid()
-#     plt.title('spectrum, NR = ' + str(iNR))
-# #%% plot raw data
-# from matplotlib import pyplot as plt
-
-# for i in range(0,4,1):
-#     plt.figure()
-#     plt.imshow(raw_data[:,:,i])
-#     plt.colorbar()
-#     plt.title('i = ' + str(i))
-
-# profile_pattern = np.mean(np.mean(raw_data, axis = 1), axis = 0)
-
-# plt.figure()
-# plt.plot(profile_pattern, 'o')
-# plt.title('pattern integration')
-
-# vec = []
-# plt.figure()
-# for i in range(4):
-#     plt.plot(np.mean(raw_data[:, :, i], axis = 0))
-#     vec.append(i)
-
-# plt.legend(vec)
-# plt.grid()
-# plt.title('spectrum of pattern n°:')
-# plt.show()
-
-
-
-
 # #%% Neural Network setup (executed it just one time)
 # network_param = ReconstructionParameters(
 #     # Reconstruction network    
