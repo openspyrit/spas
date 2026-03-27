@@ -65,7 +65,7 @@ position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
 #%% setup the Spectrograph
 spectrograph_params = setup_spectrograph(spectrograph,
                                          grating_nbr =   1, print_select   = True,   # Arg:  1 
-                                         position    = 533, print_position = True,   # the central wavelength of the grating
+                                         position    = 532, print_position = True,   # the central wavelength of the grating
                                          slit_width  = 20000)                          # the width of the slit in (µm)
 #%% setup Spectral Camera
 cam_spec_params = setup_cam(cam = cam_spec, 
@@ -90,7 +90,7 @@ shutter.close()
 shutter.open()
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'white', pattern_dim = '1D', 
                               scan_mode = 'Walsh', Np = 256, pattern_thickness = 16) 
-display_cam(cam = cam_spec, cam_params = cam_spec_params, display_max = False, display_integral = False)
+display_cam(cam = cam_spec, cam_params = cam_spec_params, display_max = False, display_integral = True)
 DMD.Halt()
 shutter.close()
 #%% setup acquisition

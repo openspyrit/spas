@@ -18,6 +18,7 @@ from dataclasses import dataclass, InitVar
 from dataclasses_json import dataclass_json
 from scipy import signal
 from collections import deque
+import cv2
 
 
 def init_cam_spat(SN : str = ''):
@@ -428,169 +429,327 @@ def snapshot_cam(cam, tilt_image: bool = False):
     return data    
 
 
-# def display_cam(cam, display_max: bool = False, binningX: int = 1, binningY: int = 1):
 def display_cam(cam, cam_params, display_max: bool = False, display_integral: bool = False):
     """
-    Continuous image display of a camera
-    
+    Continuous image display of a camera with optional integral/mean curve using OpenCV.
+
     Parameters:
     -----------
-        cam (obj): 
-            a object to drive the Ximea camera  
+        cam (obj):
+            Object to drive the Ximea camera
+        cam_params (obj):
+            Camera parameters (width, height, etc.)
         display_max (bool):
-            display the maximum value in the image. Default is True.
+            Display the maximum value in the image. Default is False.
         display_integral (bool):
-            display the mean value of the image. Default is False.
+            Display the mean value of the image as a curve. Default is False.
     Returns:
     -------
         None
     """
-    
+
     # Define the output window size
     width = cam_params.width
     height = cam_params.height
     ratio = width / height
     height_win = 900
     width_win = int(height_win * ratio)
-    
+
     image_bit_depth_str = cam.get_attribute_value("BitDepth")
     image_bit_depth = int(image_bit_depth_str[:image_bit_depth_str.index(' Bit')])
-    # image_bit_depth = 12
-    
+
     try:
-        import cv2
-        # Creating a cv2 window
+        # Create OpenCV window for the camera
         if cam.arm == 'spatial':
             window_name = "Camera of the Spatial Arm"
         elif cam.arm == 'spectral':
             window_name = "Camera of the Spectral Arm"
-            
-        cv2.namedWindow(window_name) 
-        
-        # Create a function 'nothing' for creating trackbar 
-        def nothing(x): 
+
+        cv2.namedWindow(window_name)
+
+        # Trackbar callback (does nothing)
+        def nothing(x):
             pass
-        
+
+        # Exposure time setup
         min_exposure_time = 0.000984 * 1e6
         max_exposure_time = 4.9 * 1e6
         current_exposure_time = cam.get_attribute_value("ExposureTime")
         t_wait = current_exposure_time
-        print('wait time = ' + str(t_wait))
-        
-        if display_integral == True:
-            # Fenêtre de 50 valeurs
-            max_points = 50
+
+        # Integral curve setup (if enabled)
+        if display_integral:
+            max_points = 800
             vector = deque(maxlen=max_points)
-            
-            # plt.ion()
-            fig, ax = plt.subplots()
-            plt.show(block=False)
-            line, = ax.plot([], [], 'o-')        
-            # limites fixes pour la fenêtre glissante
-            ax.set_xlim(0, max_points)
-            ax.set_ylim(0, 255)
-    
+            curve_height = 800
+            curve_img = np.zeros((curve_height, max_points), dtype=np.uint8)
+            cv2.namedWindow("Integral Curve")
+            cv2.resizeWindow("Integral Curve", max_points, curve_height)
+
         first_passage = True
-        
-        #start data acquisition
+        first_passage2 = True
+        maxii = 0
+
+        # Start data acquisition
         print('Start acquisition...\n')
         cam.start_acquisition()
-        
-        first_passage2 = True
-        # data_center_old = 0
-        maxii = 0
-        
+
         while True:
-            
-            data = cam.snap(timeout = current_exposure_time + 5)
-            
+            # Acquire image
+            data = cam.snap(timeout=current_exposure_time + 5)
+
             if cam.arm == 'spatial':
-                data = np.rot90(data, k=1, axes=(0,1))
-                
-            data_8b = cv2.convertScaleAbs(data, alpha=(255.0/(2**image_bit_depth - 1)))    
-            
-            
+                data = np.rot90(data, k=1, axes=(0, 1))
+
+            data_8b = cv2.convertScaleAbs(data, alpha=(255.0 / (2**image_bit_depth - 1)))
+
+            # Calculate max value
             maxi = np.max(data_8b)
-            print("max = " + str(maxi))
             if maxi != maxii:
                 if display_max:
                     print("max = " + str(maxi))
                 maxii = maxi
-            
-            if maxi == 255 and first_passage2 == True:
-                print('saturation detected')
+
+            # Saturation detection
+            if maxi == 255 and first_passage2:
+                print('Saturation detected')
                 first_passage2 = False
-            elif maxi < 255 and first_passage2 == False:
+            elif maxi < 255 and not first_passage2:
                 print('No more saturation')
                 first_passage2 = True
-            
-            if first_passage == True:
-                maxi = np.max(data_8b)
-                print('maxi = ' + str(maxi))
-                print('press "q" to exit')
-                # Creating trackbars for color change 
-                cv2.createTrackbar('Brightness', window_name, maxi, 510, nothing) 
-    
-                cv2.createTrackbar('Exp time (µs)', window_name, int(current_exposure_time*1e6), 50000, nothing) 
-    
+
+            # Initialize trackbars on first pass
+            if first_passage:
+                cv2.createTrackbar('Brightness', window_name, maxi, 510, nothing)
+                cv2.createTrackbar('Exp time (µs)', window_name, int(current_exposure_time * 1e6), 50000, nothing)
                 first_passage = False
 
-            
-            # Get current positions of trackbar 
-            brightness = cv2.getTrackbarPos('Brightness', window_name) 
-            
-            # Tune exposure time
-            exposure_time = cv2.getTrackbarPos('Exp time (µs)', window_name)             
-            if exposure_time < min_exposure_time:
-                exposure_time = min_exposure_time                
-            elif exposure_time > max_exposure_time:
-                print('maximum exposure time set to 4.9 s')
-                exposure_time = max_exposure_time
-            
-            cam.set_attribute_value("ExposureTime", exposure_time/1e6)
-            
-            data_64b = data_8b.astype(np.float64)           
-            data2 = data_64b*brightness/maxi
-            data_8b = data2.astype(np.uint8)
-            data_8b_resize = cv2.resize(data_8b, (width_win, height_win)) 
+            # Get trackbar values
+            brightness = cv2.getTrackbarPos('Brightness', window_name)
+            exposure_time = cv2.getTrackbarPos('Exp time (µs)', window_name)
 
+            # Clamp exposure time
+            if exposure_time < min_exposure_time:
+                exposure_time = min_exposure_time
+            elif exposure_time > max_exposure_time:
+                print('Maximum exposure time set to 4.9 s')
+                exposure_time = max_exposure_time
+
+            cam.set_attribute_value("ExposureTime", exposure_time / 1e6)
+
+            # Process image
+            data_64b = data_8b.astype(np.float64)
+            data2 = data_64b * brightness / maxi
+            data_8b = data2.astype(np.uint8)
+            data_8b_resize = cv2.resize(data_8b, (width_win, height_win))
+
+            # Display camera image
             cv2.imshow(window_name, data_8b_resize)
             cv2.moveWindow(window_name, 0, 0)
-            
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                cv2.destroyWindow(window_name)
-                #stop data acquisition
-                print('cam: Stopping acquisition...')
-                cam.stop_acquisition()
 
-                break
-            
-            if display_integral == True:
-                integral = np.mean(np.mean(data_64b, axis=1), axis=0)
+            # Display integral curve (if enabled)
+            if display_integral:
+                integral = np.mean(data_64b)
                 vector.append(integral)
-                
-                x = list(range(len(vector)))
-                y = list(vector)
-            
-                line.set_data(x, y)
-                
-                ax.relim()
-                ax.autoscale_view()
-    
-                # on ajuste seulement Y
-                ax.set_ylim(min(y)-0.5, max(y)+0.5)
-            
-                fig.canvas.draw()
-                fig.canvas.flush_events()
-                plt.pause(0.01)                
-                
-                manager = plt.get_current_fig_manager()
-                manager.window.wm_geometry("+950+0")
-                
-    except:
-        cv2.destroyWindow(window_name)
+
+                # Normalize values for display
+                y_values = np.array(vector)
+                y_min, y_max = min(y_values), max(y_values)
+                y_range = y_max - y_min if y_max != y_min else 1
+
+                # Clear curve image
+                curve_img.fill(0)
+
+                # Draw curve
+                for i in range(1, len(vector)):
+                    x1 = i - 1
+                    x2 = i
+                    y1 = int(curve_height - (vector[x1] - y_min) / y_range * curve_height)
+                    y2 = int(curve_height - (vector[x2] - y_min) / y_range * curve_height)
+                    cv2.line(curve_img, (x1, y1), (x2, y2), 255, 2)
+
+                # Draw axes
+                cv2.line(curve_img, (0, curve_height - 1), (max_points - 1, curve_height - 1), 255, 1)
+                cv2.line(curve_img, (0, 0), (0, curve_height - 1), 255, 1)
+
+                # Display curve
+                cv2.imshow("Integral Curve", curve_img)
+                cv2.moveWindow("Integral Curve", width_win + 20, 0)
+
+            # Exit on 'q' key
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        cv2.destroyAllWindows()
         cam.stop_acquisition()
-        print('try function encoutered a exception')
+        print('Stopping acquisition...')
+
+# # def display_cam(cam, display_max: bool = False, binningX: int = 1, binningY: int = 1):
+# def display_cam(cam, cam_params, display_max: bool = False, display_integral: bool = False):
+#     """
+#     Continuous image display of a camera
+    
+#     Parameters:
+#     -----------
+#         cam (obj): 
+#             a object to drive the Ximea camera  
+#         display_max (bool):
+#             display the maximum value in the image. Default is True.
+#         display_integral (bool):
+#             display the mean value of the image. Default is False.
+#     Returns:
+#     -------
+#         None
+#     """
+    
+#     # Define the output window size
+#     width = cam_params.width
+#     height = cam_params.height
+#     ratio = width / height
+#     height_win = 900
+#     width_win = int(height_win * ratio)
+    
+#     image_bit_depth_str = cam.get_attribute_value("BitDepth")
+#     image_bit_depth = int(image_bit_depth_str[:image_bit_depth_str.index(' Bit')])
+#     # image_bit_depth = 12
+    
+#     try:
+#         import cv2
+#         # Creating a cv2 window
+#         if cam.arm == 'spatial':
+#             window_name = "Camera of the Spatial Arm"
+#         elif cam.arm == 'spectral':
+#             window_name = "Camera of the Spectral Arm"
+            
+#         cv2.namedWindow(window_name) 
+        
+#         # Create a function 'nothing' for creating trackbar 
+#         def nothing(x): 
+#             pass
+        
+#         min_exposure_time = 0.000984 * 1e6
+#         max_exposure_time = 4.9 * 1e6
+#         current_exposure_time = cam.get_attribute_value("ExposureTime")
+#         t_wait = current_exposure_time
+#         print('wait time = ' + str(t_wait))
+        
+#         if display_integral == True:
+#             # Fenêtre de 50 valeurs
+#             max_points = 50
+#             vector = deque(maxlen=max_points)
+            
+#             plt.ion()
+#             fig, ax = plt.subplots()
+#             plt.show(block=False)
+#             line, = ax.plot([], [], 'o-')        
+#             # limites fixes pour la fenêtre glissante
+#             ax.set_xlim(0, max_points)
+#             ax.set_ylim(0, 255)
+    
+#         first_passage = True
+        
+#         #start data acquisition
+#         print('Start acquisition...\n')
+#         cam.start_acquisition()
+        
+#         first_passage2 = True
+#         # data_center_old = 0
+#         maxii = 0
+        
+#         while True:
+            
+#             data = cam.snap(timeout = current_exposure_time + 5)
+            
+#             if cam.arm == 'spatial':
+#                 data = np.rot90(data, k=1, axes=(0,1))
+                
+#             data_8b = cv2.convertScaleAbs(data, alpha=(255.0/(2**image_bit_depth - 1)))    
+            
+            
+#             maxi = np.max(data_8b)
+#             print("max = " + str(maxi))
+#             if maxi != maxii:
+#                 if display_max:
+#                     print("max = " + str(maxi))
+#                 maxii = maxi
+            
+#             if maxi == 255 and first_passage2 == True:
+#                 print('saturation detected')
+#                 first_passage2 = False
+#             elif maxi < 255 and first_passage2 == False:
+#                 print('No more saturation')
+#                 first_passage2 = True
+            
+#             if first_passage == True:
+#                 maxi = np.max(data_8b)
+#                 print('maxi = ' + str(maxi))
+#                 print('press "q" to exit')
+#                 # Creating trackbars for color change 
+#                 cv2.createTrackbar('Brightness', window_name, maxi, 510, nothing) 
+    
+#                 cv2.createTrackbar('Exp time (µs)', window_name, int(current_exposure_time*1e6), 50000, nothing) 
+    
+#                 first_passage = False
+
+            
+#             # Get current positions of trackbar 
+#             brightness = cv2.getTrackbarPos('Brightness', window_name) 
+            
+#             # Tune exposure time
+#             exposure_time = cv2.getTrackbarPos('Exp time (µs)', window_name)             
+#             if exposure_time < min_exposure_time:
+#                 exposure_time = min_exposure_time                
+#             elif exposure_time > max_exposure_time:
+#                 print('maximum exposure time set to 4.9 s')
+#                 exposure_time = max_exposure_time
+            
+#             cam.set_attribute_value("ExposureTime", exposure_time/1e6)
+            
+#             data_64b = data_8b.astype(np.float64)           
+#             data2 = data_64b*brightness/maxi
+#             data_8b = data2.astype(np.uint8)
+#             data_8b_resize = cv2.resize(data_8b, (width_win, height_win)) 
+
+#             cv2.imshow(window_name, data_8b_resize)
+#             cv2.moveWindow(window_name, 0, 0)
+            
+#             if cv2.waitKey(1) & 0xFF == ord('q'):
+#                 cv2.destroyWindow(window_name)
+#                 #stop data acquisition
+#                 print('cam: Stopping acquisition...')
+#                 cam.stop_acquisition()
+
+#                 break
+            
+#             if display_integral == True:
+#                 integral = np.mean(np.mean(data_64b, axis=1), axis=0)
+#                 vector.append(integral)
+                
+#                 x = list(range(len(vector)))
+#                 y = list(vector)
+            
+#                 line.set_data(x, y)
+                
+#                 ax.relim()
+#                 ax.autoscale_view()
+    
+#                 # on ajuste seulement Y
+#                 ax.set_ylim(min(y)-0.5, max(y)+0.5)
+            
+#                 fig.canvas.draw()
+#                 fig.canvas.flush_events()
+#                 plt.pause(0.01)                
+                
+#                 manager = plt.get_current_fig_manager()
+#                 manager.window.wm_geometry("+950+0")
+                
+#     except:
+#         cv2.destroyWindow(window_name)
+#         cam.stop_acquisition()
+#         print('try function encoutered a exception')
 
     
         
