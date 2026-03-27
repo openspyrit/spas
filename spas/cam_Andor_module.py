@@ -405,7 +405,8 @@ def snapshot_cam(cam, tilt_image: bool = False):
         print('!!!!!!!!!! Warning, saturation detected !!!!!!!!!!!!')
     ########################## tilt image ####################################
     if tilt_image:
-        data = np.flip(np.flip(data, axis = 1), axis = 0)
+        # data = np.flip(np.flip(data, axis = 1), axis = 0)
+        data = np.rot90(data, k=1, axes=(0,1))
         print('image tilted')
     ########################## print snapshot #################################
     plt.figure()
@@ -454,9 +455,9 @@ def display_cam(cam, cam_params, display_max: bool = False, display_integral: bo
     
     image_bit_depth_str = cam.get_attribute_value("BitDepth")
     image_bit_depth = int(image_bit_depth_str[:image_bit_depth_str.index(' Bit')])
+    # image_bit_depth = 12
     
     try:
-        # cam.set_buffers_queue_size(2)
         import cv2
         # Creating a cv2 window
         if cam.arm == 'spatial':
@@ -481,8 +482,9 @@ def display_cam(cam, cam_params, display_max: bool = False, display_integral: bo
             max_points = 50
             vector = deque(maxlen=max_points)
             
-            plt.ion()
+            # plt.ion()
             fig, ax = plt.subplots()
+            plt.show(block=False)
             line, = ax.plot([], [], 'o-')        
             # limites fixes pour la fenêtre glissante
             ax.set_xlim(0, max_points)
@@ -498,22 +500,15 @@ def display_cam(cam, cam_params, display_max: bool = False, display_integral: bo
         # data_center_old = 0
         maxii = 0
         
-        # # it is a dummy frame acquisition to 
-        # try:
-        #     cam.wait_for_frame(timeout = current_exposure_time + 2)
-        #     data = cam.read_oldest_image()
-        #     print('dummy frame acquired in the "try" function')
-        # except Exception as e:
-        #     print(f"Erreur lors de la première acquisition : {e}")
-        #     # Relancer l'acquisition
-        #     cam.wait_for_frame(timeout = current_exposure_time + 2)
-        #     data = cam.read_oldest_image()
-        #     print('dummy frame acquired in the "Except" function')
-        
         while True:
             
             data = cam.snap(timeout = current_exposure_time + 5)
-            data_8b = cv2.convertScaleAbs(data, alpha=(255.0/(2**image_bit_depth - 1)))       
+            
+            if cam.arm == 'spatial':
+                data = np.rot90(data, k=1, axes=(0,1))
+                
+            data_8b = cv2.convertScaleAbs(data, alpha=(255.0/(2**image_bit_depth - 1)))    
+            
             
             maxi = np.max(data_8b)
             print("max = " + str(maxi))
@@ -587,7 +582,7 @@ def display_cam(cam, cam_params, display_max: bool = False, display_integral: bo
             
                 fig.canvas.draw()
                 fig.canvas.flush_events()
-                plt.pause(0.01)
+                plt.pause(0.01)                
                 
                 manager = plt.get_current_fig_manager()
                 manager.window.wm_geometry("+950+0")

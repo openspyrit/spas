@@ -36,7 +36,7 @@ move_to_middle(stage.pidevice, stage.stage_tools)
 position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
 #%% setup Spatial Camera
 cam_spat_params = setup_cam(cam = cam_spat, 
-                            expos_time  = 0.07,  # (s)
+                            expos_time  = 0.25,  # (s)
                             gain        = 1,        # 1 or 2                              
                             width       = 2048,     # max = 2048
                             height      = 2048,     # max = 2048
@@ -61,14 +61,15 @@ play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_
 display_cam(cam = cam_spat, cam_params = cam_spat_params)
 DMD.Halt()
 shutter.close()
+position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
 #%% setup the Spectrograph
 spectrograph_params = setup_spectrograph(spectrograph,
                                          grating_nbr =   1, print_select   = True,   # Arg:  1 
-                                         position    = 590, print_position = True,   # the central wavelength of the grating
+                                         position    = 533, print_position = True,   # the central wavelength of the grating
                                          slit_width  = 20000)                          # the width of the slit in (µm)
 #%% setup Spectral Camera
 cam_spec_params = setup_cam(cam = cam_spec, 
-                            expos_time  = 0.5,        # (s)
+                            expos_time  = 0.1,        # (s)
                             gain        = 2,        # 1 or 2                              
                             width       = 2048,     # max = 2048
                             height      = 2048,     # max = 2048
@@ -89,14 +90,14 @@ shutter.close()
 shutter.open()
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'white', pattern_dim = '1D', 
                               scan_mode = 'Walsh', Np = 256, pattern_thickness = 16) 
-display_cam(cam = cam_spec, cam_params = cam_spec_params, display_max = False, display_integral = True)
+display_cam(cam = cam_spec, cam_params = cam_spec_params, display_max = False, display_integral = False)
 DMD.Halt()
 shutter.close()
 #%% setup acquisition
 setup_version            = 'setup_v1.0'
 collection_access        = 'public' #'private'#
 Np                       = 256      # Number of pixels in one dimension of the image (image: NpxNp)
-Nz                       = np.array([7.9])# to move the stage to acquire the third spatial dimension
+Nz                       = np.array([position[1]])# to move the stage to acquire the third spatial dimension
 pattern_thickness        = 16
 ti                       = cam_spec_params.exposure_time_μs / 1000 # Integration time of the spectral camera
 NAverages                = 1        # Number of avegare (the acquisition is accumulated before moving the grating)
@@ -110,8 +111,8 @@ pattern_compression      = 1
 pattern_dim              = '1D'
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
 source                   = 'laser-532nm'#white_LED'#'No source'#'White_Zeiss_lamp'#'Thorlabs_White_halogen_lamp'#'HG-1_Oceanoptics'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
-object_name              = 'fluo_µsphere-gel-bin_5' 
-data_folder_name         = '2026-03-23_test_velocity'#'Patient-69_exvivo_LGG_BU'
+object_name              = 'plastic_sheet_9'#'fluo_µsphere-gel-bin' 
+data_folder_name         = '2026-03-26_test'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_Lc_' + str(Lc[0][0]) + 'nm_Gr_' + str(Lc[0][1]) + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(round(ti))+'ms_zoom_x'+str(zoom)
 
 all_path = func_path(data_folder_name, data_name, ask_overwrite = False)

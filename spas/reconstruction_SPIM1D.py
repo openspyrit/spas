@@ -127,7 +127,8 @@ def spatial_reco(acquisition_params, all_path):
                     if fisrt_pass == True:
                         spatial_acqui = np.empty((raw_data.shape + (NR, NLc, NA)), dtype = np.int16)
                         fisrt_pass = False
-                        
+                     
+                    raw_data = np.rot90(raw_data, k=1, axes=(0,1))
                     spatial_acqui[:, :, iNR, iLc, iNA] = raw_data
     
     spatial_acqui = np.squeeze(spatial_acqui)                
