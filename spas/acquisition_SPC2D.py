@@ -31,6 +31,7 @@ try:
     from msl.equipment import EquipmentRecord, ConnectionRecord, Backend
     from msl.equipment.resources.avantes import MeasureCallback, Avantes
 except:
+    print('DLL Avantes not installed !!!!')
     pass
     
 from tqdm import tqdm
@@ -470,17 +471,17 @@ def _update_sequence(DMD: ALP4,
                 
             patterns[y_offset:y_offset+len_im[0], x_offset:x_offset+len_im[1]] = im_HD
                   
-        if pattern_name == 4000 or pattern_name == 10:
-            if np.amax(patterns) == 1:
-                print('error pattern in 1 bit, not in 8 bits, please change the format')
-            else:
-                plt.figure()
-                # plt.imshow(pat_c_re)
-                # plt.imshow(pat_mask_all_mat)
-                # plt.imshow(pat_mask_all_mat_DMD)
-                plt.imshow(np.rot90(patterns,2))
-                plt.colorbar()
-                plt.title('pattern n°' + str(pattern_name) + ' / Np = ' + str(Np))
+        # if pattern_name == 4000 or pattern_name == 10:
+        #     if np.amax(patterns) == 1:
+        #         print('error pattern in 1 bit, not in 8 bits, please change the format')
+        #     else:
+        #         plt.figure()
+        #         # plt.imshow(pat_c_re)
+        #         # plt.imshow(pat_mask_all_mat)
+        #         # plt.imshow(pat_mask_all_mat_DMD)
+        #         plt.imshow(np.rot90(patterns,2))
+        #         plt.colorbar()
+        #         plt.title('pattern n°' + str(pattern_name) + ' / Np = ' + str(Np))
         
         patterns = patterns.ravel()
         
