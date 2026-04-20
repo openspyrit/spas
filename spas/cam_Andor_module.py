@@ -20,6 +20,7 @@ from scipy import signal
 from collections import deque
 import cv2
 
+# cam.get_all_attribute_values()
 
 def init_cam_spat(SN : str = ''):
     """
@@ -120,7 +121,7 @@ def disconnect_cam(cam):
 @dataclass
 class cam_Parameters:
     """
-    
+    cam.get_all_attribute_values()
     """
     arm: Optional[str] = None
     exposure_time_s: Optional[float] = None
@@ -151,7 +152,9 @@ class cam_Parameters:
     StaticBlemishCorrection: Optional[bool] = None
     TriggerMode: Optional[str] = None 
     
-    image_data_bit_depth: Optional[str] = None
+    bit_depth: Optional[str] = None
+    simplePreAmpGainControl: Optional[str] = None
+    encodPix: Optional[int] = None
     snapshot: Optional[bool] = None
     
     cam: InitVar[Andor.AndorSDK3Camera] = None
@@ -190,13 +193,26 @@ class cam_Parameters:
             self.SpuriousNoiseFilter = cam.get_attribute_value("SpuriousNoiseFilter")
             self.StaticBlemishCorrection = cam.get_attribute_value("StaticBlemishCorrection")
             self.TriggerMode = cam.get_attribute_value("TriggerMode")
-
+            self.bit_depth = cam.get_attribute_value("BitDepth")
+            self.simplePreAmpGainControl = cam.get_attribute_value("SimplePreAmpGainControl")
+            
+            encodPixel = cam.get_attribute_value("PixelEncoding")
+            if encodPixel.find("Mono12Packed") == 0:
+                encodPixel = 12
+            elif encodPixel.find("Mono16") == 0:
+                encodPixel = 16
+            else:
+                print("warning, problem to detect the enconding Pixel, default is 12 bit")
+                encodPixel = 12
+                
+            self.encodPix = encodPixel
             self.snapshot = cam.snapshot            
             self.class_description = cam.arm + ' camera parameters'   
         
 
-def setup_cam(cam: Andor.AndorSDK3Camera, expos_time: float = 0.1, ExternalTriggerDelay: float = 0, gain: int = 1, baseline: int = 100, 
-              width: int = 2048, height: int = 2048, offsetX: int = 1, offsetY: int = 1, binningX: int = 1, binningY: int = 1, snapshot: bool = False):
+def setup_cam(cam: Andor.AndorSDK3Camera, expos_time: float = 0.1, ExternalTriggerDelay: float = 0, gain: int = 1, 
+              baseline: int = 100, width: int = 2048, height: int = 2048, offsetX: int = 1, offsetY: int = 1, 
+              binningX: int = 1, binningY: int = 1, encodPix: int = 12, snapshot: bool = False):
     """
     setup the Ximea camera
 
@@ -224,6 +240,8 @@ def setup_cam(cam: Andor.AndorSDK3Camera, expos_time: float = 0.1, ExternalTrigg
         the binning in the width direction. The default is 1.
     binningY : int, optional
         the binning in the height direction. The default is 1.
+    encodPix : int, optional
+        the encoding pixel. The default is 12 bits.
     snapshot: bool
         if false => acquire video, if True => acquire an image. default is False.
 
@@ -330,15 +348,32 @@ def setup_cam(cam: Andor.AndorSDK3Camera, expos_time: float = 0.1, ExternalTrigg
     else:
         print("External Trigger Delay already set to =", ExternalTriggerDelay_current)
     ############### read the SimplePreAmpGainControl ##########################
+    if encodPix == 12:
+        SimplePreAmpGainControl = "12-bit (low noise)"
+    elif encodPix == 16:
+        SimplePreAmpGainControl = "16-bit (low noise & high well capacity)"
+    else:
+        print("Warning, encoding pixel has a bad entry value. default is taken (12 bits)")
+        encodingPixel = "Mono12Packed"
+    
+    cam.set_attribute_value("SimplePreAmpGainControl", SimplePreAmpGainControl)    
     SimplePreAmpGainControl = cam.get_attribute_value("SimplePreAmpGainControl")
     print("Simple PreAmp Gain Control =", SimplePreAmpGainControl)
-    ################# read the Bit depth ######################################
+    ################# read the Bit depth ######################################   
     BitDepth = cam.get_attribute_value("BitDepth")
     print("BitDepth =", BitDepth)
-    ################# Pixel Encoding ######################################
-    cam.set_attribute_value("PixelEncoding", "Mono16") #possible value: "Mono12Packed" => output on 12 bit (max=4095)
-    PixelEncoding = cam.get_attribute_value("PixelEncoding")
-    print("Pixel Encoding =", PixelEncoding)
+    ##################### Encoding Pixel ######################################
+    if encodPix == 12:
+        encodingPixel = "Mono12Packed"
+    elif encodPix == 16:
+        encodingPixel = "Mono16"
+    else:
+        print("Warning, encoding pixel has a bad entry value. default is taken (12 bits)")
+        encodingPixel = "Mono12Packed"
+        
+    cam.set_attribute_value("PixelEncoding", encodingPixel) 
+    pixelEncoding = cam.get_attribute_value("PixelEncoding")
+    print("Pixel Encoding =", pixelEncoding)
     #################### setting the exposure timre ###########################
     # NB: the exposure time must be an interger in s 
     exposure_mini = 0.000984
@@ -429,7 +464,8 @@ def snapshot_cam(cam, tilt_image: bool = False):
     return data    
 
 
-def display_cam(cam, cam_params, display_max: bool = False, display_integral: bool = False):
+def display_cam(cam, cam_params, display_max: bool = False, 
+                display_integral: bool = False, display_profile: bool = False):
     """
     Continuous image display of a camera with optional integral/mean curve using OpenCV.
 
@@ -443,6 +479,8 @@ def display_cam(cam, cam_params, display_max: bool = False, display_integral: bo
             Display the maximum value in the image. Default is False.
         display_integral (bool):
             Display the mean value of the image as a curve. Default is False.
+        display_profile (bool):
+            Display the profile image to see the edge of the light sheet. Default is False.
     Returns:
     -------
         None
@@ -487,9 +525,23 @@ def display_cam(cam, cam_params, display_max: bool = False, display_integral: bo
             cv2.resizeWindow("Integral Curve", max_points, curve_height)
 
         first_passage = True
-        first_passage2 = True
+        first_passage2 = True        
         maxii = 0
-
+        
+        if display_profile:
+            # curve_height = 800
+            # first_pass = False # for the profile dispay
+            curve_height = 200  # Hauteur de l'image de la courbe
+            fixed_width = 800    # Largeur fixe de la fenêtre
+            prof_width_win = 500     # Largeur de la fenêtre principale (à adapter)
+            # Initialiser l'image pour la courbe (noire, 1 canal)
+            curve_img = np.zeros((curve_height, fixed_width), dtype=np.uint8)
+            
+        def smooth_profile(profile, window_size=10):
+            """Applique un lissage par moyenne mobile."""
+            smoothed = np.convolve(profile, np.ones(window_size)/window_size, mode='same')
+            return smoothed
+            
         # Start data acquisition
         print('Start acquisition...\n')
         cam.start_acquisition()
@@ -575,6 +627,47 @@ def display_cam(cam, cam_params, display_max: bool = False, display_integral: bo
                 # Display curve
                 cv2.imshow("Integral Curve", curve_img)
                 cv2.moveWindow("Integral Curve", width_win + 20, 0)
+                
+            # curve_img = np.zeros((curve_height, len(data_64b)), dtype=np.uint8)
+            
+            if display_profile:
+                # Extraire le profil (colonne centrale)
+                data_rogne = data[int(data_64b.shape[0]/4):int(data_64b.shape[0]*3/4) , :]
+                
+                profile = np.mean(data_rogne, axis=0)
+            
+                # Lisser le profil
+                smoothed_profile = smooth_profile(profile, window_size=10)
+                smoothed_profile = smoothed_profile[10: len(profile) - 10]
+                # Normaliser le profil lissé pour l'affichage
+                y_min, y_max = np.min(smoothed_profile), np.max(smoothed_profile)
+                y_range = y_max - y_min if y_max != y_min else 1
+            
+                # Effacer l'image de la courbe
+                curve_img.fill(0)
+            
+                # Échantillonner le profil pour qu'il tienne dans fixed_width
+                step = len(smoothed_profile) / fixed_width
+                points = []
+                for i in range(fixed_width):
+                    idx = int(i * step)
+                    if idx >= len(smoothed_profile):
+                        break
+                    x = i
+                    y = int(curve_height - (smoothed_profile[idx] - y_min) / y_range * curve_height)
+                    points.append((x, y))
+            
+                # Tracer le profil lissé
+                if len(points) > 1:
+                    cv2.polylines(curve_img, [np.array(points, dtype=np.int32)], False, 255, 1)
+            
+                # Tracer les axes (optionnel)
+                cv2.line(curve_img, (0, curve_height - 1), (fixed_width - 1, curve_height - 1), 255, 1)  # Axe horizontal
+                cv2.line(curve_img, (0, 0), (0, curve_height - 1), 255, 1)  # Axe vertical
+            
+                # Afficher le profil
+                cv2.imshow("Profile", curve_img)
+                cv2.moveWindow("Profile", width_win + 20, 0)
 
             # Exit on 'q' key
             if cv2.waitKey(1) & 0xFF == ord('q'):

@@ -46,7 +46,7 @@ def plot_spec_to_rgb_image(GT, wavelengths):
     lambda_end = math.floor(wavelengths[len(wavelengths)-1]/5)*5
     new_wavelengths = np.arange(lambda_begin, lambda_end+1, 5)
     
-    zeros_before_num = int((lambda_begin-lambda_begin_cie)/5)
+    zeros_before_num = int(abs(lambda_begin-lambda_begin_cie)/5)
     zeros_after_num = int((lambda_end_cie-lambda_end)/5)
     zeros_before_vec = np.zeros(zeros_before_num)
     zeros_after_vec = np.zeros(zeros_after_num)

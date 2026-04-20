@@ -596,11 +596,14 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 0, iL
     i = 0
     # acquire snapshot
     if cam.snapshot:     
-        data_np = np.empty((cam.get_attribute_value("AOIHeight"), cam.get_attribute_value("AOIWidth"), 1), dtype=np.uint16)
+        data_np = np.zeros((cam.get_attribute_value("AOIHeight"), cam.get_attribute_value("AOIWidth"), 1), dtype=np.uint16)
         timestamps = np.zeros((1),dtype=np.float64)
         ############## wait for next frame and read it #################
-        cam.wait_for_frame(timeout = exp_time + 2) # wait for the next available frame    
+        cam.wait_for_frame(timeout = exp_time + 5) # wait for the next available frame    
         data_np = cam.snap()
+        
+        outp = all_path.raw_data_path + '/' + file_name
+        np.savez(outp, data_np, allow_pickle = False)
         
         if arm == "spatial":
             acquisition_params.receive_last_trig_spat = True
@@ -610,10 +613,7 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 0, iL
             acquisition_params.spec_timestamps = timestamps
             acquisition_params.pattern_amount = 1
             return data_np
-            
-        outp = all_path.raw_data_path + '/' + file_name
-        np.savez(outp, data_np, allow_pickle = False)
-                
+        
     # acquire all the frames
     else:
         bar = Bar('Processing', max = acquisition_params.pattern_amount)
@@ -683,6 +683,7 @@ def acquire(DMD: ALP4,
             spectrograph_params,
             stage,
             shutter,
+            mirror,
             acquisition_params,
             all_path,
             verbose,
@@ -712,6 +713,8 @@ def acquire(DMD: ALP4,
         DESCRIPTION. To control the PI stage for a 3D acquisition
     shutter: Class.
         DESCRIPTION. To control the shutter
+    mirror: Class.
+        DESCRIPTION. To control the flipping mirror MFF101
     acquisition_params : TYPE, optional
         DESCRIPTION. The default is acquisition_params.
         
@@ -728,6 +731,7 @@ def acquire(DMD: ALP4,
     # total_iter = acquisition_params.pattern_amount * total_loop
     first_acqui = True
     boucle = 0
+    mirror.set_position(acquisition_arm, verbose = True)
     shutter.open()
     for iNR in range(acquisition_params.NRepetitions):#tqdm(range(acquisition_params.NRepetitions)):
         print('\n')
@@ -801,57 +805,72 @@ def acquire(DMD: ALP4,
     shutter.close()
     print('shutter closed')
 
-    if acquisition_arm == 'spectral':
-        if acquisition_arm == 'spatial':
-            cam_spat.stop_acquisition()
-            print('spatial cam stopped')
-            try:
-                a = acquisition_params.spat_timestamps[0]
-                acquisition_params.spec_timestamps = []
-            except:
-                acquisition_params.spat_timestamps = np.empty(0)
-                print('warning, timestamps for spatial camera is empty')
-        elif acquisition_arm == 'spectral':   
-            cam_spec.stop_acquisition()
-            print('\n')
-            print('spectral cam stopped')
-            try:
-                # a = acquisition_params.spec_timestamps[0]
-                acquisition_params.spat_timestamps = []
-            except:
-                acquisition_params.spec_timestamps = np.empty(0)
-                acquisition_params.spat_timestamps = []
-                print('warning, timestamps for spatial camera set to zero')
-                print('warning, timestamps for spectral camera is empty')
+    if acquisition_arm == 'spatial':
+        cam_spat.stop_acquisition()
+        print('spatial cam stopped')
+        try:
+            a = acquisition_params.spat_timestamps[0]
+            acquisition_params.spec_timestamps = []
+        except:
+            acquisition_params.spat_timestamps = np.empty(0)
+            print('warning, timestamps for spatial camera is empty')
+    elif acquisition_arm == 'spectral':   
+        cam_spec.stop_acquisition()
+        print('\n')
+        print('spectral cam stopped')
+        try:
+            # a = acquisition_params.spec_timestamps[0]
+            acquisition_params.spat_timestamps = []
+        except:
+            acquisition_params.spec_timestamps = np.empty(0)
+            acquisition_params.spat_timestamps = []
+            print('warning, timestamps for spatial camera set to zero')
+            print('warning, timestamps for spectral camera is empty')
 
         
-        choice = popup()
-        print('choice = ' + choice)
+        # choice = popup()
+        # print('choice = ' + choice)
 
-        if choice == "ok":
-            print('----------------- other arm --------------------')
-            print("Spatial acquisition is beginning")
+        # if choice == "ok":
+        print('----------------- other arm --------------------')
+        if acquisition_arm == 'spatial':
+            acquisition_arm = 'spectral'
+        elif acquisition_arm == 'spectral':
             acquisition_arm = 'spatial'
-            first_acqui = True
-            shutter.open()           
-            for iNR in range(acquisition_params.NRepetitions):#tqdm(range(acquisition_params.NRepetitions)):
-                iLc = 0
-                move_an_axis(stage.pidevice, stage.stage_tools, axes = ['2'], array_to_move = [acquisition_params.Nz[iNR]], verbose = True)
-                cam_thread = CamThread(cam_spat, acquisition_params, DMD_params, all_path, iNR, iLc, NA, first_acqui, verbose)
-                cam_thread.start()
-                
-                DMD.Run(loop=False)
-                
-                while not cam_thread.finished.is_set():
-                    time.sleep(0.01)   # laisse Windows respirer
-
-                DMD.Halt()
-                cam_spat.stop_acquisition()
-                print('spatial cam stopped')
+        
+        mirror.set_position(acquisition_arm, verbose = True)
+        print(acquisition_arm + " acquisition is beginning")
+        first_acqui = True
+        shutter.open()           
+        for iNR in range(acquisition_params.NRepetitions):#tqdm(range(acquisition_params.NRepetitions)):
+            iLc = 0
+            move_an_axis(stage.pidevice, stage.stage_tools, axes = ['2'], array_to_move = [acquisition_params.Nz[iNR]], verbose = True)
             
-            shutter.close()
-        else:
-            print("Spatial acquisition aborted")
+            if acquisition_arm == 'spatial':
+                cam_thread = CamThread(cam_spat, acquisition_params, DMD_params, all_path, iNR, iLc, NA, first_acqui, verbose)
+            elif acquisition_arm == 'spectral':                      
+                cam_thread = CamThread(cam_spec, acquisition_params, DMD_params, all_path, iNR, iLc, NA, first_acqui, verbose)
+
+            cam_thread.start()
+            
+            if acq_aborded == False:
+                if first_acqui:
+                    time.sleep(1.2)
+                    begin_acqui = time.time()
+                    first_acqui = False
+            
+            DMD.Run(loop=False)
+            
+            while not cam_thread.finished.is_set():
+                time.sleep(0.01)   # laisse Windows respirer
+
+            DMD.Halt()
+            cam_spat.stop_acquisition()
+            print(acquisition_arm + ' cam stopped')
+        
+        shutter.close()
+        # else:
+        #     print("Spatial acquisition aborted")
         
         try:
             acquisition_params.spec_timestamps[0]

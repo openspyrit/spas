@@ -596,10 +596,13 @@ def setup_patterns(DMD: ALP4.ALP4,
             pattern_order = np.array(pattern_order[0:1], dtype=np.int16)
         elif pattern_to_display == 'black':
             pattern_order = np.array(pattern_order[1:2], dtype=np.int16)
-        elif pattern_to_display == 'gray':
-            index = int(np.where(pattern_order == 33)[0])#
-            print(index)
+        elif pattern_to_display.find('gray') == 0:
+            index = int(pattern_to_display[5:])
             pattern_order = np.array(pattern_order[index:index+1], dtype=np.int16)
+        # elif pattern_to_display == 'gray':
+        #     index = int(np.where(pattern_order == 33)[0])#
+        #     print(index)
+        #     pattern_order = np.array(pattern_order[index:index+1], dtype=np.int16)
         
     bitplanes = 1
     DMD_params.bitplanes = bitplanes
@@ -869,7 +872,7 @@ def play_one_pattern(DMD, DMD_initial_memory, cam_Par, zoom: int = 1,
     ti = cam_Par.exposure_time_μs / 1000
     AcquisitionParameters.pattern_amount = 1
     AcquisitionParameters.pattern_compression = 1
-    AcquisitionParameters.wavelengths = np.asarray(np.zeros(2048), dtype=np.float64)
+    AcquisitionParameters.wavelengths = np.asarray(np.zeros(cam_Par.width), dtype=np.float64)
     
     AcquisitionParameters.pattern_dimension_x = pattern_thickness
     AcquisitionParameters.pattern_dimension_y = Np

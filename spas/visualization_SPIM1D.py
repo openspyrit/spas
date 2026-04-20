@@ -412,7 +412,7 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path, overwrite = True)
     had_reco_path = all_path.had_reco_path
     fig_had_reco_path = all_path.fig_had_reco_path
     
-    GT = np.rot90(GT, 2)
+    # GT = np.rot90(GT, 2)
     
     save_fig = False
     

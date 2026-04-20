@@ -15,12 +15,12 @@ import numpy as np
 from spas.transfer_data_to_girder import transfer_data_SPIM1D
 import time
 import math
-
 from spas.DMD_module import init_DMD, disconnect_DMD, change_patterns, setup_DMD, play_one_pattern
 from spas.spectro_ShamrockAndor_module import init_spectrograph, disconnect_spectrograph, setup_spectrograph
 from spas.cam_Andor_module import init_cam_spat, init_cam_spec, disconnect_cam, setup_cam, snapshot_cam, display_cam
-from spas.PI_module import init_PI, disconnect_stage, read_position, move_to_middle, stage_adjustment, stage_parameters
+from spas.PI_module import init_PI, disconnect_stage, read_position, move_to_middle, stage_adjustment, stage_parameters, go_to_zero
 from spas.shutter_TSC001_module import ThorlabsShutter
+from spas.flipping_mirror_MFF101_module import MFF
 from spas.acquisition_SPIM1D import AcquisitionParameters, func_path, acquire, define_wavelengths_matrix, plot_spectrum
 from spas.reconstruction_SPIM1D import live_hadamard_reco, spatial_reco
 from spas.visualization_SPIM1D import plot_acqui
@@ -31,9 +31,11 @@ cam_spat = init_cam_spat(SN = 'VSC-10323')
 cam_spec = init_cam_spec(SN = 'VSC-23585')
 stage = init_PI(Model = 'C-884', SN = '0000000000', verbose = True)
 shutter = ThorlabsShutter("85855593")
+mirror = MFF(SN = '37010810')
 #%% Move the PI stage to the middle
 move_to_middle(stage.pidevice, stage.stage_tools)
 position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
+# go_to_zero(stage.pidevice, stage.stage_tools)
 #%% setup Spatial Camera
 cam_spat_params = setup_cam(cam = cam_spat, 
                             expos_time  = 0.25,  # (s)
@@ -44,32 +46,35 @@ cam_spat_params = setup_cam(cam = cam_spat,
                             offsetY     = 1,        # 1
                             binningX    = 1,        # int < 2048
                             binningY    = 1,        # int < 2048
+                            encodPix    = 12,       # 12 or 16 bit
                             snapshot    = True)    # if false => acquire video, if True => acquire an image 
 #%% get a snapshot of the spatial camera
+mirror.set_position('spatial', verbose = True)
 shutter.open()
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, zoom = 1, pattern_to_display = 'white', pattern_dim = '1D',
-                              scan_mode = 'Walsh', Np = 256, pattern_thickness = 16) # white, black or gray
+                              scan_mode = 'Walsh', Np = 256, pattern_thickness = 4) # white, black or gray_ + pattern number
 data = snapshot_cam(cam = cam_spat, tilt_image = True) # data_format accepted: 8 or 16 bits
 DMD.Halt()
 shutter.close()
 #%% display spatial camera in continous mode
+mirror.set_position('spatial', verbose = True)
 shutter.open()
 stage_adjustment(stage.pidevice)
 time.sleep(1)
-play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'white', pattern_dim = '1D', 
-                 scan_mode = 'Walsh', Np = 256, pattern_thickness = 16) 
-display_cam(cam = cam_spat, cam_params = cam_spat_params)
+play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_63', pattern_dim = '1D', 
+                 scan_mode = 'Walsh', Np = 256, pattern_thickness = 4) #gray_33
+display_cam(cam = cam_spat, cam_params = cam_spat_params, display_profile = True)
 DMD.Halt()
 shutter.close()
 position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
 #%% setup the Spectrograph
 spectrograph_params = setup_spectrograph(spectrograph,
                                          grating_nbr =   1, print_select   = True,   # Arg:  1 
-                                         position    = 532, print_position = True,   # the central wavelength of the grating
+                                         position    = 595, print_position = True,   # the central wavelength of the grating
                                          slit_width  = 20000)                          # the width of the slit in (µm)
 #%% setup Spectral Camera
 cam_spec_params = setup_cam(cam = cam_spec, 
-                            expos_time  = 0.1,        # (s)
+                            expos_time  = 0.5,        # (s)
                             gain        = 2,        # 1 or 2                              
                             width       = 2048,     # max = 2048
                             height      = 2048,     # max = 2048
@@ -77,19 +82,24 @@ cam_spec_params = setup_cam(cam = cam_spec,
                             offsetY     = 1,        # 1
                             binningX    = 4,        # int < 2048        
                             binningY    = 4,        # int < 2048
+                            encodPix    = 12,       # 12 or 16 bit
                             snapshot    = False)    # if false => acquire video, if True => acquire an image   
 #%% get a snapshot of the spectral camera
+mirror.set_position('spectral', verbose = True)
 shutter.open()
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, zoom = 1, pattern_to_display = 'white', pattern_dim = '1D', 
-                              scan_mode = 'Walsh', Np = 256, pattern_thickness = 16) 
+                              scan_mode = 'Walsh', Np = 256, pattern_thickness = 4) 
 data = snapshot_cam(cam = cam_spec, tilt_image = False) # data_format accepted: 8 or 16 bits
 DMD.Halt()
 plot_spectrum(data, cam_spec_params, spectrograph_params)
 shutter.close()
 #%% display spectral camera in continous mode
+mirror.set_position('spectral', verbose = True)
 shutter.open()
+# stage_adjustment(stage.pidevice)
+# time.sleep(1)
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'white', pattern_dim = '1D', 
-                              scan_mode = 'Walsh', Np = 256, pattern_thickness = 16) 
+                              scan_mode = 'Walsh', Np = 256, pattern_thickness = 4) 
 display_cam(cam = cam_spec, cam_params = cam_spec_params, display_max = False, display_integral = True)
 DMD.Halt()
 shutter.close()
@@ -110,9 +120,9 @@ yh_offset                = 0        # Default = 0
 pattern_compression      = 1
 pattern_dim              = '1D'
 scan_mode                = 'Walsh'  #'Walsh_inv' #'Raster_inv' #'Raster' #
-source                   = 'laser-532nm'#white_LED'#'No source'#'White_Zeiss_lamp'#'Thorlabs_White_halogen_lamp'#'HG-1_Oceanoptics'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
-object_name              = 'plastic_sheet_9'#'fluo_µsphere-gel-bin' 
-data_folder_name         = '2026-03-26_test'#'Patient-69_exvivo_LGG_BU'
+source                   = 'laser-473nm'#white_LED'#'No source'#'White_Zeiss_lamp'#'Thorlabs_White_halogen_lamp'#'HG-1_Oceanoptics'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
+object_name              = 'fluo_µsphere-gel-bin10' #'fluo_cuve'#
+data_folder_name         = '2026-04-17_test'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_Lc_' + str(Lc[0][0]) + 'nm_Gr_' + str(Lc[0][1]) + '_' + scan_mode + '_im_'+str(Np)+'x'+str(Np)+'_ti_'+str(round(ti))+'ms_zoom_x'+str(zoom)
 
 all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
@@ -127,7 +137,7 @@ if all_path.aborted == False:
     light_source         = source,
     object               = object_name
     filter               = 'Diffuser' #+ OD=0.3',''No filter',#'linear colored filter',#'Orange filter (600nm)',#'Dichroic_420nm',#'HighPass_500nm + LowPass_750nm + Dichroic_560nm',#'BandPass filter 560nm Dl=10nm',#'None', # + , #'Nothing',#'Diffuser + HighPass_500nm + LowPass_750nm',##'Microsope objective x40',#'' linear colored filter + OD#0',#'Nothing',#
-    description          = 'with Notch filter.'
+    description          = 'CL=285mm. with Notch filter.'
     
     acquisition_params = AcquisitionParameters(pattern_compression = pattern_compression, pattern_dimension_x = pattern_thickness, pattern_dimension_y = Np, 
                                                zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, mask_index = mask_index, 
@@ -139,7 +149,8 @@ if all_path.aborted == False:
     acquisition_params.wavelengths = define_wavelengths_matrix(cam_spec_params, Lc, display_figure = True, verbose = True)  
     acquisition_params.wavelengths = acquisition_params.wavelengths[0, :]
     acquisition_params.wavelengths = np.linspace(spectrograph_params.position - 50,
-                                                 spectrograph_params.position + 50,512)
+                                                 spectrograph_params.position + 50, 
+                                                 int(cam_spec_params.width))
     
     stage_params = stage_parameters
     stage_params.array_to_move = array_to_move
@@ -173,21 +184,29 @@ raw_data =  acquire(DMD                 = DMD,
                     spectrograph_params = spectrograph_params,
                     stage               = stage,
                     shutter             = shutter,
+                    mirror              = mirror,
                     acquisition_params  = acquisition_params,
                     all_path            = all_path,
                     verbose             = False,
                     acquisition_arm     = 'spectral')
 #%% Reconstruction
-had_reco_all = live_hadamard_reco(raw_data, acquisition_params)
+from scipy import signal
+new_raw = np.zeros(raw_data.shape)
+for i in range(raw_data.shape[2]):
+    new_raw[:,:,i,0,0,0] = signal.medfilt2d(raw_data[:,:,i,0,0,0], kernel_size=3)
+    
+had_reco_all = live_hadamard_reco(new_raw, acquisition_params)
 spatial_acqui = spatial_reco(acquisition_params, all_path)
 #%% Plot
 plot_acqui(had_reco_all, spatial_acqui, acquisition_params, all_path)
 #%% plot raw data
 from matplotlib import pyplot as plt
 
-plt.figure()
-plt.imshow(np.squeeze(raw_data[:, :, 0, 0, 0, 0]))
-plt.title('pattern n° 0')
+for i in range(3):
+    plt.figure()
+    plt.imshow(np.squeeze(raw_data[:, :, i, 0, 0, 0]))
+    plt.colorbar()
+    plt.title('pattern n° ' + str(i))
 
 plt.figure()
 plt.imshow(np.squeeze(raw_data[:, 0, :, 0, 0, 0]))
@@ -201,16 +220,40 @@ plt.figure()
 plt.plot(np.squeeze(np.mean(np.mean(raw_data, axis=1),axis=0)))
 plt.title('mean for each pattern')
 plt.xlabel('pattern number')
+#%% débruitage
+import numpy as np
+from scipy import signal
+import spyrit.misc.walsh_hadamard as wh
+from matplotlib import pyplot as plt
+
+new_raw = np.zeros((512,512,256))
+for i in range(raw_data.shape[2]):
+    new_raw[:,:,i] = signal.medfilt2d(raw_data[:,:,i,0,0,0], kernel_size=3)
+
+plt.figure()
+plt.imshow(new_raw[:,:,1])
+    
+M_sub = new_raw[:,:,0::2] - new_raw[:,:,1::2]
+M_sub = M_sub.astype(float)
+Npatterns = 256
+temp_had_reco = wh.fwht(M_sub) / Npatterns
+had_reco = np.swapaxes(temp_had_reco, 2, 1) 
+s=np.sum(had_reco[:,:,100:400],axis=2)
+
+plt.figure()
+plt.imshow(s)
+
 #%% transfer data to girder
 transfer_data_SPIM1D(DMD_params, cam_spat_params, cam_spec_params, spectrograph_params, acquisition_params,
                     setup_version, data_folder_name, data_name, collection_access, upload_metadata = 1)
 #%% Disconnect
-disconnect_spectrograph(spectrograph, goto_zero = False)
+disconnect_spectrograph(spectrograph, goto_zero = True)
 disconnect_DMD(DMD)
 disconnect_cam(cam_spat)
 disconnect_cam(cam_spec)
 disconnect_stage(stage)
 shutter.disconnect()
+mirror.disconnect()
 #%% below, old prog
 # #%% Neural Network setup (executed it just one time)
 # network_param = ReconstructionParameters(
