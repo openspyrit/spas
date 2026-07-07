@@ -111,25 +111,34 @@ def spatial_reco(acquisition_params, all_path):
     NA = acquisition_params.NAverages
     NLc = 1#len(acquisition_params.Lc)
     NR = acquisition_params.NRepetitions
-    Npatterns = acquisition_params.pattern_amount
+    # Npatterns = acquisition_params.pattern_amount
     fisrt_pass = True
     
     for iNA in range(NA):
         for iLc in range(NLc):
             for iNR in range(NR): 
-                for iNp in range(Npatterns):
+                # for iNp in range(Npatterns):
+                try:
                     file_name = arm + '_Ny_' + str(acquisition_params.Nz[iNR]) + 'mm_Gr_' + str(acquisition_params.Lc[iLc][1]) + '_Lc_' + str(acquisition_params.Lc[iLc][0]) + 'nm_NA_' + str(iNA)
-                    path_name = all_path.raw_data_path + '/' + file_name + '.npz'
-                    raw_data_file = np.load(path_name)
-                    raw_data = raw_data_file['arr_0']
-                    raw_data_file.close()
+                except:
+                    file_name = arm + '_Ny_' + str(acquisition_params.Nz) + 'mm_Gr_' + str(acquisition_params.Lc[iLc][1]) + '_Lc_' + str(acquisition_params.Lc[iLc][0]) + 'nm_NA_' + str(iNA)
                     
-                    if fisrt_pass == True:
-                        spatial_acqui = np.empty((raw_data.shape + (NR, NLc, NA)), dtype = np.int16)
-                        fisrt_pass = False
-                     
-                    raw_data = np.rot90(raw_data, k=1, axes=(0,1))
+                path_name = all_path.raw_data_path + '/' + file_name + '.npz'
+                raw_data_file = np.load(path_name)
+                raw_data = raw_data_file['arr_0']
+                raw_data_file.close()
+                
+                if fisrt_pass == True:
+                    spatial_acqui = np.empty((raw_data.shape + (NR, NLc, NA)), dtype = np.int16)
+                    fisrt_pass = False
+                 
+                raw_data = np.rot90(raw_data, k=1, axes=(0,1))
+                if len(spatial_acqui.shape) == 6:
+                    spatial_acqui[:, :, :, iNR, iLc, iNA] = raw_data
+                elif len(spatial_acqui.shape) == 5:
                     spatial_acqui[:, :, iNR, iLc, iNA] = raw_data
+                else:
+                    print('warning, the length of the shape of the spatial acqui is lower than 5')
     
     spatial_acqui = np.squeeze(spatial_acqui)                
     return spatial_acqui

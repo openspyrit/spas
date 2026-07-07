@@ -892,7 +892,7 @@ def play_one_pattern(DMD, DMD_initial_memory, cam_Par, zoom: int = 1,
                            integration_time = ti, pattern_to_display = pattern_to_display, loop = loop)    
     DMD.Run(loop=loop) # if loop=False : Run the whole sequence only once, if loop=True : Run continuously one pattern 
     
-    return DMD_params
+    # return DMD_params
     
 def disconnect_DMD(DMD: ALP4.ALP4):
     if DMD is not None:       
@@ -907,7 +907,7 @@ def disconnect_DMD(DMD: ALP4.ALP4):
             print('DMD disconnected')
             
         except:
-            print('probelm to Halt the DMD')   
+            print('problem to Halt the DMD')   
     else:
         print("DMD doesn't exist")
 

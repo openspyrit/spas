@@ -634,7 +634,7 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 0, iL
                 elif arm == 'spatial':
                     acquisition_params.receive_last_trig_spat = True
                     acquisition_params.spat_timestamps = timestamps
-                print('\n iteration reach (' + arm + ') : ' + str(i) + ' in the thread \n')
+                print('\n iteration reach (' + arm + ') : ' + str(i + 1) + ' in the thread \n')
                 
                 bar.finish()
                 return data_np
@@ -644,8 +644,8 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 0, iL
                 break        
             else:
                 ############## wait for next frame and read it #################
-                cam.wait_for_frame(timeout = exp_time + 5) # wait for the next available frame
-                data = cam.read_oldest_image()  
+                cam.wait_for_frame(timeout = exp_time + 2) # wait for the next available frame
+                data = cam.read_newest_image()  
                 ################### timestamp #################################
                 timestamps[i] = cam.get_attribute_value("TimestampClock")       
                 ################### get image data as numpy array #########################
@@ -656,7 +656,7 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 0, iL
                 bar.next()
                 
                 counter_time2 = time.time() - start_chrono
-                if counter_time2 - counter_time > (cam.get_exposure() + 2):
+                if counter_time2 - counter_time > (cam.get_exposure() + 3):
                     print('problem with the trigger, delay longer than the exposure time')
                     break
     
@@ -765,7 +765,7 @@ def acquire(DMD: ALP4,
 
                 if acq_aborded == False:
                     if first_acqui:
-                        time.sleep(1.2)
+                        time.sleep(1.4) # avant c'était 1.2, changement depuis acqui avec cam spat
                         begin_acqui = time.time()
                     
                     DMD.Run(loop=False)
@@ -779,6 +779,7 @@ def acquire(DMD: ALP4,
                     print('DMD stopped')
                     if first_acqui == True:
                         if raw_data is not None:
+                            print('raw data is not None')
                             raw_data_arr = np.empty((raw_data.shape + (acquisition_params.NAverages, 
                                                                        len(acquisition_params.Lc), 
                                                                        acquisition_params.NRepetitions)), dtype=np.uint16)
@@ -796,7 +797,12 @@ def acquire(DMD: ALP4,
                         if cam_spec.snapshot:
                             raw_data_arr[:, :, NA, iLc, iNR] = raw_data
                         else:
-                            raw_data_arr[:, :, :, NA, iLc, iNR] = raw_data                    
+                            raw_data_arr[:, :, :, NA, iLc, iNR] = raw_data  
+                    # elif acquisition_arm == 'spatial':
+                    #     if cam_spat.snapshot:
+                    #         raw_data_arr[:, :, NA, iLc, iNR] = raw_data
+                    #     else:
+                    #         raw_data_arr[:, :, :, NA, iLc, iNR] = raw_data  
                
     acquisition_params.total_spectrometer_acquisition_time_s = time.time() - begin_acqui
     print('\n')
@@ -855,7 +861,7 @@ def acquire(DMD: ALP4,
             
             if acq_aborded == False:
                 if first_acqui:
-                    time.sleep(1.2)
+                    time.sleep(1.4) # avant c'était 1.2, changé pour faire l'acqui avec la cam spatiale
                     begin_acqui = time.time()
                     first_acqui = False
             

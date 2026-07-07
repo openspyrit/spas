@@ -374,7 +374,7 @@ def setup_cam(cam: Andor.AndorSDK3Camera, expos_time: float = 0.1, ExternalTrigg
     cam.set_attribute_value("PixelEncoding", encodingPixel) 
     pixelEncoding = cam.get_attribute_value("PixelEncoding")
     print("Pixel Encoding =", pixelEncoding)
-    #################### setting the exposure timre ###########################
+    #################### setting the exposure time ###########################
     # NB: the exposure time must be an interger in s 
     exposure_mini = 0.000984
     exposure_maxi = 4.9
@@ -404,6 +404,11 @@ def setup_cam(cam: Andor.AndorSDK3Camera, expos_time: float = 0.1, ExternalTrigg
         print('the gain is set to : ' + str(get_gain))
     ################♠ acquisition mode: snapshot or video #####################
     cam.snapshot = snapshot
+    # ######################## set buffer #######################################
+    # if cam.snapshot == False:
+    #     cam.set_attribute_value("BufferSize", 256 * 2) # 256 est un nombre arbitraire qui devrait être: acquisition_params.pattern_amount que l'on multiplie par 2 pour avoir suffisamment de mémoire
+    # else:
+    #     cam.set_attribute_value("BufferSize", 2)
     
     return cam_Parameters(cam = cam)
         
@@ -631,13 +636,16 @@ def display_cam(cam, cam_params, display_max: bool = False,
             # curve_img = np.zeros((curve_height, len(data_64b)), dtype=np.uint8)
             
             if display_profile:
+                # define offset and thickness of the profile
+                offset = int(data_64b.shape[0]/2)
+                half_thick = 50
                 # Extraire le profil (colonne centrale)
-                data_rogne = data[int(data_64b.shape[0]/4):int(data_64b.shape[0]*3/4) , :]
+                data_rogne = data[offset - half_thick:offset + half_thick, :]
                 
                 profile = np.mean(data_rogne, axis=0)
             
                 # Lisser le profil
-                smoothed_profile = smooth_profile(profile, window_size=10)
+                smoothed_profile = profile#smooth_profile(profile, window_size=10)
                 smoothed_profile = smoothed_profile[10: len(profile) - 10]
                 # Normaliser le profil lissé pour l'affichage
                 y_min, y_max = np.min(smoothed_profile), np.max(smoothed_profile)
