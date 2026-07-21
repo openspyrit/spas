@@ -376,7 +376,13 @@ def setup_cam(cam: Andor.AndorSDK3Camera, expos_time: float = 0.1, ExternalTrigg
     print("Pixel Encoding =", pixelEncoding)
     #################### setting the exposure time ###########################
     # NB: the exposure time must be an interger in s 
-    exposure_mini = 0.000984
+    if PixelReadoutRate == "100 MHz":
+        exposure_mini = 7.2e-5
+        # exposure_mini = 0.000984
+    elif PixelReadoutRate == "270 MHz":
+        exposure_mini = 2.89e-5
+    else:
+        print('Warning, the PixelReadoutRate is different tahn 100 or 270 MHZ where min Expose Time is not define, plaese check !!!!')
     exposure_maxi = 4.9
     exposure_time = expos_time #round(expos_time * 1000)
     if exposure_time < exposure_mini:

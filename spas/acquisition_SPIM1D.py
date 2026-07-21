@@ -765,7 +765,7 @@ def acquire(DMD: ALP4,
 
                 if acq_aborded == False:
                     if first_acqui:
-                        time.sleep(1.4) # avant c'était 1.2, changement depuis acqui avec cam spat
+                        time.sleep(2) # avant c'était 1.2, changement depuis acqui avec cam spat
                         begin_acqui = time.time()
                     
                     DMD.Run(loop=False)

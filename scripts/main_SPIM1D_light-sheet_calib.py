@@ -40,7 +40,7 @@ position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
 # go_to_zero(stage.pidevice, stage.stage_tools)
 #%% setup Spatial Camera
 cam_spat_params = setup_cam(cam = cam_spat, 
-                            expos_time  = 0.5,  # (s)
+                            expos_time  = 0.75,  # (s)
                             gain        = 1,        # 1 or 2                              
                             width       = 2048,     # max = 2048
                             height      = 2048,     # max = 2048
@@ -49,23 +49,33 @@ cam_spat_params = setup_cam(cam = cam_spat,
                             binningX    = 1,        # int < 2048
                             binningY    = 1,        # int < 2048
                             encodPix    = 12,       # 12 or 16 bit
-                            snapshot    = True)    # if false => acquire video, if True => acquire an image 
+                            snapshot    = False)    # if false => acquire video, if True => acquire an image 
 #%% get a snapshot of the spatial camera
 mirror.set_position('spatial', verbose = True)
-shutter.open()
-DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, zoom = 1, pattern_to_display = 'gray_33', 
-                              pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4) # white, black or gray_ + pattern number
-data = snapshot_cam(cam = cam_spat, tilt_image = True) # data_format accepted: 8 or 16 bits
-DMD.Halt()
-shutter.close()
+list_pat = [0, 33, 63, 127]
+# pat = 127
+for pat in list_pat:
+    shutter.open()
+    DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, zoom = 1, pattern_to_display = 'gray_'+str(pat), 
+                                  pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) # white, black or gray_ + pattern number
+    data = snapshot_cam(cam = cam_spat, tilt_image = True) # data_format accepted: 8 or 16 bits
+    DMD.Halt()
+    shutter.close()
+    
+    plt.figure()
+    plt.plot(data[250,700:1800])
+    plt.plot(data[500,700:1800]+500)
+    plt.plot(data[1000,700:1800]+1000)
+    plt.plot(data[1500,700:1800]+1500)
+    plt.legend(['250','500','1000','1500'], loc=1)
+    plt.title('pattern n°= ' + str(pat))
 #%% display spatial camera in continous mode
 mirror.set_position('spatial', verbose = True)
 shutter.open()
-stage_adjustment(stage.pidevice)
+# stage_adjustment(stage.pidevice)
 time.sleep(1)
-play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_127', 
-                 
-                 pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4) 
+play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_0', 
+                 pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) 
 display_cam(cam = cam_spat, cam_params = cam_spat_params, display_max = True, display_profile = True)
 DMD.Halt()
 shutter.close()
@@ -73,7 +83,7 @@ position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
 #%% setup the Spectrograph
 spectrograph_params = setup_spectrograph(spectrograph,
                                          grating_nbr =   1, print_select   = True,   # Arg:  1 
-                                         position    = 590, print_position = True,   # the central wavelength of the grating
+                                         position    = 620, print_position = True,   # the central wavelength of the grating
                                          slit_width  = 20000)                          # the width of the slit in (µm)
 #%% setup Spectral Camera
 cam_spec_params = setup_cam(cam = cam_spec, 
@@ -86,7 +96,7 @@ cam_spec_params = setup_cam(cam = cam_spec,
                             binningX    = 8,        # int < 2048        
                             binningY    = 8,        # int < 2048
                             encodPix    = 12,       # 12 or 16 bit
-                            snapshot    = False)    # if false => acquire video, if True => acquire an image   
+                            snapshot    = True)    # if false => acquire video, if True => acquire an image   
 #%% get a snapshot of the spectral camera
 mirror.set_position('spectral', verbose = True)
 shutter.open()
@@ -111,8 +121,8 @@ setup_version            = 'setup_v1.0'
 collection_access        = 'public' #'private'#
 Np                       = 128      # Number of pixels in one dimension of the image (image: NpxNp)
 Nz                       = np.array([position[1]])# to move the stage to acquire the third spatial dimension
-pattern_thickness        = 4
-ti                       = cam_spec_params.exposure_time_μs / 1000 # Integration time of the spectral camera
+pattern_thickness        = 16
+ti                       = cam_spat_params.exposure_time_μs / 1000 # Integration time of the spectral camera
 NAverages                = 1        # Number of avegare (the acquisition is accumulated before moving the grating)
 NRepetitions             = len(Nz)        # Number of repetitions (grating change after that, the acquisition is repeated)
 Lc                       = [(spectrograph_params.position, spectrograph_params.grating.current_grating_nbr)]#, (630, 1), (600, 1), (630, 1), (660, 1), (690, 1), (720, 1)]#, (922, 1), (927, 1)] # [(0, 1), (780, 1), (785, 1), (795, 1), (805, 1), (810, 1)] #[(0, 1), (676, 1), (686, 1), (696, 1), (706, 1), (716, 1)] #[(0, 1), (557, 1), (567, 1), (577, 1), (587, 1), (597, 1)] #[(0, 1), (526, 1), (536, 1), (546, 1), (556, 1), (566, 1)] #[(0, 1), (416, 1), (426, 1), (436, 1), (446, 1), (456, 1)] ##, (832, 2), (852, 2), (872, 2), (892, 2), (912, 2), (932, 2), (952, 2), (972, 2), (992, 2)]## # a vector containig the central wavelength following by the grating number
@@ -120,12 +130,13 @@ array_to_move            = np.linspace(1, 10, 10, endpoint=True)
 zoom                     = 1        # Numerical zoom applied in the DMD
 xw_offset                = 128      # Default = 128
 yh_offset                = 0        # Default = 0
+
 pattern_compression      = 1
 pattern_dim              = '1D'
 scan_mode                = 'Walsh_sparse'  #'Walsh_inv' #'Raster_inv' #'Raster' #
 source                   = 'laser-473nm'#white_LED'#'No source'#'White_Zeiss_lamp'#'Thorlabs_White_halogen_lamp'#'HG-1_Oceanoptics'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
-object_name              = 'fluo-ball-cuve_p4'#'fluo_µsphere-gel-bin10' #
-data_folder_name         = '2026-07-17_test_acqui'#'Patient-69_exvivo_LGG_BU'
+object_name              = 'fluo-cuve3'#'fluo_µsphere-gel-bin10' #
+data_folder_name         = '2026-07-21_calib_light_sheet'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_Lc_' + str(Lc[0][0]) + 'nm_Gr_' + str(Lc[0][1]) + '_' + scan_mode + '_im_'+str(pattern_thickness)+'x'+str(Np)+'_ti_'+str(round(ti))+'ms_zoom_x'+str(zoom)
 
 all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
@@ -139,8 +150,8 @@ if all_path.aborted == False:
     experiment_name      = data_name
     light_source         = source,
     object               = object_name
-    filter               = 'Notch filter at 473 and 532 nm' #+ OD=0.3',''No filter',#'linear colored filter',#'Orange filter (600nm)',#'Dichroic_420nm',#'HighPass_500nm + LowPass_750nm + Dichroic_560nm',#'BandPass filter 560nm Dl=10nm',#'None', # + , #'Nothing',#'Diffuser + HighPass_500nm + LowPass_750nm',##'Microsope objective x40',#'' linear colored filter + OD#0',#'Nothing',#
-    description          = 'formation of the light sheet. I''ve changed the optical tuning' 
+    filter               = 'Notch filters at 473 and 532 nm' #+ OD=0.3',''No filter',#'linear colored filter',#'Orange filter (600nm)',#'Dichroic_420nm',#'HighPass_500nm + LowPass_750nm + Dichroic_560nm',#'BandPass filter 560nm Dl=10nm',#'None', # + , #'Nothing',#'Diffuser + HighPass_500nm + LowPass_750nm',##'Microsope objective x40',#'' linear colored filter + OD#0',#'Nothing',#
+    description          = 'formation of the light sheet. I''ve changed the optical tuning: DMD -200mm-> Lens(f=200) -200mm-> objx4 -30mm-> sample' 
     
     acquisition_params = AcquisitionParameters(pattern_compression = pattern_compression, pattern_dimension_x = pattern_thickness, pattern_dimension_y = Np, 
                                                zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, mask_index = mask_index, 
@@ -166,7 +177,7 @@ if all_path.aborted == False:
         pass
                   
     DMD_params = setup_DMD(DMD = DMD, DMD_initial_memory = DMD_initial_memory, acquisition_params = acquisition_params, 
-                           integration_time = ti, add_illumination_time = 500000) # 30000 si bin ?x? (je pense 4x4, mais possible 8x8), 1000000 pour la mesure de la calibration du feuillet
+                           integration_time = ti, add_illumination_time = 1000000 - ti*1000) # 30000 si bin ?x? (je pense 4x4, mais possible 8x8), 1000000 pour la mesure de la calibration du feuillet
     
 
     if DMD_params.patterns != None:
@@ -191,7 +202,7 @@ raw_data =  acquire(DMD                 = DMD,
                     acquisition_params  = acquisition_params,
                     all_path            = all_path,
                     verbose             = False,
-                    acquisition_arm     = 'spectral')
+                    acquisition_arm     = 'spatial')
 #%% Specral reconstruction
 from scipy import signal
 new_raw = np.zeros(raw_data.shape)
@@ -226,26 +237,27 @@ plt.title('mean for each pattern')
 plt.xlabel('pattern number')
 #%% plot spatial acqui
 from matplotlib import pyplot as plt
-plot_graph = False
-
+plot_graph = True
+save_H_exp = True
+file_name = all_path.subfolder_path + '/H_exp.npy'
 
 if plot_graph:
     for i in range(spatial_acqui.shape[2]):
-        if i < 6 or i == 63 or i == 127 or i == 255:
+        if i < 2 or i == 33 or i == 63 or i == 127:
             plt.figure()
             plt.imshow(spatial_acqui[:, :, i])
             plt.title('pattern n°' + str(i))  
+            plt.colorbar()
 
-rogne1 = 500
+rogne1 = 600
 rogne2 = 1400
-half_thickness = 50
 
 prof = np.empty((rogne2-rogne1, spatial_acqui.shape[2]))    
 for i in range(spatial_acqui.shape[2]):
-    # prof[:, i] = np.mean(spatial_acqui[1024-10:1024+10, :, i], axis=0)
-    prof[:, i] = np.mean(spatial_acqui[1024-half_thickness: 1024+half_thickness, rogne1: rogne2, i], axis=0)
+    prof[:, i] = np.mean(spatial_acqui[1024-10:1024+10, rogne1: rogne2, i], axis=0)
+    # prof[:, i] = spatial_acqui[1024, rogne1: rogne2, i]
     if plot_graph:
-        if i < 6 or i == 63 or i == 127 or i == 255:
+        if i < 2 or i == 33 or i == 63 or i == 127:
             plt.figure()
             plt.plot(prof[:,i])
             plt.title('pattern n°' + str(i)) 
@@ -311,6 +323,9 @@ plt.figure()
 plt.imshow(pos + neg)
 plt.title('sum')
 plt.colorbar()
+
+if save_H_exp:
+    np.save(file_name, pos-neg)
 #%% reco avec la matrix de Had experimentale, mon propre code
 from spyrit.misc.walsh_hadamard import walsh_matrix
 import matplotlib.pyplot as plt
@@ -319,8 +334,6 @@ import torch
 # (https://github.com/openspyrit/spyrit-examples/blob/master/2025_hLSFM/main_v3_recon_net_EGFP-DsRed_14_all_slices.ipynb)
 # H_exp = np.load(Path(data_folder + mat_folder) / f'motifs_Hadamard_{M}_{N}.npy')
 # H_exp /= H_exp[0,16:500].mean()
-
-
 all_path_bu = all_path
 all_path_bu.raw_data_path = '../../data/2026-07-02_calib_light_sheet/obj_fluo_cuve_source_laser-473nm_Lc_580.0nm_Gr_1_Walsh_sparse_im_4x256_ti_25ms_zoom_x1/raw_data'
 acquisition_params_bu = acquisition_params
@@ -335,23 +348,18 @@ for i in range(spatial_acqui.shape[2]):
 
 prof2 = np.rot90(prof, 1)
 prof3 = np.flip(prof2, axis = 0)
-prof4 = binArray(prof3, 1, 8, 8)
-pos = prof4[0::2, :]
-neg = prof4[1::2, :]
+prof4 = binArray(prof3, 1, 2, 2)
+pos = prof3[0::2, :]
+neg = prof3[1::2, :]
 
 H_exp = pos - neg
-
-# h_epx_file_name = '../../data/2026-07-17_light_sheet_calib/obj_fluo-cuve_source_laser-473nm_Lc_590.0nm_Gr_1_Walsh_sparse_im_4x256_ti_250ms_zoom_x1/H_exp.npy'
-# mat = np.load(h_epx_file_name)
-# H_exp = mat
 
 plt.figure()
 plt.imshow(H_exp)
 plt.title('H_exp')
 
 H_exp_rogn = H_exp[:, 512:512+1024]
-# H_exp_bin = binArray(H_exp_rogn, axis = 1, binstep = 4, binsize = 4)
-H_exp_bin = H_exp
+H_exp_bin = binArray(H_exp_rogn, axis = 1, binstep = 4, binsize = 4)
 
 plt.figure()
 plt.imshow(H_exp_bin)
@@ -400,7 +408,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 y = y.to(device)
 M = H_exp_bin.shape[0]
 N = H_exp_bin.shape[1]
-y = y.reshape(-1,1,N,M)
+y = y.view(-1,1,N,M)
 
 plt.figure()
 plt.imshow(y[:,0,:,0])
