@@ -44,8 +44,8 @@ cam_spat_params = setup_cam(cam = cam_spat,
                             gain        = 1,        # 1 or 2                              
                             width       = 2048,     # max = 2048
                             height      = 2048,     # max = 2048
-                            offsetX     = 1,        # 1
-                            offsetY     = 1,        # 1
+                            offsetX     = 1,        # min = 1
+                            offsetY     = 1,        # min = 1
                             binningX    = 1,        # int < 2048
                             binningY    = 1,        # int < 2048
                             encodPix    = 12,       # 12 or 16 bit
@@ -53,8 +53,8 @@ cam_spat_params = setup_cam(cam = cam_spat,
 #%% get a snapshot of the spatial camera
 mirror.set_position('spatial', verbose = True)
 shutter.open()
-DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, zoom = 1, pattern_to_display = 'gray_33', 
-                              pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4) # white, black or gray_ + pattern number
+DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, zoom = 1, pattern_to_display = 'gray_0', 
+                              pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) # white, black or gray_ + pattern number
 data = snapshot_cam(cam = cam_spat, tilt_image = True) # data_format accepted: 8 or 16 bits
 DMD.Halt()
 shutter.close()
@@ -63,9 +63,9 @@ mirror.set_position('spatial', verbose = True)
 shutter.open()
 stage_adjustment(stage.pidevice)
 time.sleep(1)
-play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_127', 
+play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_0', 
                  
-                 pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4) 
+                 pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) 
 display_cam(cam = cam_spat, cam_params = cam_spat_params, display_max = True, display_profile = True)
 DMD.Halt()
 shutter.close()
@@ -73,11 +73,11 @@ position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
 #%% setup the Spectrograph
 spectrograph_params = setup_spectrograph(spectrograph,
                                          grating_nbr =   1, print_select   = True,   # Arg:  1 
-                                         position    = 590, print_position = True,   # the central wavelength of the grating
+                                         position    = 600, print_position = True,   # the central wavelength of the grating
                                          slit_width  = 20000)                          # the width of the slit in (µm)
 #%% setup Spectral Camera
 cam_spec_params = setup_cam(cam = cam_spec, 
-                            expos_time  = 0.1,        # (s)
+                            expos_time  = 0.5,        # (s)
                             gain        = 1,        # 1 or 2                              
                             width       = 2048,     # max = 2048
                             height      = 2048,     # max = 2048
@@ -99,19 +99,20 @@ shutter.close()
 #%% display spectral camera in continous mode
 mirror.set_position('spectral', verbose = True)
 shutter.open()
-# stage_adjustment(stage.pidevice)
-# time.sleep(1)
+stage_adjustment(stage.pidevice)
+time.sleep(1)
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'white', 
                               pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4) 
 display_cam(cam = cam_spec, cam_params = cam_spec_params, display_max = False, display_integral = True)
 DMD.Halt()
 shutter.close()
+position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
 #%% setup acquisition
 setup_version            = 'setup_v1.0'
 collection_access        = 'public' #'private'#
 Np                       = 128      # Number of pixels in one dimension of the image (image: NpxNp)
 Nz                       = np.array([position[1]])# to move the stage to acquire the third spatial dimension
-pattern_thickness        = 4
+pattern_thickness        = 16
 ti                       = cam_spec_params.exposure_time_μs / 1000 # Integration time of the spectral camera
 NAverages                = 1        # Number of avegare (the acquisition is accumulated before moving the grating)
 NRepetitions             = len(Nz)        # Number of repetitions (grating change after that, the acquisition is repeated)
@@ -123,9 +124,9 @@ yh_offset                = 0        # Default = 0
 pattern_compression      = 1
 pattern_dim              = '1D'
 scan_mode                = 'Walsh_sparse'  #'Walsh_inv' #'Raster_inv' #'Raster' #
-source                   = 'laser-473nm'#white_LED'#'No source'#'White_Zeiss_lamp'#'Thorlabs_White_halogen_lamp'#'HG-1_Oceanoptics'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
-object_name              = 'fluo-ball-cuve_p4'#'fluo_µsphere-gel-bin10' #
-data_folder_name         = '2026-07-17_test_acqui'#'Patient-69_exvivo_LGG_BU'
+source                   = 'lasers-532nm'#white_LED'#'No source'#'White_Zeiss_lamp'#'Thorlabs_White_halogen_lamp'#'HG-1_Oceanoptics'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
+object_name              = 'leg_n1-3_p1_y0.05'#'fluo_µsphere-gel-bin10' #
+data_folder_name         = '2026-07-24_Drosophila'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_Lc_' + str(Lc[0][0]) + 'nm_Gr_' + str(Lc[0][1]) + '_' + scan_mode + '_im_'+str(pattern_thickness)+'x'+str(Np)+'_ti_'+str(round(ti))+'ms_zoom_x'+str(zoom)
 
 all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
@@ -140,7 +141,7 @@ if all_path.aborted == False:
     light_source         = source,
     object               = object_name
     filter               = 'Notch filter at 473 and 532 nm' #+ OD=0.3',''No filter',#'linear colored filter',#'Orange filter (600nm)',#'Dichroic_420nm',#'HighPass_500nm + LowPass_750nm + Dichroic_560nm',#'BandPass filter 560nm Dl=10nm',#'None', # + , #'Nothing',#'Diffuser + HighPass_500nm + LowPass_750nm',##'Microsope objective x40',#'' linear colored filter + OD#0',#'Nothing',#
-    description          = 'formation of the light sheet. I''ve changed the optical tuning' 
+    description          = 'Sample: 5–6 Drosophila melanogaster legs with GFP and RFP fluoresence in muscles. Central wavelength of the spectrograph is ok, wavelength vector is not calibrated, warning! Optical setup: DMD -- 200mm --> Lens(f=200) -- 200mm --> objx4 -- 18mm --> sample' 
     
     acquisition_params = AcquisitionParameters(pattern_compression = pattern_compression, pattern_dimension_x = pattern_thickness, pattern_dimension_y = Np, 
                                                zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, mask_index = mask_index, 
@@ -166,7 +167,7 @@ if all_path.aborted == False:
         pass
                   
     DMD_params = setup_DMD(DMD = DMD, DMD_initial_memory = DMD_initial_memory, acquisition_params = acquisition_params, 
-                           integration_time = ti, add_illumination_time = 500000) # 30000 si bin ?x? (je pense 4x4, mais possible 8x8), 1000000 pour la mesure de la calibration du feuillet
+                           integration_time = ti, add_illumination_time = 30000) # 30000 si bin ?x? (je pense 4x4, mais possible 8x8), 1000000 pour la mesure de la calibration du feuillet
     
 
     if DMD_params.patterns != None:
@@ -202,53 +203,11 @@ had_reco_all = live_hadamard_reco(new_raw, acquisition_params)
 #%% Spatial reconstruction
 spatial_acqui = spatial_reco(acquisition_params, all_path)
 #%% Plot Spatial and had reconstruction
-plot_acqui(had_reco_all, spatial_acqui, acquisition_params, all_path)
-#%% plot raw data
-from matplotlib import pyplot as plt
-
-for i in range(3):
-    plt.figure()
-    plt.imshow(np.squeeze(raw_data[:, :, i, 0, 0, 0]))
-    plt.colorbar()
-    plt.title('pattern n° ' + str(i))
-
-plt.figure()
-plt.imshow(np.squeeze(raw_data[:, 0, :, 0, 0, 0]))
-plt.title('y = 0')
-
-plt.figure()
-plt.imshow(np.squeeze(raw_data[0, :, :, 0, 0, 0]))
-plt.title('x = 0')
-
-plt.figure()
-plt.plot(np.squeeze(np.mean(np.mean(raw_data, axis=1),axis=0)))
-plt.title('mean for each pattern')
-plt.xlabel('pattern number')
-#%% plot spatial acqui
-from matplotlib import pyplot as plt
-plot_graph = False
-
-
-if plot_graph:
-    for i in range(spatial_acqui.shape[2]):
-        if i < 6 or i == 63 or i == 127 or i == 255:
-            plt.figure()
-            plt.imshow(spatial_acqui[:, :, i])
-            plt.title('pattern n°' + str(i))  
-
-rogne1 = 500
-rogne2 = 1400
-half_thickness = 50
-
-prof = np.empty((rogne2-rogne1, spatial_acqui.shape[2]))    
-for i in range(spatial_acqui.shape[2]):
-    # prof[:, i] = np.mean(spatial_acqui[1024-10:1024+10, :, i], axis=0)
-    prof[:, i] = np.mean(spatial_acqui[1024-half_thickness: 1024+half_thickness, rogne1: rogne2, i], axis=0)
-    if plot_graph:
-        if i < 6 or i == 63 or i == 127 or i == 255:
-            plt.figure()
-            plt.plot(prof[:,i])
-            plt.title('pattern n°' + str(i)) 
+plot_acqui(had_reco_all, spatial_acqui, acquisition_params, all_path)#, med_filt = True)
+#%% reco avec la matrix de Had experimentale, mon propre code
+from spyrit.misc.walsh_hadamard import walsh_matrix
+import matplotlib.pyplot as plt
+import torch
 
 def binArray(data, axis, binstep, binsize, func=np.nanmean):
     """
@@ -282,39 +241,6 @@ def binArray(data, axis, binstep, binsize, func=np.nanmean):
     data = np.array(data).transpose(argdims)
     return data
 
-prof2 = np.rot90(prof, 1)
-prof3 = np.flip(prof2, axis = 0)
-prof4 = binArray(prof3, 1, 4, 4)
-
-pos = prof4[0::2, :]
-neg = prof4[1::2, :]
-
-# plt.figure()
-# plt.plot(pos[:, 0])
-
-plt.figure()
-plt.imshow(pos)
-plt.title('pos')
-plt.colorbar()
-
-plt.figure()
-plt.imshow(neg)
-plt.title('neg')
-plt.colorbar()
-
-plt.figure()
-plt.imshow(pos - neg)
-plt.title('diff')
-plt.colorbar()
-
-plt.figure()
-plt.imshow(pos + neg)
-plt.title('sum')
-plt.colorbar()
-#%% reco avec la matrix de Had experimentale, mon propre code
-from spyrit.misc.walsh_hadamard import walsh_matrix
-import matplotlib.pyplot as plt
-import torch
 # Load Hadamard matrices
 # (https://github.com/openspyrit/spyrit-examples/blob/master/2025_hLSFM/main_v3_recon_net_EGFP-DsRed_14_all_slices.ipynb)
 # H_exp = np.load(Path(data_folder + mat_folder) / f'motifs_Hadamard_{M}_{N}.npy')
@@ -322,40 +248,53 @@ import torch
 
 
 all_path_bu = all_path
-all_path_bu.raw_data_path = '../../data/2026-07-02_calib_light_sheet/obj_fluo_cuve_source_laser-473nm_Lc_580.0nm_Gr_1_Walsh_sparse_im_4x256_ti_25ms_zoom_x1/raw_data'
+all_path_bu.raw_data_path = '../../data/2026-07-21_calib_light_sheet/obj_fluo-cuve3_source_laser-473nm_Lc_620.0nm_Gr_1_Walsh_sparse_im_4x128_ti_750ms_zoom_x1/raw_data'
 acquisition_params_bu = acquisition_params
-acquisition_params_bu.Nz = 7.5001265
-acquisition_params_bu.Lc[0] = (580.0, 1)
+acquisition_params_bu.Nz = 7.5000029
+acquisition_params_bu.Lc[0] = (620.0, 1)
 acquisition_params_bu.NAverages = 1
 
-spatial_acqui = spatial_reco(acquisition_params_bu, all_path_bu)
-prof = np.empty((spatial_acqui.shape[1], spatial_acqui.shape[2]))    
+# spatial_acqui = spatial_reco(acquisition_params_bu, all_path_bu)
+
+spatial_acqui_arr = np.load(all_path_bu.raw_data_path + '/spatial_Ny_7.5000029mm_Gr_1_Lc_620.0nm_NA_0.npz')
+spatial_acqui = spatial_acqui_arr['arr_0']
+
+rogne1 = 620
+rogne2 = 1320
+
+# prof = np.empty((spatial_acqui.shape[1], spatial_acqui.shape[2]))    
+prof = np.empty((rogne2 - rogne1, spatial_acqui.shape[2]))  
+
 for i in range(spatial_acqui.shape[2]):
-    prof[:, i] = spatial_acqui[1024, :, i]
+    prof[:, i] = np.squeeze(np.mean(spatial_acqui[rogne1:rogne2, 1024-10:1024+10, i], axis = 1))
+    if 1 == 2:#i >= 2 and i <= 6:
+        plt.figure()
+        plt.plot(prof[:, i])
+        plt.title('i = ' + str(i))
 
 prof2 = np.rot90(prof, 1)
 prof3 = np.flip(prof2, axis = 0)
-prof4 = binArray(prof3, 1, 8, 8)
+prof4 = binArray(prof3, 1, 2.734, 2.734)
 pos = prof4[0::2, :]
 neg = prof4[1::2, :]
 
 H_exp = pos - neg
 
-# h_epx_file_name = '../../data/2026-07-17_light_sheet_calib/obj_fluo-cuve_source_laser-473nm_Lc_590.0nm_Gr_1_Walsh_sparse_im_4x256_ti_250ms_zoom_x1/H_exp.npy'
-# mat = np.load(h_epx_file_name)
-# H_exp = mat
+# H_exp_path = '../../data/2026-07-21_calib_light_sheet/obj_fluo-cuve3_source_laser-473nm_Lc_620.0nm_Gr_1_Walsh_sparse_im_4x256_ti_750ms_zoom_x1/H_exp.npy'
+# H_exp = np.load(H_exp_path)
 
-plt.figure()
-plt.imshow(H_exp)
-plt.title('H_exp')
+
+# plt.figure()
+# plt.imshow(H_exp)
+# plt.title('H_exp')
 
 H_exp_rogn = H_exp[:, 512:512+1024]
 # H_exp_bin = binArray(H_exp_rogn, axis = 1, binstep = 4, binsize = 4)
 H_exp_bin = H_exp
 
-plt.figure()
-plt.imshow(H_exp_bin)
-plt.title('H_exp_bin')
+# plt.figure()
+# plt.imshow(H_exp_bin)
+# plt.title('H_exp_bin')
 
 # Load positve data
 prep_pos = np.array(raw_data[:, :, 0::2, 0, 0, 0], dtype = np.int64)
@@ -372,23 +311,23 @@ prep_neg = np.swapaxes(prep_neg, 0, 1)
 
 prep_pos
 
-plt.figure()
-plt.imshow(prep_pos[:,:,0])
-plt.title('prep_pos')
-plt.colorbar()
+# plt.figure()
+# plt.imshow(prep_pos[:,:,0])
+# plt.title('prep_pos')
+# plt.colorbar()
 
-plt.figure()
-plt.imshow(prep_neg[:,:,0])
-plt.title('prep_neg')
-plt.colorbar()
+# plt.figure()
+# plt.imshow(prep_neg[:,:,0])
+# plt.title('prep_neg')
+# plt.colorbar()
 
 # param #2
 y = prep_pos - prep_neg 
 
-plt.figure()
-plt.imshow(y[:,:,0])
-plt.title('y')
-plt.colorbar()
+# plt.figure()
+# plt.imshow(y[:,:,0])
+# plt.title('y')
+# plt.colorbar()
 
 
 y = torch.from_numpy(y)
@@ -402,10 +341,10 @@ M = H_exp_bin.shape[0]
 N = H_exp_bin.shape[1]
 y = y.reshape(-1,1,N,M)
 
-plt.figure()
-plt.imshow(y[:,0,:,0])
-plt.title('y')
-plt.colorbar()
+# plt.figure()
+# plt.imshow(y[:,0,:,0])
+# plt.title('y')
+# plt.colorbar()
 
 from spyrit.core.meas  import Linear
 from spyrit.core.recon import PinvNet
@@ -413,7 +352,8 @@ from spyrit.misc.disp import add_colorbar, noaxis
 
 linop = Linear(torch.from_numpy(H_exp_bin), meas_shape = (1,256), device=device) 
 recon = PinvNet(linop, store_H_pinv=True, device=device)
-
+#%% plot the reco by H_exp
+save_fig = True
 # init output
 rec = np.zeros((N, N))
 recs = []
@@ -422,8 +362,8 @@ lambdas = []
 lambda_all = acquisition_params.wavelengths
 # lambda_central_list = [560, 580, 600, 620, 640]
 lambda_central_list = [spectrograph_params.position]
-c_step = 60
-#%%
+c_step = 10
+
 for lambda_central in lambda_central_list:
     with torch.no_grad():
         c_central = np.argmin((lambda_all-lambda_central)**2) # Central channel
@@ -432,9 +372,9 @@ for lambda_central in lambda_central_list:
         rec_gpu = recon.reconstruct_pinv(m)
         rec = rec_gpu.cpu().detach().numpy().squeeze()
         rec = np.moveaxis(rec, 0, -1) # spectral channel is now the last axis
-        rec = np.flip(rec,0)
+        # rec = np.flip(rec,0)
         rec = np.fliplr(rec)
-        rec = np.rot90(rec,-1)
+        rec = np.rot90(rec,1)
         
         # Plot 
         fig, axs = plt.subplots(1, 1, figsize=(5,5))
@@ -442,174 +382,11 @@ for lambda_central in lambda_central_list:
         axs.set_title(f'{lambda_central} nm') 
         add_colorbar(im, 'bottom') 
         noaxis(axs)
+        if save_fig:
+            plt.savefig(all_path.overview_path + '/spectral_GRAY_IMAGE_had_reco_by_H_exp_' + str(lambda_central) + 'nm.png', dpi=300, bbox_inches='tight')
                 
     recs.append(rec)
     lambdas.append(lambda_central)
-        
-    # # Plot 
-    # fig, axs = plt.subplots(1, 1, figsize=(5,5))
-    # im = axs.imshow(rec) 
-    # axs.set_title(f'{lambda_central} nm') 
-    # add_colorbar(im, 'bottom') 
-    # noaxis(axs)
-
-
-# H_tar = walsh_matrix(N)
-# H_tar = H_tar[:M]
-
-# # plot
-# f, axs = plt.subplots(2, 1)
-# axs[0].set_title('Target measurement patterns')
-# im = axs[0].imshow(H_tar, cmap='gray') 
-# add_colorbar(im, 'bottom')
-# axs[0].get_xaxis().set_visible(False)
-
-# axs[1].set_title('Experimental EGFP measurement patterns')
-# im = axs[1].imshow(H_exp, cmap='gray') 
-# add_colorbar(im, 'bottom')
-# axs[1].get_xaxis().set_visible(False)
-
-# H = torch.from_numpy(H_exp)
-
-# # # recon
-# # (https://spyrit.readthedocs.io/en/3.1.1/gallery/tuto_03_pseudoinverse_linear.html)
-
-# from spyrit.core.inverse import PseudoInverse
-# from spyrit.core.prep import Unsplit
-
-# prep = Unsplit()
-# meas = LinearSplit(H, meas_shape=(1, N),  noise_model=noise, device=device)
-# pinv = PseudoInverse(meas)
-
-# m = prep(y)
-# x = pinv(m) 	# x[i,:] = H\(y[i,:] - y[i+1,:]) for all channels
-#%% ######################## Set Up ####################################
-import collections
-collections.Callable = collections.abc.Callable
-
-fig_folder = './figure/'
-
-from pathlib import Path
-from spyrit.misc.disp import add_colorbar, noaxis
-import matplotlib.pyplot as plt
-import numpy as np
-import torch
-from spyrit.core.meas  import Linear
-from spyrit.core.recon import PinvNet
-
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-# Choose to save or display
-save_rec = False
-save_fig = False
-ext_fig = 'pdf'
-dpi_fig = 600
-
-
-# Data paths
-data_folder = '../../data/2023_03_07_mRFP_DsRed_can_vs_had/' # data folder for can vs had example
-mat_folder = '/Reconstruction/Mat_rc/'                   # location of prepped matrices
-prep_folder = '/Preprocess/'                             # location of prepped data
-hypercube_folder = 'Reconstruction/hypercube'            # where reconstructed hypercubes will be saved to 
-
-# experimental parameters
-nbin = 20*4
-mudark = 105.0
-sigdark = 5.0
-gain = 2.6
-
-M = 64
-N = 512
-
-# reconstruction constants
-div = 1.5
-alpha = 50
-channel = 10, 55, 100       # to be plotted
-Nl, Nh, Nc = 512, 64, 1280  # shape of preprocessed data
- 
-# Spectral binning **around** the central channel. The preprocessed data were binned 
-# spectrally by a factor of two. Choosing c_step = 5 leads to spectral bins with 
-# 2*(2*5) channels.
-
-c_step = 10
-lambda_central_list = np.arange(510, 598, 12, dtype=int)  # Central channel in nanometer
-lambda_all = np.linspace(500, 608, Nc)
-
-#%%##################### Hadamard Reco ##########################
-
-Run = 'RUN0004' 
-
-# load experimentally measured motifs
-H_exp = np.load(Path(data_folder + mat_folder) / f'hadamard_matrix_{M}_{N}.npy')
-H_exp /= H_exp[0,16:500].mean()
-   
-# Load prepedp data
-filename = f'{Run}_Had_{Nl}_{Nh}_{Nc}_pos.npy'
-prep_pos = np.load(Path(data_folder+prep_folder) / filename)
-
-filename = f'{Run}_Had_{Nl}_{Nh}_{Nc}_neg.npy'
-prep_neg =  np.load(Path(data_folder+prep_folder) / filename)
-
-# spectral dimension comes first
-prep_pos = np.moveaxis(prep_pos, -1, 0)
-prep_neg = np.moveaxis(prep_neg, -1, 0)
-
-# param #2
-y = prep_pos - prep_neg 
-y = torch.from_numpy(y)
-
-print(f'Loaded: {filename[:-8]}')
-print(f'Pos data: range={prep_pos.max() - prep_pos.min()} counts; mean={prep_pos.mean()} counts')  
-
-y = y.to(device)
-y = y.view(-1,1,N,M)
-
-plt.figure()
-plt.imshow(y[:,0,:,0])
-plt.title('y')
-plt.colorbar()
-
-#%%########################## Pinv Reco ############################
-linop = Linear(torch.from_numpy(H_exp), meas_shape = (1,512), device=device) 
-recon = PinvNet(linop, store_H_pinv=True, device=device)
-
-# init output
-rec = np.zeros((N, N))
-recs = []
-lambdas = []
-
-for lambda_central in lambda_central_list:
-    with torch.no_grad():
-        c_central = np.argmin((lambda_all-lambda_central)**2) # Central channel
-        m = y[c_central-c_step:c_central+c_step].sum(0, keepdim=True).to(device, torch.float32)
-        print(f'reconstructing spectral bin from channels: {c_central-c_step}--{c_central+c_step}')
-        rec_gpu = recon.reconstruct_pinv(m)
-        rec = rec_gpu.cpu().detach().numpy().squeeze()
-        rec = np.moveaxis(rec, 0, -1) # spectral channel is now the last axis
-        rec = np.flip(rec,0)
-        rec = np.fliplr(rec)
-        rec = np.rot90(rec,-1)
-                
-    recs.append(rec)
-    lambdas.append(lambda_central)
-        
-    if save_rec:
-        Path(data_folder+hypercube_folder).mkdir(parents=True, exist_ok=True)
-            
-        save_filename = f'had_{lambda_central}_{N}x{N}.npy'
-        np.save(Path(data_folder+hypercube_folder) / save_filename, rec)
-
-        # Plot 
-    fig, axs = plt.subplots(1, 1, figsize=(5,5))
-    im = axs.imshow(rec) 
-    axs.set_title(f'{lambda_central} nm') 
-    add_colorbar(im, 'bottom') 
-    noaxis(axs)
-
-    if save_fig:
-        save_filename = f'had_{lambda_central}_{N}x{N}.{ext_fig}'
-        plt.savefig(Path(data_folder+hypercube_folder)/save_filename, bbox_inches='tight', dpi=dpi_fig)
-    plt.close(fig)
 #%%
 import collections
 collections.Callable = collections.abc.Callable

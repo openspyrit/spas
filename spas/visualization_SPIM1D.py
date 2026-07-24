@@ -17,6 +17,7 @@ from spas.reconstruction_nn import reorder_subsample, reconstruct
 # from spas.DMD_module import DMDParameters 
 from spas.acquisition_SPIM1D import read_metadata
 import time
+from scipy import signal
 
 
 def spectral_binning(F: np.ndarray, wavelengths: np.ndarray, lambda_min: int, 
@@ -554,26 +555,30 @@ def plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, netw
     plt.show()
     
     
-def plot_spatial_acqui(acquisition_parameters, spatial_acqui, all_path):
+def plot_spatial_acqui(acquisition_parameters, spatial_acqui, all_path, med_filt: bool = True):
     """
     plot the spatial arm acquisition
 
     Parameters
     ----------
-    acquisition_parameters : TYPE
+    acquisition_parameters : object
+        metadata of the acquisition.
+    spatial_acqui : numpy array
         DESCRIPTION.
-    spatial_acqui : TYPE
-        DESCRIPTION.
-    all_path : TYPE
-        DESCRIPTION.
-    overwrite : TYPE, optional
-        DESCRIPTION. The default is True.
+    all_path : object
+        all the path.
+    med_filt : bool, default is TRue.
+        apply a median filter on the data to take of spike, hot point.
 
     Returns
     -------
     None.
 
     """
+    
+    ######################### 2d median filter ################################
+    if med_filt:
+        spatial_acqui = signal.medfilt2d(spatial_acqui, kernel_size = 3)
     
     fig_spatial_path = all_path.fig_spatial_path
     

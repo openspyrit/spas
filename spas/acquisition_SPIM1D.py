@@ -861,7 +861,7 @@ def acquire(DMD: ALP4,
             
             if acq_aborded == False:
                 if first_acqui:
-                    time.sleep(1.4) # avant c'était 1.2, changé pour faire l'acqui avec la cam spatiale
+                    time.sleep(2) # avant c'était 1.2, changé pour faire l'acqui avec la cam spatiale
                     begin_acqui = time.time()
                     first_acqui = False
             

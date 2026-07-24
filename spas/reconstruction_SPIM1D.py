@@ -129,7 +129,7 @@ def spatial_reco(acquisition_params, all_path):
                 raw_data_file.close()
                 
                 if fisrt_pass == True:
-                    spatial_acqui = np.empty((raw_data.shape + (NR, NLc, NA)), dtype = np.int16)
+                    spatial_acqui = np.empty((raw_data.T.shape + (NR, NLc, NA)), dtype = np.int16)
                     fisrt_pass = False
                  
                 raw_data = np.rot90(raw_data, k=1, axes=(0,1))
