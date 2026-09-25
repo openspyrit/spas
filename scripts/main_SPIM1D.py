@@ -40,7 +40,7 @@ position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
 # go_to_zero(stage.pidevice, stage.stage_tools)
 #%% setup Spatial Camera
 cam_spat_params = setup_cam(cam = cam_spat, 
-                            expos_time  = 0.5,  # (s)
+                            expos_time  = 0.05,  # (s)
                             gain        = 1,        # 1 or 2                              
                             width       = 2048,     # max = 2048
                             height      = 2048,     # max = 2048
@@ -53,7 +53,7 @@ cam_spat_params = setup_cam(cam = cam_spat,
 #%% get a snapshot of the spatial camera
 mirror.set_position('spatial', verbose = True)
 shutter.open()
-DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, zoom = 1, pattern_to_display = 'gray_0', 
+DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, zoom = 1, pattern_to_display = 'gray_33', 
                               pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) # white, black or gray_ + pattern number
 data = snapshot_cam(cam = cam_spat, tilt_image = True) # data_format accepted: 8 or 16 bits
 DMD.Halt()
@@ -61,9 +61,9 @@ shutter.close()
 #%% display spatial camera in continous mode
 mirror.set_position('spatial', verbose = True)
 shutter.open()
-stage_adjustment(stage.pidevice)
+# stage_adjustment(stage.pidevice)
 time.sleep(1)
-play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_0', 
+play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_33', 
                  
                  pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) 
 display_cam(cam = cam_spat, cam_params = cam_spat_params, display_max = True, display_profile = True)
