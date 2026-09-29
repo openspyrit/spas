@@ -10,13 +10,14 @@ The main software to acquire in 1D an hyperspectral cube with the SPIM
 
 # packages
 import os
-os.chdir('E:\\openspyrit\\spas\\scripts')
+os.chdir('C:\\openspyrit\\spas\\scripts')
 import numpy as np
 import time
 import math
-from spas.transfer_data_to_girder import transfer_data_SPIM1D
-from spas.DMD_module import init_DMD, disconnect_DMD, change_patterns, setup_DMD, play_one_pattern
+from matplotlib import pyplot as plt
+
 from spas.spectro_ShamrockAndor_module import init_spectrograph, disconnect_spectrograph, setup_spectrograph
+from spas.DMD_module import init_DMD, disconnect_DMD, change_patterns, setup_DMD, play_one_pattern
 from spas.cam_Andor_module import init_cam_spat, init_cam_spec, disconnect_cam, setup_cam, snapshot_cam, display_cam
 from spas.PI_module import init_PI, disconnect_stage, read_position, move_to_middle, stage_adjustment, stage_parameters, go_to_zero
 from spas.shutter_TSC001_module import ThorlabsShutter
@@ -24,8 +25,7 @@ from spas.flipping_mirror_MFF101_module import MFF
 from spas.acquisition_SPIM1D import AcquisitionParameters, func_path, acquire, define_wavelengths_matrix, plot_spectrum
 from spas.reconstruction_SPIM1D import live_hadamard_reco, spatial_reco
 from spas.visualization_SPIM1D import plot_acqui
-
-from matplotlib import pyplot as plt
+from spas.transfer_data_to_girder import transfer_data_SPIM1D
 #%% Initialize hardware
 spectrograph = init_spectrograph(model = 'andor_shamrock')
 DMD, DMD_initial_memory = init_DMD(dmd_lib_version = '4.3')
@@ -53,8 +53,8 @@ cam_spat_params = setup_cam(cam = cam_spat,
 #%% get a snapshot of the spatial camera
 mirror.set_position('spatial', verbose = True)
 shutter.open()
-DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, zoom = 1, pattern_to_display = 'gray_33', 
-                              pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) # white, black or gray_ + pattern number
+DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, zoom = 1, pattern_to_display = 'gray_33', # white, black or gray_ + pattern number
+                              pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) 
 data = snapshot_cam(cam = cam_spat, tilt_image = True) # data_format accepted: 8 or 16 bits
 DMD.Halt()
 shutter.close()
@@ -110,7 +110,7 @@ position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
 #%% setup acquisition
 setup_version            = 'setup_v1.0'
 collection_access        = 'public' #'private'#
-Np                       = 128      # Number of pixels in one dimension of the image (image: NpxNp)
+Np                       = 128      # Number of pixels in one dimension of the image (image: Np*Np)
 Nz                       = np.array([position[1]])# to move the stage to acquire the third spatial dimension
 pattern_thickness        = 16
 ti                       = cam_spec_params.exposure_time_μs / 1000 # Integration time of the spectral camera

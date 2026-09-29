@@ -47,7 +47,7 @@ def init_DMD(dmd_lib_version: str = '4.2') -> Tuple[ALP4, int]:
     # Initializing DMD
     stop_init = False
     if dmd_lib_version == '4.1':
-        print('dmd lib version = ' + dmd_lib_version + ' not installed, please, install it at the location : "openspyrit/spas/alpV41"')
+        print('dmd lib version = ' + dmd_lib_version + ' not installed, please, install it at the location : "lib/alpV41"')
         stop_init = True
     elif dmd_lib_version == '4.2':
         dll_path = Path(__file__).parent.parent.joinpath('lib/alpV42').__str__()
