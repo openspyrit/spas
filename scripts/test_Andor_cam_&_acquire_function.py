@@ -13,7 +13,7 @@ import time
 import math
 
 from spas.DMD_module import init_DMD, disconnect_DMD, change_patterns, setup_DMD, play_one_pattern
-from spas.spectro_ShamrockAndor_module import init_spectrograph, disconnect_spectrograph, setup_spectrograph
+from spas.spectro_ShamrockAndor_module_pylablib_pack import init_spectrograph, disconnect_spectrograph, setup_spectrograph
 from spas.cam_Andor_module import init_cam_spat, init_cam_spec, disconnect_cam, setup_cam, snapshot_cam, display_cam
 from spas.PI_module import init_PI, disconnect_stage, read_position, move_to_middle, stage_adjustment, stage_parameters
 from spas.shutter_TSC001_module import ThorlabsShutter

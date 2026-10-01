@@ -10,13 +10,15 @@ The main software to acquire in 1D an hyperspectral cube with the SPIM
 
 # packages
 import os
-os.chdir('E:\\openspyrit\\spas\\scripts')
+os.chdir('C:\\openspyrit\\spas\\scripts')
 import numpy as np
 import time
 import math
+from matplotlib import pyplot as plt
+
 from spas.transfer_data_to_girder import transfer_data_SPIM1D
 from spas.DMD_module import init_DMD, disconnect_DMD, change_patterns, setup_DMD, play_one_pattern
-from spas.spectro_ShamrockAndor_module import init_spectrograph, disconnect_spectrograph, setup_spectrograph
+from spas.spectro_Shamrock_module import init_spectrograph, disconnect_spectrograph, setup_spectrograph
 from spas.cam_Andor_module import init_cam_spat, init_cam_spec, disconnect_cam, setup_cam, snapshot_cam, display_cam
 from spas.PI_module import init_PI, disconnect_stage, read_position, move_to_middle, stage_adjustment, stage_parameters, go_to_zero
 from spas.shutter_TSC001_module import ThorlabsShutter
@@ -24,8 +26,6 @@ from spas.flipping_mirror_MFF101_module import MFF
 from spas.acquisition_SPIM1D import AcquisitionParameters, func_path, acquire, define_wavelengths_matrix, plot_spectrum
 from spas.reconstruction_SPIM1D import live_hadamard_reco, spatial_reco
 from spas.visualization_SPIM1D import plot_acqui
-
-from matplotlib import pyplot as plt
 #%% Initialize hardware
 spectrograph = init_spectrograph(model = 'andor_shamrock')
 DMD, DMD_initial_memory = init_DMD(dmd_lib_version = '4.3')
@@ -40,7 +40,7 @@ position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
 # go_to_zero(stage.pidevice, stage.stage_tools)
 #%% setup Spatial Camera
 cam_spat_params = setup_cam(cam = cam_spat, 
-                            expos_time  = 0.75,  # (s)
+                            expos_time  = 0.25,  # (s)
                             gain        = 1,        # 1 or 2                              
                             width       = 2048,     # max = 2048
                             height      = 2048,     # max = 2048
@@ -74,7 +74,7 @@ mirror.set_position('spatial', verbose = True)
 shutter.open()
 # stage_adjustment(stage.pidevice)
 time.sleep(1)
-play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_0', 
+play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_33', 
                  pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) 
 display_cam(cam = cam_spat, cam_params = cam_spat_params, display_max = True, display_profile = True)
 DMD.Halt()
@@ -84,7 +84,9 @@ position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
 spectrograph_params = setup_spectrograph(spectrograph,
                                          grating_nbr =   1, print_select   = True,   # Arg:  1 
                                          position    = 620, print_position = True,   # the central wavelength of the grating
-                                         slit_width  = 20000)                          # the width of the slit in (µm)
+                                         slit_width  = None,                         # the width of the input slit in (µm), None : not changed
+                                         input_port  = None,                         # 'direct' or 'side', None : not changed
+                                         output_port = None, print_ports  = True)    # 'direct' or 'side', None : not changed
 #%% setup Spectral Camera
 cam_spec_params = setup_cam(cam = cam_spec, 
                             expos_time  = 0.1,        # (s)

@@ -16,7 +16,7 @@ import time
 import math
 from matplotlib import pyplot as plt
 
-from spas.spectro_ShamrockAndor_module import init_spectrograph, disconnect_spectrograph, setup_spectrograph
+from spas.spectro_Shamrock_module import init_spectrograph, disconnect_spectrograph, setup_spectrograph
 from spas.DMD_module import init_DMD, disconnect_DMD, change_patterns, setup_DMD, play_one_pattern
 from spas.cam_Andor_module import init_cam_spat, init_cam_spec, disconnect_cam, setup_cam, snapshot_cam, display_cam
 from spas.PI_module import init_PI, disconnect_stage, read_position, move_to_middle, stage_adjustment, stage_parameters, go_to_zero
@@ -72,9 +72,11 @@ shutter.close()
 position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
 #%% setup the Spectrograph
 spectrograph_params = setup_spectrograph(spectrograph,
-                                         grating_nbr =   1, print_select   = True,   # Arg:  1 
+                                         grating_nbr =   1, print_select   = True,   # Arg:  1
                                          position    = 600, print_position = True,   # the central wavelength of the grating
-                                         slit_width  = 20000)                          # the width of the slit in (µm)
+                                         slit_width  = None,                         # the width of the input slit in (µm), None : not changed
+                                         input_port  = None,                         # 'direct' or 'side', None : not changed
+                                         output_port = None, print_ports  = True)    # 'direct' or 'side', None : not changed
 #%% setup Spectral Camera
 cam_spec_params = setup_cam(cam = cam_spec, 
                             expos_time  = 0.5,        # (s)

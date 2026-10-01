@@ -30,7 +30,7 @@ import threading
 from dataclasses import dataclass, field
 from dataclasses_json import dataclass_json
 from progress.bar import Bar
-from spas.spectro_ShamrockAndor_module import setup_spectrograph
+from spas.spectro_Shamrock_module import setup_spectrograph
 from scipy import interpolate
 from spas.PI_module import move_an_axis
 
@@ -442,7 +442,7 @@ def read_metadata(file_path: str):
     """
     
     from spas.DMD_module import DMDParameters
-    from spas.spectro_SP_module import Spectrograph_Parameters
+    from spas.spectro_Shamrock_module import Spectrograph_Parameters
     from spas.cam_Andor_module import cam_Parameters
     from spas.acquisition_SPC1D import AcquisitionParameters
     
@@ -458,8 +458,8 @@ def read_metadata(file_path: str):
         if object['class_description'] == 'DMD parameters':
             saved_dmd_params = DMDParameters.from_dict(object)
             
-        if object['class_description'] == 'spectrograph SP parameters':
-            saved_spectro_params = Spectrograph_Parameters.from_dict(object)
+        if object['class_description'] in ('spectrograph SP parameters', 'spectrograph Shamrock parameters'):
+            saved_spectro_params = Spectrograph_Parameters.from_dict(Spectrograph_Parameters.undo_readable_class_spectro(object))
             # saved_spectro_params = Spectrograph_Parameters.undo_readable_class_spectro(object)
             # # saved_spectro_params.undo_readable_class_spectro(object)
             # break
@@ -498,7 +498,7 @@ def save_metadata(DMD_params,#: DMDParameters,
             Object containing acquisition specifications and timing results.
     """
 
-    from spas.spectro_SP_module import Spectrograph_Parameters
+    from spas.spectro_Shamrock_module import Spectrograph_Parameters
     from spas.acquisition_SPIM1D import AcquisitionParameters
 
     path = Path(acquisition_params.output_directory)
