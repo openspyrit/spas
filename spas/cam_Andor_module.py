@@ -25,7 +25,7 @@ To read a feature : cam_spat.get("ExposureTime"), to write it : cam_spat.set("Ex
 The list of the features is in the SDK3 manual (C:/Program Files/Andor SDK3/Docs)
 """
 
-from pyAndorSDK3 import AndorSDK3, CameraException, ATCoreException
+from pyAndorSDK3 import AndorSDK3, CameraException, ATCoreException, ErrorCodes
 from pyAndorSDK3.andor_utility import ATUtility
 import numpy as np
 from matplotlib import pyplot as plt
@@ -42,6 +42,12 @@ import cv2
 _sdk3 = None
 # indexes of the cameras already opened by an AndorCam object
 _opened_indexes = set()
+
+# layout of the windows of AndorCam.display (pixels): the image on the left,
+# the profile or the integral curve on its right
+DISPLAY_HEIGHT = 900
+CURVE_WIDTH = 800
+WINDOW_GAP = 20
 
 
 def get_sdk3() -> AndorSDK3:
@@ -264,22 +270,64 @@ class AndorCam:
         image : np.ndarray
             2D array (height, width) of uint16.
         """
+        buffer = self._wait_buffer(timeout)
+
+        return self._read_buffer(buffer)
+
+
+    def read_latest_frame(self, timeout: float = 5) -> np.ndarray:
+        """Wait for a frame and return the most recent one: the older frames waiting are skipped.
+        To be used for a live display, which can be slower than the frame rate: otherwise the frames pile up
+        in the camera until its internal buffer overflows and the acquisition stops.
+        Its timestamp (s) is stored in self.last_timestamp.
+
+        Parameters
+        ----------
+        timeout : float
+            the maximum time to wait the frame (s).
+
+        Returns
+        -------
+        image : np.ndarray
+            2D array (height, width) of uint16.
+        """
+        buffer = self._wait_buffer(timeout)
+        while True:
+            try:
+                newer_buffer = self._wait_buffer(0)
+            except TimeoutError:
+                break
+            # the older frame is skipped, its buffer is re-queued without decoding
+            self._queue(buffer)
+            buffer = newer_buffer
+
+        return self._read_buffer(buffer)
+
+
+    def _wait_buffer(self, timeout: float) -> np.ndarray:
+        """Wait for the next filled buffer. Raise TimeoutError if no frame is received after timeout (s)."""
         try:
             (buffer_ptr, _) = self.sdk.lib.wait_buffer(self.sdk.handle, timeout * 1000)
         except ATCoreException as e:
-            raise RuntimeError(self.arm + ' camera: no frame received after ' + str(timeout) + ' s (SDK3 error ' + str(e) + ')')
+            if e.err_code == ErrorCodes.AT_ERR_TIMEDOUT:
+                raise TimeoutError(self.arm + ' camera: no frame received after ' + str(timeout) + ' s (SDK3 error ' + str(e) + ')')
+            raise RuntimeError(self.arm + ' camera: error while waiting a frame (SDK3 error ' + str(e) + ')')
 
         buffer = self._buffers.popleft()
         if int(self.sdk.lib.ffi.cast("uintptr_t", buffer_ptr[0])) != buffer.ctypes.data:
             raise RuntimeError(self.arm + ' camera: the frame returned by the SDK is not in the expected buffer')
 
+        return buffer
+
+
+    def _read_buffer(self, buffer: np.ndarray) -> np.ndarray:
+        """Decode the image and the timestamp of a filled buffer, then re-queue the buffer for the next frames."""
         image = self._decode(buffer)
         if self._metadata_timestamp:
             ticks = ATUtility().getTimeStampFromMetadata(buffer.ctypes.data, self._image_size)
         else:
             ticks = self.get("TimestampClock")
         self.last_timestamp = ticks / self._clock_frequency
-        # the buffer is re-queued to be used for the next frames
         self._queue(buffer)
 
         return image
@@ -519,6 +567,26 @@ class AndorCam:
         return data
 
 
+    def display_width(self, curve: bool = False) -> int:
+        """Return the width (pixels) of the windows of display(), to place another window on their right.
+
+        Parameters
+        ----------
+        curve : bool
+            True if the profile or the integral curve is displayed on the right of the image.
+        """
+        width = self.get("AOIWidth")
+        height = self.get("AOIHeight")
+        if self.arm == 'spatial':
+            # the image is rotated
+            width, height = height, width
+        width_win = int(DISPLAY_HEIGHT * width / height)
+        if curve:
+            width_win = width_win + WINDOW_GAP + CURVE_WIDTH
+
+        return width_win
+
+
     def display(self, display_max: bool = False,
                 display_integral: bool = False, display_profile: bool = False):
         """
@@ -539,14 +607,8 @@ class AndorCam:
         """
 
         # Define the output window size
-        width = self.get("AOIWidth")
-        height = self.get("AOIHeight")
-        if self.arm == 'spatial':
-            # the image is rotated
-            width, height = height, width
-        ratio = width / height
-        height_win = 900
-        width_win = int(height_win * ratio)
+        height_win = DISPLAY_HEIGHT
+        width_win = self.display_width()
 
         image_bit_depth = self.bit_depth()
         nframes = self.nframes
@@ -571,7 +633,7 @@ class AndorCam:
 
             # Integral curve setup (if enabled)
             if display_integral:
-                max_points = 800
+                max_points = CURVE_WIDTH
                 vector = deque(maxlen=max_points)
                 curve_height = 800
                 curve_img = np.zeros((curve_height, max_points), dtype=np.uint8)
@@ -581,21 +643,28 @@ class AndorCam:
             first_passage = True
             first_passage2 = True
             maxii = 0
+            # the windows are brought to the front (above Spyder) after their first display
+            windows_to_front = True
+            windows = [window_name]
+            if display_integral:
+                windows.append("Integral Curve")
+            if display_profile:
+                windows.append("Profile")
 
             if display_profile:
                 curve_height = 200  # Hauteur de l'image de la courbe
-                fixed_width = 800    # Largeur fixe de la fenêtre
+                fixed_width = CURVE_WIDTH    # Largeur fixe de la fenêtre
                 # Initialiser l'image pour la courbe (noire, 1 canal)
                 curve_img = np.zeros((curve_height, fixed_width), dtype=np.uint8)
 
             # Start data acquisition, few buffers to display the last frames
             print('Start acquisition...\n')
-            self.setup_acquisition(3)
+            self.setup_acquisition(10)
             self.start_acquisition()
 
             while True:
                 # Acquire image
-                data = self.read_frame(timeout=current_exposure_time + 5)
+                data = self.read_latest_frame(timeout=current_exposure_time + 5)
 
                 if self.arm == 'spatial':
                     data = np.rot90(data, k=1, axes=(0, 1))
@@ -620,22 +689,29 @@ class AndorCam:
                 # Initialize trackbars on first pass
                 if first_passage:
                     cv2.createTrackbar('Brightness', window_name, maxi, 510, nothing)
-                    cv2.createTrackbar('Exp time (µs)', window_name, int(current_exposure_time * 1e6), 50000, nothing)
+                    trackbar_max = max(50000, int(round(current_exposure_time * 1e6)))
+                    cv2.createTrackbar('Exp time (µs)', window_name, int(round(current_exposure_time * 1e6)), trackbar_max, nothing)
+                    last_trackbar_exposure = cv2.getTrackbarPos('Exp time (µs)', window_name)
                     first_passage = False
 
                 # Get trackbar values
                 brightness = cv2.getTrackbarPos('Brightness', window_name)
                 exposure_time = cv2.getTrackbarPos('Exp time (µs)', window_name)
 
-                # Clamp exposure time
-                if exposure_time < min_exposure_time:
-                    exposure_time = min_exposure_time
-                elif exposure_time > max_exposure_time:
-                    print('Maximum exposure time set to ' + str(max_exposure_time / 1e6) + ' s')
-                    exposure_time = max_exposure_time
+                # The exposure time is changed only when the trackbar is moved: writing it during the
+                # acquisition stops the frames in External trigger mode, so the acquisition is restarted.
+                if exposure_time != last_trackbar_exposure:
+                    last_trackbar_exposure = exposure_time
+                    # Clamp exposure time
+                    if exposure_time < min_exposure_time:
+                        exposure_time = min_exposure_time
+                    elif exposure_time > max_exposure_time:
+                        print('Maximum exposure time set to ' + str(max_exposure_time / 1e6) + ' s')
+                        exposure_time = max_exposure_time
 
-                if abs(exposure_time / 1e6 - current_exposure_time) > 1e-6:
+                    self.stop_acquisition()
                     self.set("ExposureTime", exposure_time / 1e6)
+                    self.start_acquisition()
                     current_exposure_time = self.get("ExposureTime")
 
                 # Process image
@@ -675,7 +751,7 @@ class AndorCam:
 
                     # Display curve
                     cv2.imshow("Integral Curve", curve_img)
-                    cv2.moveWindow("Integral Curve", width_win + 20, 0)
+                    cv2.moveWindow("Integral Curve", width_win + WINDOW_GAP, 0)
 
                 if display_profile:
                     # define offset and thickness of the profile
@@ -713,7 +789,16 @@ class AndorCam:
 
                     # Afficher le profil
                     cv2.imshow("Profile", curve_img)
-                    cv2.moveWindow("Profile", width_win + 20, 0)
+                    cv2.moveWindow("Profile", width_win + WINDOW_GAP, 0)
+
+                if windows_to_front:
+                    # set topmost then release it: the windows come in front once, without staying always on top
+                    for name in windows:
+                        cv2.setWindowProperty(name, cv2.WND_PROP_TOPMOST, 1)
+                    cv2.waitKey(1)
+                    for name in windows:
+                        cv2.setWindowProperty(name, cv2.WND_PROP_TOPMOST, 0)
+                    windows_to_front = False
 
                 # Exit on 'q' key
                 if cv2.waitKey(1) & 0xFF == ord('q'):

@@ -50,12 +50,38 @@ from Thorlabs.MotionControl.DeviceManagerCLI import DeviceManagerCLI
 from Thorlabs.MotionControl.FilterFlipperCLI import FilterFlipper
 
 class MFF:
-    """ Bibliothèque permettant de piloter les mirroirs Mff101 et Mff102"""
-    def __init__(self, SN: str) -> None:
-        self.serial = SN
+    """ Bibliothèque permettant de piloter les mirroirs Mff101 et Mff102
+
+    Example:
+        mirror = MFF()
+        mirror.init(model = 'MFF101', SN = '37010810')
+        mirror.set_position('spatial', verbose = True)
+        mirror.disconnect()
+    """
+    def __init__(self) -> None:
+        self.serial = None
+        self.model = None
         self._init_communication_settings()
         self._init_settings()
+
+    def init(self, model: str = 'MFF101', SN: str = '') -> None:
+        """
+        Initialize the flipping mirror.
+        -------------------------------
+        Args:
+            model (str): the model of the flipper, compared (case insensitive) to the name read from the device.
+                         The default is 'MFF101'.
+            SN (str): the serial number of the flipper.
+        Raises:
+            InstrumentNotFoundError: Si instrument introuvable.
+        """
+        self.serial = SN
+        self.model = model
         self.open_communication()
+        info = self.device.GetDeviceInfo()
+        device_name = str(info.Name) + ' ' + str(info.Description)
+        if model.lower() not in device_name.lower():
+            print('Warning, the flipping mirror SN = ' + SN + ' is a "' + device_name + '", not a ' + model)
 
     def _init_communication_settings(self) -> None:
         """ Déclaration des variables de communication. """
@@ -105,10 +131,13 @@ class MFF:
             sleep(SETUP_INSTR["TIMECOM_S"])
             # print(f"Info: Hardware initialisation...")
             self._init_hardware()
-            print(f"flipping mirror connected.")
+            print(f"flipping mirror Thorlabs {self.model}, SN = {self.serial} connected")
         except Exception as error:
             self.disconnect()
-            raise InstrumentNotFoundError(f"[open_communication] Communication failure with MFF101.")
+            detected = list(DeviceManagerCLI.GetDeviceList(FilterFlipper.DevicePrefix))
+            raise InstrumentNotFoundError(f"[open_communication] Communication failure with MFF101, SN = {self.serial} ({error}). "
+                                          f"Flippers detected : {detected}. Check that it is switched on and that Kinesis "
+                                          f"(or another Python kernel) does not use it.") from error
 
     def disconnect(self) -> None:
         """ Fermeture de la communication avec l'instrument. """

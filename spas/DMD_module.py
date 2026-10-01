@@ -841,7 +841,8 @@ def setup_DMD(DMD: ALP4,
 
 def play_one_pattern(DMD, DMD_initial_memory, cam_Par, zoom: int = 1,
                      pattern_to_display: str = 'white', pattern_dim: str = '1D',
-                     scan_mode: str = 'Walsh', Np: int = 64, pattern_thickness: int = 64):
+                     scan_mode: str = 'Walsh', Np: int = 64, pattern_thickness: int = 64,
+                     add_illumination_time: int = 30000):
     """
     play an unique pattern on the DMD in continue mode
 
@@ -863,7 +864,11 @@ def play_one_pattern(DMD, DMD_initial_memory, cam_Par, zoom: int = 1,
         the dimension of the image and the y size of the pattern. Default is 64.
     thickness: int.
         the x size of the pattern for the sheet light (SPIM). Default is 64.
-        
+    add_illumination_time: int.
+        the time (µs) added to the exposure time of the camera to define the picture time of the DMD.
+        It must be longer than the readout time of the camera (24.6 ms for the Zyla at 100 MHz on 2048 rows),
+        otherwise the camera ignores one trigger out of two. Default is 30000.
+
     Returns
     -------
     None.
@@ -889,7 +894,8 @@ def play_one_pattern(DMD, DMD_initial_memory, cam_Par, zoom: int = 1,
     
     loop = True
     DMD_params = setup_DMD(DMD = DMD, DMD_initial_memory = DMD_initial_memory, acquisition_params = AcquisitionParameters, 
-                           integration_time = ti, pattern_to_display = pattern_to_display, loop = loop)    
+                           integration_time = ti, add_illumination_time = add_illumination_time,
+                           pattern_to_display = pattern_to_display, loop = loop)
     DMD.Run(loop=loop) # if loop=False : Run the whole sequence only once, if loop=True : Run continuously one pattern 
     
     # return DMD_params

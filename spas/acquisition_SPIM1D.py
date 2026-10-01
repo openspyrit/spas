@@ -31,7 +31,6 @@ from dataclasses import dataclass, field
 from dataclasses_json import dataclass_json
 from progress.bar import Bar
 from scipy import interpolate
-from spas.PI_module import move_an_axis
 
 from matplotlib import pyplot as plt
 
@@ -652,7 +651,7 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 0, iL
                     timeout = exp_time + 2
                 try:
                     data = cam.read_frame(timeout = timeout) # wait for the next available frame and read it
-                except RuntimeError:
+                except (RuntimeError, TimeoutError):
                     # diagnostic: are the lost frames spread over the acquisition (timing) or at the end ?
                     print('\n' + arm + ' camera: ' + str(i) + ' / ' + str(acquisition_params.pattern_amount) + ' frames received')
                     if i > 1:
@@ -825,7 +824,7 @@ def acquire(DMD: ALP4,
     shutter.open()
     for iNR in range(acquisition_params.NRepetitions):#tqdm(range(acquisition_params.NRepetitions)):
         print('\n')
-        move_an_axis(stage.pidevice, stage.stage_tools, axes = ['2'], array_to_move = [acquisition_params.Nz[iNR]], verbose = True)
+        stage.move_axis(axis = '2', array_to_move = [acquisition_params.Nz[iNR]], verbose = True)
         for iLc in range(len(acquisition_params.Lc)):#tqdm(range(len(acquisition_params.Lc))):
             spectrograph.setup(grating_nbr =  acquisition_params.Lc[iLc][1], print_select   = False,
                                position    =  acquisition_params.Lc[iLc][0], print_position = True)
@@ -942,7 +941,7 @@ def acquire(DMD: ALP4,
         shutter.open()           
         for iNR in range(acquisition_params.NRepetitions):#tqdm(range(acquisition_params.NRepetitions)):
             iLc = 0
-            move_an_axis(stage.pidevice, stage.stage_tools, axes = ['2'], array_to_move = [acquisition_params.Nz[iNR]], verbose = True)
+            stage.move_axis(axis = '2', array_to_move = [acquisition_params.Nz[iNR]], verbose = True)
             
             if acquisition_arm == 'spatial':
                 cam_thread = CamThread(cam_spat, acquisition_params, DMD_params, all_path, iNR, iLc, NA, first_acqui, verbose)

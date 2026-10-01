@@ -42,7 +42,18 @@ setup(
         'pythonnet',
         'ipython',
         'plotter',
-        'tikzplotlib'
+        'tikzplotlib',
+        # Official Andor packages for the SPIM (spectro_Shamrock_module.py and cam_Andor_module.py).
+        # They are not on PyPI, they are provided with the Andor SDKs (installed with Solis) and must be installed before spas:
+        #   pyAndorSpectrograph : C:/Program Files/Andor SDK/Python/pyAndorSpectrograph   (SDK2, Shamrock spectrograph)
+        #   pyAndorSDK3         : C:/Program Files/Andor SDK3/Python/pyAndorSDK3          (SDK3, Zyla cameras)
+        # Their setup.py write in their own folder, which is read-only in Program Files: copy the folder before installing, e.g.
+        #   xcopy /E /I "C:\Program Files\Andor SDK\Python\pyAndorSpectrograph" %TEMP%\pyAndorSpectrograph
+        #   pip install %TEMP%\pyAndorSpectrograph
+        #   xcopy /E /I "C:\Program Files\Andor SDK3\Python\pyAndorSDK3" %TEMP%\pyAndorSDK3
+        #   pip install %TEMP%\pyAndorSDK3
+        'pyAndorSpectrograph',
+        'pyAndorSDK3'
     ],
     packages=find_packages()
 )

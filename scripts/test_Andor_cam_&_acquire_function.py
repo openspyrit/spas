@@ -15,7 +15,7 @@ import math
 from spas.DMD_module import init_DMD, disconnect_DMD, change_patterns, setup_DMD, play_one_pattern
 from spas.spectro_ShamrockAndor_module_pylablib_pack import init_spectrograph, disconnect_spectrograph, setup_spectrograph
 from spas.cam_Andor_module_pylablib_pack import init_cam_spat, init_cam_spec, disconnect_cam, setup_cam, snapshot_cam, display_cam
-from spas.PI_module import init_PI, disconnect_stage, read_position, move_to_middle, stage_adjustment, stage_parameters
+from spas.PI_module_functions import init_PI, disconnect_stage, read_position, move_to_middle, stage_adjustment, stage_parameters
 from spas.shutter_TSC001_module import ThorlabsShutter
 from spas.acquisition_SPIM1D import AcquisitionParameters, func_path, acquire, define_wavelengths_matrix, plot_spectrum
 from spas.reconstruction_SPIM1D import live_hadamard_reco
@@ -28,7 +28,8 @@ DMD, DMD_initial_memory = init_DMD(dmd_lib_version = '4.3')
 cam_spat = init_cam_spat(SN = 'VSC-10323')
 cam_spec = init_cam_spec(SN = 'VSC-23585')
 stage = init_PI(Model = 'C-884', SN = '0000000000', verbose = True)
-shutter = ThorlabsShutter("85855593")
+shutter = ThorlabsShutter()
+shutter.init(model = 'TSC001', SN = '85855593')
 #%% setup Spatial Camera
 cam_spat_params = setup_cam(cam = cam_spat, 
                             expos_time  = 0.2,  # (s)

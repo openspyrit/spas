@@ -19,7 +19,7 @@ from matplotlib import pyplot as plt
 from spas.spectro_Shamrock_module import Shamrock
 from spas.DMD_module import init_DMD, disconnect_DMD, change_patterns, setup_DMD, play_one_pattern
 from spas.cam_Andor_module import AndorCam
-from spas.PI_module import init_PI, disconnect_stage, read_position, move_to_middle, stage_adjustment, stage_parameters, go_to_zero
+from spas.PI_module import PIStage, stage_parameters
 from spas.shutter_TSC001_module import ThorlabsShutter
 from spas.flipping_mirror_MFF101_module import MFF
 from spas.acquisition_SPIM1D import AcquisitionParameters, func_path, acquire, define_wavelengths_matrix, plot_spectrum
@@ -34,13 +34,16 @@ cam_spat = AndorCam()
 cam_spat.init(model = 'ZYLA-4.2P-USB3-S', SN = 'VSC-10323', arm = 'spatial')
 cam_spec = AndorCam()
 cam_spec.init(model = 'ZYLA-4.2P-USB3', SN = 'VSC-23585', arm = 'spectral')
-stage = init_PI(Model = 'C-884', SN = '0000000000', verbose = True)
-shutter = ThorlabsShutter("85855593")
-mirror = MFF(SN = '37010810')
+stage = PIStage()
+stage.init(model = 'C-884', SN = '0000000000', verbose = True)
+shutter = ThorlabsShutter()
+shutter.init(model = 'TSC001', SN = '85855593')
+mirror = MFF()
+mirror.init(model = 'MFF101', SN = '37010810')
 #%% Move the PI stage to the middle
-move_to_middle(stage.pidevice, stage.stage_tools)
-position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
-# go_to_zero(stage.pidevice, stage.stage_tools)
+stage.move_to_middle()
+position = stage.read_position(verbose = True)
+# stage.go_to_zero()
 #%% setup Spatial Camera
 cam_spat_params = cam_spat.setup(expos_time  = 0.000001,  # (s)
                                  gain        = 1,        # 1 or 2                              
@@ -63,7 +66,7 @@ shutter.close()
 #%% display spatial camera in continous mode
 mirror.set_position('spatial', verbose = True)
 shutter.open()
-# stage_adjustment(stage.pidevice)
+# stage.stage_adjustment(x = cam_spat.display_width(curve = True) + 20, y = 0)   # window on the right of the profile / integral curve
 time.sleep(1)
 play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_33', 
                  
@@ -71,7 +74,7 @@ play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_
 cam_spat.display(display_max = True, display_profile = True)
 DMD.Halt()
 shutter.close()
-position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
+position = stage.read_position(verbose = True)
 #%% setup the Spectrograph
 spectrograph_params = spectrograph.setup(grating_nbr =   1, print_select   = True,   # Arg:  1
                                          position    = 600, print_position = True,   # the central wavelength of the grating (nm)
@@ -101,14 +104,14 @@ shutter.close()
 #%% display spectral camera in continous mode
 mirror.set_position('spectral', verbose = True)
 shutter.open()
-stage_adjustment(stage.pidevice)
+stage.stage_adjustment(x = cam_spec.display_width(curve = True) + 20, y = 0)   # window on the right of the profile / integral curve
 time.sleep(1)
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'white', 
                               pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4) 
 cam_spec.display(display_max = False, display_integral = True)
 DMD.Halt()
 shutter.close()
-position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
+position = stage.read_position(verbose = True)
 #%% setup acquisition
 setup_version            = 'setup_v1.0'
 collection_access        = 'public' #'private'#
@@ -158,8 +161,7 @@ if all_path.aborted == False:
                                                  spectrograph_params.position + 50, 
                                                  int(cam_spec_params.width))
     
-    stage_params = stage_parameters
-    stage_params.array_to_move = array_to_move
+    stage_params = stage_parameters(array_to_move = array_to_move)
                         
     try: 
         change_patterns(DMD = DMD, acquisition_params = acquisition_params, zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, 
@@ -474,7 +476,7 @@ spectrograph.disconnect(goto_zero = False)
 disconnect_DMD(DMD)
 cam_spat.disconnect()
 cam_spec.disconnect()
-disconnect_stage(stage)
+stage.disconnect(go_home = True)
 shutter.disconnect()
 mirror.disconnect()
 #%% below, old prog
