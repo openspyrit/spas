@@ -18,7 +18,7 @@ from matplotlib import pyplot as plt
 
 from spas.transfer_data_to_girder import transfer_data_SPIM1D
 from spas.DMD_module import init_DMD, disconnect_DMD, change_patterns, setup_DMD, play_one_pattern
-from spas.spectro_Shamrock_module import init_spectrograph, disconnect_spectrograph, setup_spectrograph
+from spas.spectro_Shamrock_module import Shamrock
 from spas.cam_Andor_module import init_cam_spat, init_cam_spec, disconnect_cam, setup_cam, snapshot_cam, display_cam
 from spas.PI_module import init_PI, disconnect_stage, read_position, move_to_middle, stage_adjustment, stage_parameters, go_to_zero
 from spas.shutter_TSC001_module import ThorlabsShutter
@@ -27,7 +27,8 @@ from spas.acquisition_SPIM1D import AcquisitionParameters, func_path, acquire, d
 from spas.reconstruction_SPIM1D import live_hadamard_reco, spatial_reco
 from spas.visualization_SPIM1D import plot_acqui
 #%% Initialize hardware
-spectrograph = init_spectrograph(model = 'andor_shamrock')
+spectrograph = Shamrock()
+spectrograph.init(model = 'andor_shamrock')
 DMD, DMD_initial_memory = init_DMD(dmd_lib_version = '4.3')
 cam_spat = init_cam_spat(SN = 'VSC-10323')
 cam_spec = init_cam_spec(SN = 'VSC-23585')
@@ -81,8 +82,7 @@ DMD.Halt()
 shutter.close()
 position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
 #%% setup the Spectrograph
-spectrograph_params = setup_spectrograph(spectrograph,
-                                         grating_nbr =   1, print_select   = True,   # Arg:  1 
+spectrograph_params = spectrograph.setup(grating_nbr =   1, print_select   = True,   # Arg:  1 
                                          position    = 620, print_position = True,   # the central wavelength of the grating
                                          slit_width  = None,                         # the width of the input slit in (µm), None : not changed
                                          input_port  = None,                         # 'direct' or 'side', None : not changed
@@ -701,7 +701,7 @@ plt.imshow(s)
 transfer_data_SPIM1D(DMD_params, cam_spat_params, cam_spec_params, spectrograph_params, acquisition_params,
                     setup_version, data_folder_name, data_name, collection_access, upload_metadata = 1)
 #%% Disconnect
-disconnect_spectrograph(spectrograph, goto_zero = False)
+spectrograph.disconnect(goto_zero = False)
 disconnect_DMD(DMD)
 disconnect_cam(cam_spat)
 disconnect_cam(cam_spec)

@@ -30,7 +30,6 @@ import threading
 from dataclasses import dataclass, field
 from dataclasses_json import dataclass_json
 from progress.bar import Bar
-from spas.spectro_Shamrock_module import setup_spectrograph
 from scipy import interpolate
 from spas.PI_module import move_an_axis
 
@@ -737,8 +736,7 @@ def acquire(DMD: ALP4,
         print('\n')
         move_an_axis(stage.pidevice, stage.stage_tools, axes = ['2'], array_to_move = [acquisition_params.Nz[iNR]], verbose = True)
         for iLc in range(len(acquisition_params.Lc)):#tqdm(range(len(acquisition_params.Lc))):
-            setup_spectrograph(spectrograph,
-                               grating_nbr =  acquisition_params.Lc[iLc][1], print_select   = False,
+            spectrograph.setup(grating_nbr =  acquisition_params.Lc[iLc][1], print_select   = False,
                                position    =  acquisition_params.Lc[iLc][0], print_position = True)
             for NA in range(acquisition_params.NAverages):#tqdm(range(acquisition_params.NAverages)):
                 boucle = boucle + 1                
