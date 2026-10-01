@@ -16,7 +16,7 @@ Warning: Solis must be closed, otherwise the spectrograph is already in use.
 
 Example:
     spectrograph = Shamrock()
-    spectrograph.init(model = 'andor_shamrock')
+    spectrograph.init(model = 'andor_shamrock', SN = 'SR-2070')
     spectrograph_params = spectrograph.setup(grating_nbr = 1, position = 600, input_port = 'side')
     spectrograph.disconnect(goto_zero = False)
 """
@@ -95,14 +95,17 @@ class Shamrock:
             raise RuntimeError('Spectrograph: ' + func_name + ' failed, error ' + str(ret) + ' : ' + description)
 
 
-    def init(self, model: str = 'andor_shamrock', device: int = 0):
+    def init(self, model: str = 'andor_shamrock', SN: Optional[str] = None, device: int = 0):
         """Initialize the communication with the spectrograph.
 
         Args:
             model (str):
                 the model of the spectrograph. Only 'andor_shamrock' is accepted.
+            SN (str):
+                the serial number of the spectrograph. If given, the spectrograph is searched
+                by its serial number and device is not used. The default is None.
             device (int):
-                the index of the spectrograph if several are connected. The default is 0.
+                the index of the spectrograph if several are connected and SN is None. The default is 0.
         """
         if model != 'andor_shamrock':
             print('Error, the model of the spectrograph must be : andor_shamrock. For another spectrograph, change the package that import the class Shamrock')
@@ -117,12 +120,23 @@ class Shamrock:
 
         (ret, nbr_devices) = self.sdk.GetNumberDevices()
         self.check_return(ret, 'GetNumberDevices')
-        if device >= nbr_devices:
+        serial_numbers = []
+        for index in range(nbr_devices):
+            (ret, serial_number) = self.sdk.GetSerialNumber(index, 64)
+            self.check_return(ret, 'GetSerialNumber')
+            serial_numbers.append(serial_number)
+
+        if SN is not None:
+            if SN not in serial_numbers:
+                self.sdk.Close()
+                raise RuntimeError('Spectrograph: SN = ' + SN + ' not found. Spectrograph(s) detected : ' + str(serial_numbers))
+            device = serial_numbers.index(SN)
+        elif device >= nbr_devices:
             self.sdk.Close()
-            raise RuntimeError('Spectrograph: device ' + str(device) + ' not found, ' + str(nbr_devices) + ' spectrograph(s) detected')
+            raise RuntimeError('Spectrograph: device ' + str(device) + ' not found. Spectrograph(s) detected : ' + str(serial_numbers))
 
         self.device = device
-        print('Spectrograph ' + self.get_serial_number() + ' connected')
+        print('Spectrograph Andor Shamrock, SN = ' + serial_numbers[device] + ' connected')
 
 
     def get_serial_number(self) -> str:

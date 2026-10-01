@@ -19,7 +19,7 @@ from matplotlib import pyplot as plt
 from spas.transfer_data_to_girder import transfer_data_SPIM1D
 from spas.DMD_module import init_DMD, disconnect_DMD, change_patterns, setup_DMD, play_one_pattern
 from spas.spectro_Shamrock_module import Shamrock
-from spas.cam_Andor_module import init_cam_spat, init_cam_spec, disconnect_cam, setup_cam, snapshot_cam, display_cam
+from spas.cam_Andor_module import AndorCam
 from spas.PI_module import init_PI, disconnect_stage, read_position, move_to_middle, stage_adjustment, stage_parameters, go_to_zero
 from spas.shutter_TSC001_module import ThorlabsShutter
 from spas.flipping_mirror_MFF101_module import MFF
@@ -28,10 +28,12 @@ from spas.reconstruction_SPIM1D import live_hadamard_reco, spatial_reco
 from spas.visualization_SPIM1D import plot_acqui
 #%% Initialize hardware
 spectrograph = Shamrock()
-spectrograph.init(model = 'andor_shamrock')
+spectrograph.init(model = 'andor_shamrock', SN = 'SR-2070')   # Shamrock 500i (focal length 500 mm)
 DMD, DMD_initial_memory = init_DMD(dmd_lib_version = '4.3')
-cam_spat = init_cam_spat(SN = 'VSC-10323')
-cam_spec = init_cam_spec(SN = 'VSC-23585')
+cam_spat = AndorCam()
+cam_spat.init(model = 'ZYLA-4.2P-USB3-S', SN = 'VSC-10323', arm = 'spatial')
+cam_spec = AndorCam()
+cam_spec.init(model = 'ZYLA-4.2P-USB3', SN = 'VSC-23585', arm = 'spectral')
 stage = init_PI(Model = 'C-884', SN = '0000000000', verbose = True)
 shutter = ThorlabsShutter("85855593")
 mirror = MFF(SN = '37010810')
@@ -40,17 +42,16 @@ move_to_middle(stage.pidevice, stage.stage_tools)
 position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
 # go_to_zero(stage.pidevice, stage.stage_tools)
 #%% setup Spatial Camera
-cam_spat_params = setup_cam(cam = cam_spat, 
-                            expos_time  = 0.25,  # (s)
-                            gain        = 1,        # 1 or 2                              
-                            width       = 2048,     # max = 2048
-                            height      = 2048,     # max = 2048
-                            offsetX     = 1,        # 1
-                            offsetY     = 1,        # 1
-                            binningX    = 1,        # int < 2048
-                            binningY    = 1,        # int < 2048
-                            encodPix    = 12,       # 12 or 16 bit
-                            snapshot    = False)    # if false => acquire video, if True => acquire an image 
+cam_spat_params = cam_spat.setup(expos_time  = 0.25,  # (s)
+                                 gain        = 1,        # 1 or 2                              
+                                 width       = 2048,     # max = 2048
+                                 height      = 2048,     # max = 2048
+                                 offsetX     = 1,        # 1
+                                 offsetY     = 1,        # 1
+                                 binningX    = 1,        # int < 2048
+                                 binningY    = 1,        # int < 2048
+                                 encodPix    = 12,       # 12 or 16 bit
+                                 snapshot    = False)    # if false => acquire video, if True => acquire an image 
 #%% get a snapshot of the spatial camera
 mirror.set_position('spatial', verbose = True)
 list_pat = [0, 33, 63, 127]
@@ -59,7 +60,7 @@ for pat in list_pat:
     shutter.open()
     DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, zoom = 1, pattern_to_display = 'gray_'+str(pat), 
                                   pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) # white, black or gray_ + pattern number
-    data = snapshot_cam(cam = cam_spat, tilt_image = True) # data_format accepted: 8 or 16 bits
+    data = cam_spat.snapshot(tilt_image = True) # data_format accepted: 8 or 16 bits
     DMD.Halt()
     shutter.close()
     
@@ -77,7 +78,7 @@ shutter.open()
 time.sleep(1)
 play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_33', 
                  pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) 
-display_cam(cam = cam_spat, cam_params = cam_spat_params, display_max = True, display_profile = True)
+cam_spat.display(display_max = True, display_profile = True)
 DMD.Halt()
 shutter.close()
 position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
@@ -88,23 +89,22 @@ spectrograph_params = spectrograph.setup(grating_nbr =   1, print_select   = Tru
                                          input_port  = None,                         # 'direct' or 'side', None : not changed
                                          output_port = None, print_ports  = True)    # 'direct' or 'side', None : not changed
 #%% setup Spectral Camera
-cam_spec_params = setup_cam(cam = cam_spec, 
-                            expos_time  = 0.1,        # (s)
-                            gain        = 1,        # 1 or 2                              
-                            width       = 2048,     # max = 2048
-                            height      = 2048,     # max = 2048
-                            offsetX     = 1,        # 1
-                            offsetY     = 1,        # 1
-                            binningX    = 8,        # int < 2048        
-                            binningY    = 8,        # int < 2048
-                            encodPix    = 12,       # 12 or 16 bit
-                            snapshot    = True)    # if false => acquire video, if True => acquire an image   
+cam_spec_params = cam_spec.setup(expos_time  = 0.1,        # (s)
+                                 gain        = 1,        # 1 or 2                              
+                                 width       = 2048,     # max = 2048
+                                 height      = 2048,     # max = 2048
+                                 offsetX     = 1,        # 1
+                                 offsetY     = 1,        # 1
+                                 binningX    = 8,        # int < 2048        
+                                 binningY    = 8,        # int < 2048
+                                 encodPix    = 12,       # 12 or 16 bit
+                                 snapshot    = True)    # if false => acquire video, if True => acquire an image   
 #%% get a snapshot of the spectral camera
 mirror.set_position('spectral', verbose = True)
 shutter.open()
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, zoom = 1, pattern_to_display = 'gray_0', 
                               pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4) 
-data = snapshot_cam(cam = cam_spec, tilt_image = False) # data_format accepted: 8 or 16 bits
+data = cam_spec.snapshot(tilt_image = False) # data_format accepted: 8 or 16 bits
 DMD.Halt()
 plot_spectrum(data, cam_spec_params, spectrograph_params)
 shutter.close()
@@ -115,7 +115,7 @@ shutter.open()
 # time.sleep(1)
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'white', 
                               pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4) 
-display_cam(cam = cam_spec, cam_params = cam_spec_params, display_max = False, display_integral = True)
+cam_spec.display(display_max = False, display_integral = True)
 DMD.Halt()
 shutter.close()
 #%% setup acquisition
@@ -703,8 +703,8 @@ transfer_data_SPIM1D(DMD_params, cam_spat_params, cam_spec_params, spectrograph_
 #%% Disconnect
 spectrograph.disconnect(goto_zero = False)
 disconnect_DMD(DMD)
-disconnect_cam(cam_spat)
-disconnect_cam(cam_spec)
+cam_spat.disconnect()
+cam_spec.disconnect()
 disconnect_stage(stage)
 shutter.disconnect()
 mirror.disconnect()

@@ -22,7 +22,7 @@ except:
     class ALP4:
         pass
 
-from pylablib.devices import Andor
+from spas.cam_Andor_module import AndorCam
 
 import time
 import threading
@@ -581,12 +581,12 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 0, iL
         None.
     """
     # acquisition_params.receive_last_trig_spat = False
-    exp_time = cam.get_attribute_value("ExposureTime")
+    exp_time = cam.get("ExposureTime")
     acquisition_params.receive_last_trig_spec = False
     arm = cam.arm
     file_name = arm + '_Ny_' + str(acquisition_params.Nz[NR]) + 'mm_Gr_' + str(acquisition_params.Lc[iLc][1]) + '_Lc_' + str(acquisition_params.Lc[iLc][0]) + 'nm_NA_' + str(NA)# + '_NS_'
     ####################### start data acquisition ############################
-    cam.setup_acquisition(mode="sequence", nframes = acquisition_params.pattern_amount) 
+    cam.setup_acquisition(nframes = acquisition_params.pattern_amount) 
     if first_acqui:
         print('Starting ' + arm + ' data acquisition...\n')
         cam.start_acquisition()
@@ -594,12 +594,11 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 0, iL
     start_chrono = time.time()
     i = 0
     # acquire snapshot
-    if cam.snapshot:     
-        data_np = np.zeros((cam.get_attribute_value("AOIHeight"), cam.get_attribute_value("AOIWidth"), 1), dtype=np.uint16)
+    if cam.snapshot_mode:
+        data_np = np.zeros((cam.get("AOIHeight"), cam.get("AOIWidth"), 1), dtype=np.uint16)
         timestamps = np.zeros((1),dtype=np.float64)
         ############## wait for next frame and read it #################
-        cam.wait_for_frame(timeout = exp_time + 5) # wait for the next available frame    
-        data_np = cam.snap()
+        data_np = cam.read_frame(timeout = exp_time + 5) # wait for the next available frame and read it
         
         outp = all_path.raw_data_path + '/' + file_name
         np.savez(outp, data_np, allow_pickle = False)
@@ -617,8 +616,8 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 0, iL
     else:
         bar = Bar('Processing', max = acquisition_params.pattern_amount)
         timestamps = np.zeros((acquisition_params.pattern_amount),dtype=np.float64)        
-        # data_np = np.empty((acquisition_params.pattern_amount, cam.get_attribute_value("AOIHeight"), cam.get_attribute_value("AOIWidth")), dtype=np.int16)  
-        data_np = np.zeros((cam.get_attribute_value("AOIHeight"), cam.get_attribute_value("AOIWidth"), acquisition_params.pattern_amount), dtype=np.uint16)
+        # data_np = np.empty((acquisition_params.pattern_amount, cam.get("AOIHeight"), cam.get("AOIWidth")), dtype=np.int16)  
+        data_np = np.zeros((cam.get("AOIHeight"), cam.get("AOIWidth"), acquisition_params.pattern_amount), dtype=np.uint16)
         
         while True: 
             counter_time = time.time() - start_chrono
@@ -643,10 +642,9 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 0, iL
                 break        
             else:
                 ############## wait for next frame and read it #################
-                cam.wait_for_frame(timeout = exp_time + 2) # wait for the next available frame
-                data = cam.read_newest_image()  
+                data = cam.read_frame(timeout = exp_time + 2) # wait for the next available frame and read it
                 ################### timestamp #################################
-                timestamps[i] = cam.get_attribute_value("TimestampClock")       
+                timestamps[i] = cam.get("TimestampClock")       
                 ################### get image data as numpy array #########################
                 data_np[:, :, i] = data
        
@@ -655,7 +653,7 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 0, iL
                 bar.next()
                 
                 counter_time2 = time.time() - start_chrono
-                if counter_time2 - counter_time > (cam.get_exposure() + 3):
+                if counter_time2 - counter_time > (exp_time + 3):
                     print('problem with the trigger, delay longer than the exposure time')
                     break
     
@@ -674,9 +672,9 @@ class CamThread(threading.Thread):
 
 def acquire(DMD: ALP4,
             DMD_params,
-            cam_spat: Andor,
+            cam_spat: AndorCam,
             cam_spat_params,
-            cam_spec: Andor,
+            cam_spec: AndorCam,
             cam_spec_params,
             spectrograph,
             spectrograph_params,
@@ -783,8 +781,8 @@ def acquire(DMD: ALP4,
                                                                        acquisition_params.NRepetitions)), dtype=np.uint16)
                         else:
                             if acquisition_arm == 'spatial':
-                                raw_data_arr = np.empty((cam_spat.get_attribute_value("AOIHeight"), 
-                                                         cam_spat.get_attribute_value("AOIWidth"), 
+                                raw_data_arr = np.empty((cam_spat.get("AOIHeight"), 
+                                                         cam_spat.get("AOIWidth"), 
                                                          acquisition_params.pattern_amount) + 
                                                         (acquisition_params.NAverages, 
                                                          len(acquisition_params.Lc), 
@@ -792,12 +790,12 @@ def acquire(DMD: ALP4,
                         first_acqui = False
                     
                     if acquisition_arm == 'spectral':
-                        if cam_spec.snapshot:
+                        if cam_spec.snapshot_mode:
                             raw_data_arr[:, :, NA, iLc, iNR] = raw_data
                         else:
                             raw_data_arr[:, :, :, NA, iLc, iNR] = raw_data  
                     # elif acquisition_arm == 'spatial':
-                    #     if cam_spat.snapshot:
+                    #     if cam_spat.snapshot_mode:
                     #         raw_data_arr[:, :, NA, iLc, iNR] = raw_data
                     #     else:
                     #         raw_data_arr[:, :, :, NA, iLc, iNR] = raw_data  
