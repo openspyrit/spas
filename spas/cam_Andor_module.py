@@ -25,7 +25,8 @@ To read a feature : cam_spat.get("ExposureTime"), to write it : cam_spat.set("Ex
 The list of the features is in the SDK3 manual (C:/Program Files/Andor SDK3/Docs)
 """
 
-from pyAndorSDK3 import AndorSDK3, CameraException
+from pyAndorSDK3 import AndorSDK3, CameraException, ATCoreException
+from pyAndorSDK3.andor_utility import ATUtility
 import numpy as np
 from matplotlib import pyplot as plt
 from typing import Optional
@@ -71,6 +72,9 @@ class AndorCam:
             if False => acquire video, if True => acquire an image.
         nframes (int):
             the number of buffers (frames) queued for the acquisition.
+        last_timestamp (float):
+            the timestamp (s) of the last frame read, from the clock of the camera
+            (start of the exposure, read in the metadata of the frame).
     """
 
     def __init__(self):
@@ -81,7 +85,13 @@ class AndorCam:
         self.arm = None
         self.snapshot_mode = False
         self.nframes = 2
+        self.last_timestamp = None
+        # buffers queued in the SDK, in the order they will be filled
+        self._buffers = deque()
         self._image_size = None
+        self._aoi = None
+        self._metadata_timestamp = False
+        self._clock_frequency = None
 
 
     def init(self, model: str = 'Zyla', SN: str = '', arm: str = 'spatial'):
@@ -170,16 +180,38 @@ class AndorCam:
         self.nframes = max(int(nframes), 1)
 
 
+    def min_trigger_period(self) -> float:
+        """Return the minimum time (s) between two external triggers so that no trigger is ignored.
+
+        Without Overlap, a trigger received while the previous frame is read out is ignored by the camera:
+        the period must be longer than the exposure time + the readout time.
+        With Overlap, the exposure of a frame is done during the readout of the previous one.
+        """
+        exposure_time = self.get("ExposureTime")
+        readout_time = self.get("ReadoutTime")
+        if self.get("Overlap"):
+            return max(exposure_time, readout_time)
+
+        return exposure_time + readout_time
+
+
     def start_acquisition(self):
-        """Queue the buffers and start a continuous acquisition. Nothing to do if already started."""
+        """Queue the buffers and start a continuous acquisition. Nothing to do if already started.
+
+        The buffers are queued directly in the SDK (and not with the Camera functions of pyAndorSDK3,
+        which need the "MetadataFrameInfo" feature that the Zyla does not have when the metadata are enabled).
+        """
         if self.is_acquiring():
             return
 
         self.set("CycleMode", "Continuous")
-        self.sdk.flush()
+        self._flush()
         self._image_size = self.get("ImageSizeBytes")
+        self._aoi = (self.get("AOIHeight"), self.get("AOIWidth"), self.get("AOIStride"), self.get("PixelEncoding"))
+        self._metadata_timestamp = bool(self.get("MetadataEnable")) and bool(self.get("MetadataTimestamp"))
+        self._clock_frequency = self.get("TimestampClockFrequency")
         for _ in range(self.nframes):
-            self.sdk.queue_buffer(self._image_size)
+            self._queue(np.empty(self._image_size, dtype=np.uint8))
         self.sdk.AcquisitionStart()
 
 
@@ -187,11 +219,40 @@ class AndorCam:
         """Stop the acquisition and release the buffers."""
         if self.is_acquiring():
             self.sdk.AcquisitionStop()
-        self.sdk.flush()
+        self._flush()
+
+
+    def _queue(self, buffer: np.ndarray):
+        """Give a buffer to the SDK, it will be filled by a next frame."""
+        self.sdk.lib.queue_buffer(self.sdk.handle, buffer.ctypes.data, self._image_size)
+        self._buffers.append(buffer)
+
+
+    def _flush(self):
+        """Release all the buffers queued in the SDK."""
+        self.sdk.lib.flush(self.sdk.handle)
+        self._buffers.clear()
+
+
+    def _decode(self, buffer: np.ndarray) -> np.ndarray:
+        """Convert the raw buffer into a 2D image (height, width)."""
+        (height, width, stride, encoding) = self._aoi
+        data = buffer[:height * stride]
+        if encoding == "Mono12Packed":
+            image = np.empty(height * width, dtype=np.uint16)
+            ATUtility().unpack(data.ctypes.data, image.ctypes.data, width, height, stride, "Mono12Packed", "Mono16")
+            return image.reshape(height, width)
+        elif encoding in ("Mono12", "Mono16"):
+            return data.view(np.uint16).reshape(height, stride // 2)[:, :width].copy()
+        elif encoding == "Mono32":
+            return data.view(np.uint32).reshape(height, stride // 4)[:, :width].copy()
+        else:
+            raise ValueError('Pixel encoding ' + encoding + ' not supported')
 
 
     def read_frame(self, timeout: float = 5) -> np.ndarray:
         """Wait for the next frame of the acquisition and return it.
+        Its timestamp (s) is stored in self.last_timestamp.
 
         Parameters
         ----------
@@ -203,10 +264,23 @@ class AndorCam:
         image : np.ndarray
             2D array (height, width) of uint16.
         """
-        acq = self.sdk.wait_buffer(timeout * 1000)
-        image = np.array(acq.image, copy=True)
+        try:
+            (buffer_ptr, _) = self.sdk.lib.wait_buffer(self.sdk.handle, timeout * 1000)
+        except ATCoreException as e:
+            raise RuntimeError(self.arm + ' camera: no frame received after ' + str(timeout) + ' s (SDK3 error ' + str(e) + ')')
+
+        buffer = self._buffers.popleft()
+        if int(self.sdk.lib.ffi.cast("uintptr_t", buffer_ptr[0])) != buffer.ctypes.data:
+            raise RuntimeError(self.arm + ' camera: the frame returned by the SDK is not in the expected buffer')
+
+        image = self._decode(buffer)
+        if self._metadata_timestamp:
+            ticks = ATUtility().getTimeStampFromMetadata(buffer.ctypes.data, self._image_size)
+        else:
+            ticks = self.get("TimestampClock")
+        self.last_timestamp = ticks / self._clock_frequency
         # the buffer is re-queued to be used for the next frames
-        self.sdk.queue(acq._np_data, self._image_size)
+        self._queue(buffer)
 
         return image
 
@@ -333,12 +407,14 @@ class AndorCam:
         self.set("PixelReadoutRate", '100 MHz')# other possibiliti is "270 MHz", it is faster and noiser
         PixelReadoutRate = self.get("PixelReadoutRate")
         print("Pixel Readout Rate =", PixelReadoutRate)
-        #################### read Trigger Mode ####################################
-        TriggerMode = self.get("TriggerMode")
-        if TriggerMode != "External":
-            self.set("TriggerMode", "External")
-            TriggerMode = self.get("TriggerMode")
-            print("Trigger Mode is :", TriggerMode)
+        #################### set Trigger Mode #####################################
+        # With the spectral Zyla (ZYLA-4.2P-USB3), the minimum exposure time in External mode does not decrease
+        # below the exposure time used in Internal mode before (e.g. 984 µs instead of 24 µs): the exposure time
+        # is set to its minimum in Internal mode before switching to External, to have the real minimum.
+        self.set("TriggerMode", "Internal")
+        self.set("ExposureTime", self.get("min_ExposureTime"))
+        self.set("TriggerMode", "External")
+        print("Trigger Mode is :", self.get("TriggerMode"))
         ################# set External Trigger Delay ##############################
         ExternalTriggerDelay_current = self.get("ExternalTriggerDelay")
         if ExternalTriggerDelay_current != ExternalTriggerDelay:
@@ -363,6 +439,10 @@ class AndorCam:
         ##################### Encoding Pixel ######################################
         self.set("PixelEncoding", encodingPixel)
         print("Pixel Encoding =", self.get("PixelEncoding"))
+        ##################### timestamp in the metadata ###########################
+        # the timestamp of the start of the exposure is added at the end of each frame
+        self.set("MetadataEnable", True)
+        self.set("MetadataTimestamp", True)
         #################### setting the exposure time ###########################
         # the limits are read from the camera, they depend on the readout rate, the AOI, the binning and the trigger mode
         exposure_mini = self.get("min_ExposureTime")
@@ -380,6 +460,8 @@ class AndorCam:
         print('exposure time set to : ' + str(self.get("ExposureTime")) + ' s')
         ######################### get the frame rate ##############################
         print('frame rate = ' + str(self.get("FrameRate")) + ' fps')
+        print('readout time = ' + str(round(self.get("ReadoutTime") * 1e3, 3)) + ' ms, minimum period between two triggers = ' +
+              str(round(self.min_trigger_period() * 1e3, 3)) + ' ms')
         ########################## setting gain ###################################
         curent_gain = self.get("PreAmpGain")
         if curent_gain != 'x' + str(gain):

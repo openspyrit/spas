@@ -599,6 +599,7 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 0, iL
         timestamps = np.zeros((1),dtype=np.float64)
         ############## wait for next frame and read it #################
         data_np = cam.read_frame(timeout = exp_time + 5) # wait for the next available frame and read it
+        timestamps[0] = cam.last_timestamp
         
         outp = all_path.raw_data_path + '/' + file_name
         np.savez(outp, data_np, allow_pickle = False)
@@ -633,41 +634,129 @@ def runCam_thread(cam, acquisition_params, DMD_params, all_path, NR: int = 0, iL
                     acquisition_params.receive_last_trig_spat = True
                     acquisition_params.spat_timestamps = timestamps
                 print('\n iteration reach (' + arm + ') : ' + str(i + 1) + ' in the thread \n')
-                
+                check_timestamps(timestamps, arm)
+
                 bar.finish()
                 return data_np
                 break
             elif counter_time > math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4:
-                print('delay > ' + str(math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4) + 's in the thread \n')
-                break        
+                raise RuntimeError(arm + ' camera: ' + str(i) + ' / ' + str(acquisition_params.pattern_amount) + ' frames received after ' +
+                                   str(math.ceil(acquisition_params.pattern_amount * DMD_params.picture_time_us / 1e6) + 4) + ' s')
             else:
                 ############## wait for next frame and read it #################
-                data = cam.read_frame(timeout = exp_time + 2) # wait for the next available frame and read it
+                # the DMD is started some seconds after this thread (time.sleep in acquire),
+                # so the timeout of the first frame is longer
+                if i == 0:
+                    timeout = exp_time + 10
+                else:
+                    timeout = exp_time + 2
+                try:
+                    data = cam.read_frame(timeout = timeout) # wait for the next available frame and read it
+                except RuntimeError:
+                    # diagnostic: are the lost frames spread over the acquisition (timing) or at the end ?
+                    print('\n' + arm + ' camera: ' + str(i) + ' / ' + str(acquisition_params.pattern_amount) + ' frames received')
+                    if i > 1:
+                        periods = np.diff(timestamps[:i]) * 1e3
+                        print('period between the received frames (ms): median = ' + str(round(np.median(periods), 3)) +
+                              ', min = ' + str(round(np.min(periods), 3)) + ', max = ' + str(round(np.max(periods), 3)) +
+                              ' (picture time of the DMD = ' + str(DMD_params.picture_time_us / 1e3) + ' ms)')
+                        check_timestamps(timestamps[:i], arm)
+                    raise
+                if i == 0:
+                    # the total duration of the acquisition is measured from the first frame
+                    start_chrono = time.time()
                 ################### timestamp #################################
-                timestamps[i] = cam.get("TimestampClock")       
+                timestamps[i] = cam.last_timestamp
                 ################### get image data as numpy array #########################
                 data_np[:, :, i] = data
-       
-                i = i + 1  
-                
+
+                i = i + 1
+
                 bar.next()
-                
-                counter_time2 = time.time() - start_chrono
-                if counter_time2 - counter_time > (exp_time + 3):
-                    print('problem with the trigger, delay longer than the exposure time')
-                    break
     
 
+def check_timestamps(timestamps: np.ndarray, arm: str) -> bool:
+    """Check that the frames are regularly spaced in time, a longer period means a lost trigger (frame).
+
+    Parameters
+    ----------
+    timestamps : np.ndarray
+        the timestamps (s) of the frames, from the clock of the camera.
+    arm : str
+        'spatial' or 'spectral', for the message.
+
+    Returns
+    -------
+    True if no frame seems lost.
+    """
+    periods = np.diff(timestamps)
+    if len(periods) < 2:
+        return True
+
+    median_period = np.median(periods)
+    late_frames = np.where(periods > 1.5 * median_period)[0] + 1
+    if len(late_frames) > 0:
+        print('!!!!! Warning, ' + arm + ' camera: the period between frames is ' + str(round(median_period * 1e3, 3)) +
+              ' ms but it is longer before the frame(s) ' + str(late_frames.tolist()) + ' : trigger(s) probably lost !!!!!')
+        return False
+
+    return True
+
+
+def check_trigger_timing(cam, DMD_params) -> bool:
+    """Check that the period of the DMD patterns is long enough for the camera to receive all the triggers.
+
+    Without Overlap, a trigger received while the previous frame is read out is ignored by the camera,
+    so the frame is lost.
+
+    Returns
+    -------
+    True if the timing is correct.
+    """
+    min_period = cam.min_trigger_period()
+    picture_time = DMD_params.picture_time_us / 1e6
+    if picture_time < min_period:
+        print('!!!!! Warning, the picture time of the DMD (' + str(round(picture_time * 1e3, 3)) + ' ms) is shorter than the exposure + readout time of the ' +
+              cam.arm + ' camera (' + str(round(min_period * 1e3, 3)) + ' ms): some triggers will be ignored and frames lost.' +
+              ' Increase add_illumination_time in setup_DMD or reduce the exposure time / the AOI height !!!!!')
+        return False
+
+    print('trigger timing ok for the ' + cam.arm + ' camera: picture time of the DMD = ' + str(round(picture_time * 1e3, 3)) +
+          ' ms >= exposure + readout time = ' + str(round(min_period * 1e3, 3)) + ' ms')
+    return True
+
+
 class CamThread(threading.Thread):
+    """Thread that acquires the frames of a camera. If an error occurs, it is stored in self.error
+    and self.finished is set anyway, so that the main loop does not wait forever."""
     def __init__(self, *args):
         super().__init__()
         self.args = args
         self.data_np = None
+        self.error = None
         self.finished = threading.Event()
 
     def run(self):
-        self.data_np = runCam_thread(*self.args)
-        self.finished.set()
+        try:
+            self.data_np = runCam_thread(*self.args)
+        except Exception as e:
+            self.error = e
+        finally:
+            self.finished.set()
+
+
+def wait_cam_thread(cam_thread: CamThread, DMD, shutter, cams: list):
+    """Wait for the end of the camera thread. If an error occurred in the thread, the DMD, the shutter
+    and the cameras are stopped and the error is raised."""
+    while not cam_thread.finished.is_set():
+        time.sleep(0.01)   # laisse Windows respirer
+
+    if cam_thread.error is not None:
+        DMD.Halt()
+        shutter.close()
+        for cam in cams:
+            cam.stop_acquisition()
+        raise RuntimeError('acquisition aborted: ' + str(cam_thread.error)) from cam_thread.error
 
 
 def acquire(DMD: ALP4,
@@ -728,6 +817,10 @@ def acquire(DMD: ALP4,
     # total_iter = acquisition_params.pattern_amount * total_loop
     first_acqui = True
     boucle = 0
+    if acquisition_arm == 'spatial':
+        check_trigger_timing(cam_spat, DMD_params)
+    elif acquisition_arm == 'spectral':
+        check_trigger_timing(cam_spec, DMD_params)
     mirror.set_position(acquisition_arm, verbose = True)
     shutter.open()
     for iNR in range(acquisition_params.NRepetitions):#tqdm(range(acquisition_params.NRepetitions)):
@@ -765,10 +858,9 @@ def acquire(DMD: ALP4,
                         begin_acqui = time.time()
                     
                     DMD.Run(loop=False)
-                    
-                    while not cam_thread.finished.is_set():
-                        time.sleep(0.01)   # laisse Windows respirer
-                    
+
+                    wait_cam_thread(cam_thread, DMD, shutter, [cam_spat, cam_spec])
+
                     raw_data = cam_thread.data_np
                     
                     DMD.Halt()
@@ -840,6 +932,10 @@ def acquire(DMD: ALP4,
         elif acquisition_arm == 'spectral':
             acquisition_arm = 'spatial'
         
+        if acquisition_arm == 'spatial':
+            check_trigger_timing(cam_spat, DMD_params)
+        elif acquisition_arm == 'spectral':
+            check_trigger_timing(cam_spec, DMD_params)
         mirror.set_position(acquisition_arm, verbose = True)
         print(acquisition_arm + " acquisition is beginning")
         first_acqui = True
@@ -862,14 +958,14 @@ def acquire(DMD: ALP4,
                     first_acqui = False
             
             DMD.Run(loop=False)
-            
-            while not cam_thread.finished.is_set():
-                time.sleep(0.01)   # laisse Windows respirer
+
+            wait_cam_thread(cam_thread, DMD, shutter, [cam_spat, cam_spec])
 
             DMD.Halt()
-            cam_spat.stop_acquisition()
-            print(acquisition_arm + ' cam stopped')
-        
+
+        # the acquisition is stopped after all the repetitions, it is started only at the first one (first_acqui)
+        cam_spat.stop_acquisition()
+        print(acquisition_arm + ' cam stopped')
         shutter.close()
         # else:
         #     print("Spatial acquisition aborted")

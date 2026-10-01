@@ -42,7 +42,7 @@ move_to_middle(stage.pidevice, stage.stage_tools)
 position = read_position(stage.pidevice, stage.stage_tools, verbose = True)
 # go_to_zero(stage.pidevice, stage.stage_tools)
 #%% setup Spatial Camera
-cam_spat_params = cam_spat.setup(expos_time  = 0.05,  # (s)
+cam_spat_params = cam_spat.setup(expos_time  = 0.000001,  # (s)
                                  gain        = 1,        # 1 or 2                              
                                  width       = 2048,     # max = 2048
                                  height      = 2048,     # max = 2048
@@ -169,7 +169,7 @@ if all_path.aborted == False:
         pass
                   
     DMD_params = setup_DMD(DMD = DMD, DMD_initial_memory = DMD_initial_memory, acquisition_params = acquisition_params, 
-                           integration_time = ti, add_illumination_time = 30000) # 30000 si bin ?x? (je pense 4x4, mais possible 8x8), 1000000 pour la mesure de la calibration du feuillet
+                           integration_time = ti, add_illumination_time = 30000) # (µs) doit être > ReadoutTime de la caméra, quel que soit le binning : 24.6 ms à 100 MHz sur 2048 lignes (9.8 ms à 270 MHz, proportionnel au nombre de lignes lues). 30000 = 5 ms de marge. 1000000 pour la mesure de la calibration du feuillet
     
 
     if DMD_params.patterns != None:

@@ -179,7 +179,7 @@ if all_path.aborted == False:
         pass
                   
     DMD_params = setup_DMD(DMD = DMD, DMD_initial_memory = DMD_initial_memory, acquisition_params = acquisition_params, 
-                           integration_time = ti, add_illumination_time = 1000000 - ti*1000) # 30000 si bin ?x? (je pense 4x4, mais possible 8x8), 1000000 pour la mesure de la calibration du feuillet
+                           integration_time = ti, add_illumination_time = 1000000 - ti*1000) # (µs) doit être > ReadoutTime de la caméra, quel que soit le binning : 24.6 ms à 100 MHz sur 2048 lignes (9.8 ms à 270 MHz, proportionnel au nombre de lignes lues). 30000 = 5 ms de marge. 1000000 pour la mesure de la calibration du feuillet
     
 
     if DMD_params.patterns != None:
