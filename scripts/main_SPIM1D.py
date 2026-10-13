@@ -22,6 +22,7 @@ from spas.cam_Andor_module import AndorCam
 from spas.PI_module import PIStage, stage_parameters
 from spas.shutter_TSC001_module import ThorlabsShutter
 from spas.flipping_mirror_MFF101_module import MFF
+from spas.combiner_module import Combiner
 from spas.acquisition_SPIM1D import AcquisitionParameters, func_path, acquire, define_wavelengths_matrix, plot_spectrum
 from spas.reconstruction_SPIM1D import live_hadamard_reco, spatial_reco
 from spas.visualization_SPIM1D import plot_acqui
@@ -40,6 +41,8 @@ shutter = ThorlabsShutter()
 shutter.init(model = 'TSC001', SN = '85855593')
 mirror = MFF()
 mirror.init(model = 'MFF101', SN = '37010810')
+combi = Combiner()
+combi.init(model = 'combiner', SN = '2')   
 #%% Move the PI stage to the middle
 stage.move_to_middle()
 position = stage.read_position(verbose = True)
@@ -198,7 +201,8 @@ raw_data =  acquire(DMD                 = DMD,
                     acquisition_params  = acquisition_params,
                     all_path            = all_path,
                     verbose             = False,
-                    acquisition_arm     = 'spectral')
+                    acquisition_arm     = 'spectral',
+                    combi               = combi)
 #%% Specral reconstruction
 from scipy import signal
 new_raw = np.zeros(raw_data.shape)
@@ -486,6 +490,7 @@ cam_spec.disconnect()
 stage.disconnect(go_home = True)
 shutter.disconnect()
 mirror.disconnect()
+combi.disconnect()
 #%% below, old prog
 # #%% Neural Network setup (executed it just one time)
 # network_param = ReconstructionParameters(

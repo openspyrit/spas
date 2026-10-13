@@ -13,7 +13,6 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from spas.plot_spec_to_rgb_image import plot_spec_to_rgb_image
 from spas.noise import noiseClass
-from spas.reconstruction_nn import reorder_subsample, reconstruct
 # from spas.DMD_module import DMDParameters 
 from spas.acquisition_SPIM1D import read_metadata
 import time
@@ -482,6 +481,7 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path, overwrite = True)
 
 
 def plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, network_param, all_path, cov_path):
+    from spas.reconstruction_nn import reorder_subsample, reconstruct   # imported here, it loads the SPC2D modules
 
     reorder_spectral_data = reorder_subsample(spectral_data.T, acquisition_parameters, network_param, cov_path)
     reco = reconstruct(model, device, reorder_spectral_data[:, np.newaxis, :]) # Reconstruction # add a dimension for the spyrit V3 new dim = [2048, 1 , 8192]
@@ -692,9 +692,9 @@ def extract_ROI_coord(DMD_params, acquisition_parameters, all_path, data_folder_
         GT = file_had_reco['arr_0']
         
         # read metadata
-        old_metadata_path = '../data/' + data_folder_name + '/' + data_name + '/' + data_name + '_metadata.json'
-        metadata, acquisition_parameters, spectrometer_parameters, DMD_params = read_metadata(old_metadata_path)
-        ti = spectrometer_parameters.integration_time_ms
+        old_metadata_path = '../../data/' + data_folder_name + '/' + data_name + '/metadata.json'
+        DMD_params, spectrograph_params, cam_spat_params, cam_spec_params, acquisition_parameters, combi_params = read_metadata(old_metadata_path)
+        ti = cam_spec_params.exposure_time_µs / 1000   # integration time of the spectral camera (ms)
     else:
         GT = np.rot90(GT, 2) 
   

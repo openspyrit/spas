@@ -26,7 +26,7 @@ raw_data[:,:,:, 0,0,0] = raw_data3
 from spas.acquisition_SPIM1D import read_metadata, func_path
 
 file_path = foldername + 'metadata.json'
-dmd_params, spectrograph_params, cam_spat_params, cam_spec_params, acquisition_params = read_metadata(file_path)
+dmd_params, spectrograph_params, cam_spat_params, cam_spec_params, acquisition_params, combi_params = read_metadata(file_path)
 
 all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
 

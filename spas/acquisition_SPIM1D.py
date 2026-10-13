@@ -419,7 +419,8 @@ def read_metadata(file_path: str):
                                     #        Spectrograph_Parameters,
                                     #        cam_Parameters,
                                     #        cam_Parameters,
-                                    #        AcquisitionParameters]:
+                                    #        AcquisitionParameters,
+                                    #        Combiner_Parameters]:
     """Reads metadata of a previous acquisition from JSON file.
 
     Args:
@@ -437,14 +438,17 @@ def read_metadata(file_path: str):
                 SpectrometerParameters object read from JSON.
             saved_dmd_params(DMDParameters):
                 DMDParameters object read from JSON.
+            saved_combi_params(Combiner_Parameters):
+                power and ON/OFF state of the lasers of the combiner, None if not in the metadata
+                (acquisition before the combiner or without it).
     """
     
     from spas.DMD_module import DMDParameters
     from spas.spectro_Shamrock_module import Spectrograph_Parameters
     from spas.cam_Andor_module import cam_Parameters
-    from spas.acquisition_SPC1D import AcquisitionParameters
+    from spas.combiner_module import Combiner_Parameters
     
-    
+    saved_combi_params = None
     file = open(file_path,'r')
     # data_folder_name = '2025-06-16_test'
     # data_name = 'obj_USAF3_source_white_LED_Walsh_im_128x128_ti_1.0ms_zoom_x1'
@@ -471,17 +475,21 @@ def read_metadata(file_path: str):
         if object['class_description'] == 'Acquisition parameters':
             saved_acquisition_params = AcquisitionParameters.from_dict(object)
             saved_acquisition_params.undo_readable_pattern_order()
+
+        if object['class_description'] == 'laser combiner parameters':
+            saved_combi_params = Combiner_Parameters.from_dict(object)
             
 
     return (saved_dmd_params, saved_spectro_params, 
-            saved_cam_spat_params, saved_cam_spec_params, saved_acquisition_params)
+            saved_cam_spat_params, saved_cam_spec_params, saved_acquisition_params, saved_combi_params)
 
 
 def save_metadata(DMD_params,#: DMDParameters, 
                   spectrograph_params,#: Spectrograph_Parameters, 
                   cam_spat_params,#: cam_Parameters,
                   cam_spec_params,
-                  acquisition_params: AcquisitionParameters) -> None:
+                  acquisition_params: AcquisitionParameters,
+                  combi_params = None) -> None:
     """Saves metadata to JSON file.
 
     Args:
@@ -494,6 +502,8 @@ def save_metadata(DMD_params,#: DMDParameters,
             Object containing spectrometer configurations.
         acquisition_parameters (AcquisitionParameters):
             Object containing acquisition specifications and timing results.
+        combi_params (Combiner_Parameters):
+            Power and ON/OFF state of the lasers of the combiner. None : not saved.
     """
 
     from spas.spectro_Shamrock_module import Spectrograph_Parameters
@@ -507,6 +517,8 @@ def save_metadata(DMD_params,#: DMDParameters,
                          cam_spat_params.to_dict(),
                          cam_spec_params.to_dict(),
                          AcquisitionParameters.readable_pattern_order(acquisition_params.to_dict())]
+        if combi_params is not None:
+            output_params.append(combi_params.to_dict())
 
         json.dump(output_params, output, ensure_ascii=False, indent=4)
 
@@ -772,7 +784,8 @@ def acquire(DMD: ALP4,
             acquisition_params,
             all_path,
             verbose,
-            acquisition_arm):
+            acquisition_arm,
+            combi = None):
     """
     
 
@@ -805,6 +818,9 @@ def acquire(DMD: ALP4,
         
     acquisition_arm: str.
         specify which arm acquisiton is used, spectral or spatial
+    combi: Class.
+        To control the laser combiner. The power and the ON/OFF state of the lasers are read
+        at the beginning of the acquisition and saved in the metadata. None : not saved.
 
     Returns
     -------
@@ -816,6 +832,9 @@ def acquire(DMD: ALP4,
     # total_iter = acquisition_params.pattern_amount * total_loop
     first_acqui = True
     boucle = 0
+    combi_params = None
+    if combi is not None:
+        combi_params = combi.get_params(verbose = True)
     if acquisition_arm == 'spatial':
         check_trigger_timing(cam_spat, DMD_params)
     elif acquisition_arm == 'spectral':
@@ -975,7 +994,7 @@ def acquire(DMD: ALP4,
             acquisition_params.spec_timestamps = np.empty(0)
             print('warning, timestamps for spectral camera is empty')
         
-        save_metadata(DMD_params, spectrograph_params, cam_spat_params, cam_spec_params, acquisition_params)
+        save_metadata(DMD_params, spectrograph_params, cam_spat_params, cam_spec_params, acquisition_params, combi_params)
         return raw_data_arr 
 
 def find_nearest(array, value):
