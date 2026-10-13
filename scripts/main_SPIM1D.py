@@ -73,7 +73,8 @@ x_win, y_win = cam_spat.display_below_profile()
 combi.control(x = x_win, y = y_win)   # control of the lasers : below the profile, on the left
 mirror.set_position('spatial', verbose = True)
 shutter.open()
-stage.stage_adjustment(x = x_win, y = y_win + combi.control_window_size()[1] + 20)   # below the control of the lasers
+stage.stage_adjustment(x = x_win + combi.control_window_size()[0], y = y_win + combi.control_window_size()[1] + 20,
+                       align = 'right')   # below the control of the lasers, on the right
 time.sleep(1)
 play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_33',                  
                  pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) 

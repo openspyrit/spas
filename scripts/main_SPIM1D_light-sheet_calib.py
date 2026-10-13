@@ -43,12 +43,12 @@ mirror = MFF()
 mirror.init(model = 'MFF101', SN = '37010810')
 combi = Combiner()
 combi.init(model = 'combiner', SN = '2')   # lasers numbered by increasing wavelength
-#%% Move the PI stage to the middle
+#%% Move the PI stage to the middle and active one laser
 stage.move_to_middle()
 position = stage.read_position(verbose = True)
 # stage.go_to_zero()
-#%% Control the lasers
-combi.control()   # ON/OFF, power gauge (left : %, right : mW), boxes in % or in mW (Enter)
+combi.set_power(473, 40, unit = 'mW')   # laser (nm), power
+combi.laser_on(473)
 #%% setup Spatial Camera
 cam_spat_params = cam_spat.setup(expos_time  = 0.25,  # (s)
                                  gain        = 1,        # 1 or 2                              
@@ -80,10 +80,12 @@ for pat in list_pat:
     plt.legend(['250','500','1000','1500'], loc=1)
     plt.title('pattern n°= ' + str(pat))
 #%% display spatial camera in continous mode
+x_win, y_win = cam_spat.display_below_profile()
+combi.control(x = x_win, y = y_win)   # control of the lasers : below the profile, on the left
 mirror.set_position('spatial', verbose = True)
 shutter.open()
-# x_win, y_win = cam_spat.display_below_profile()
-# stage.stage_adjustment(x = x_win, y = y_win)   # window on the right of the image, below the profile
+# stage.stage_adjustment(x = x_win + combi.control_window_size()[0], y = y_win + combi.control_window_size()[1] + 20,
+#                        align = 'right')   # below the control of the lasers, on the right
 time.sleep(1)
 play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_33',
                  pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) 
@@ -118,9 +120,11 @@ DMD.Halt()
 plot_spectrum(data, cam_spec_params, spectrograph_params)
 shutter.close()
 #%% display spectral camera in continous mode
+x_offset = -120   # (pixels) shift of the windows to the left, so that the 3 windows fit in the screen
+x_win, y_win = cam_spec.display_below_integral(x_offset = x_offset)
+combi.control(x = x_win, y = y_win)   # control of the lasers : below the integral curve, on the left
 mirror.set_position('spectral', verbose = True)
 shutter.open()
-x_offset = -120   # (pixels) shift of the windows to the left, so that the 3 windows fit in the screen
 stage.stage_adjustment(x = cam_spec.display_width(curve = True, x_offset = x_offset) + 20, y = 0)   # window on the right of the integral curve
 time.sleep(1)
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'white', 
@@ -728,6 +732,7 @@ cam_spec.disconnect()
 stage.disconnect(go_home = True)
 shutter.disconnect()
 mirror.disconnect()
+combi.disconnect()
 #%% below, old prog
 # #%% Neural Network setup (executed it just one time)
 # network_param = ReconstructionParameters(

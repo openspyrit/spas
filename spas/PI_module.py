@@ -233,20 +233,23 @@ class PIStage:
             pass
 
 
-    def stage_adjustment(self, x: Optional[int] = None, y: int = 0):
+    def stage_adjustment(self, x: Optional[int] = None, y: int = 0, align: str = 'left'):
         """Open the window to move manually the axes, in a thread: the console stays available.
 
         Parameters
         ----------
         x, y : int, optional
-            the position (pixels) of the top left corner of the window on the screen.
+            the position (pixels) of the top left corner of the window on the screen
+            (of the top right corner if align = 'right').
             To place it on the right of the camera display: x = cam.display_width(curve = True) + 20.
             To place it on the right of the image, below the profile: x, y = cam.display_below_profile().
             The default is None : position chosen by Windows.
+        align : str, optional
+            'left' : x is the left edge of the window, 'right' : x is its right edge. The default is 'left'.
         """
         # Internal function used as the target of the thread
         def start_gui():
-            gui = PIJogControl(self, x, y)
+            gui = PIJogControl(self, x, y, align)
             gui.run() # The mainloop runs here, in its own thread
 
         # daemon=True lets the window close when Python is closed
@@ -284,7 +287,7 @@ class stage_parameters:
 class PIJogControl:
     """Window to move manually the axes of the PI stage step by step."""
 
-    def __init__(self, stage: PIStage, x: Optional[int] = None, y: int = 0):
+    def __init__(self, stage: PIStage, x: Optional[int] = None, y: int = 0, align: str = 'left'):
         self.pidevice = stage.pidevice
         self.axes = stage.axes
 
@@ -296,7 +299,10 @@ class PIJogControl:
         self.root.title("PI manual control " + str(stage.model))
         self.root.attributes("-topmost", True)
         if x is not None:
-            self.root.geometry('+' + str(int(x)) + '+' + str(int(y)))
+            if align == 'right':   # "-X" : X pixels between the right edge of the window and the right edge of the screen
+                self.root.geometry('-' + str(self.root.winfo_screenwidth() - int(x)) + '+' + str(int(y)))
+            else:
+                self.root.geometry('+' + str(int(x)) + '+' + str(int(y)))
 
         # Variable for the step of the motion
         self.step_var = tk.DoubleVar(value=0.1)
