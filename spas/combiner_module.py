@@ -7,8 +7,14 @@ Created on Tue Oct 13 2026
 Laser combiner (6 lasers), driven through the creatis_pilot_combiner package.
 """
 
+import os
 import sys
+import json
+import time
+import tempfile
 import threading
+import subprocess
+from multiprocessing.connection import Listener, Client
 import tkinter as tk
 from tkinter import messagebox
 from dataclasses import dataclass, field
@@ -65,6 +71,8 @@ class Combiner:
         self.serial_number = None
         self.lasers = {}   # {wavelength (nm): {'max_power': (mW), 'idn': combiner idn}}, sorted by increasing wavelength
         self.lock = threading.RLock()   # the control window and the console share the serial ports
+        self._gui = None                # process of the control window (subprocess.Popen)
+        self._gui_conn = None           # connection with the control window
 
 
     def init(self, model: str = 'combiner', SN: str = '2', default_power: float = 5, verbose: bool = True):
@@ -103,13 +111,38 @@ class Combiner:
         if verbose:
             self.print_lasers()
 
+        self.all_off()
+
         if default_power is not None:
             for wavelength in self.lasers:
                 try:
                     self.set_power(wavelength, *self.clamp_power(wavelength, default_power, '%'))
                 except Exception as e:
                     print('Warning, laser ' + f"{wavelength:g}" + ' nm : default power not set (' + str(e) + ')')
-            print('Power of the lasers set to ' + f"{default_power:g}" + ' %')
+
+    def all_off(self):
+        """Switch OFF all the lasers. Obis, Zouk : state read, OFF sent only if ON (each command is written
+        in the memory of the Obis). LuxX : state not readable, considered ON and OFF always sent.
+        A message is printed only if a laser was detected ON or could not be switched OFF."""
+        all_ok = True
+        found_on = False
+        for wavelength in self.lasers:
+            laser = self._laser(wavelength)
+            try:
+                with self.lock:
+                    if hasattr(laser, 'get_emission_state'):   # Obis, Zouk
+                        if not laser.get_emission_state():
+                            continue
+                        found_on = True
+                        print('Warning, laser ' + f"{wavelength:g}" + ' nm was ON')
+                    else:                                      # LuxX
+                        laser.output = True   # state unknown : considered ON, so that OFF is really sent
+                self.laser_off(wavelength)
+            except Exception as e:
+                all_ok = False
+                print('Warning, laser ' + f"{wavelength:g}" + ' nm : not switched OFF (' + str(e) + ')')
+        if found_on and all_ok:
+            print('All the lasers are OFF')
 
     def print_lasers(self):
 
@@ -236,9 +269,14 @@ class Combiner:
         return power, unit
 
     def control(self, x: Optional[int] = None, y: int = 0):
-        """Open the window to control the lasers, in a thread: the console stays available.
-        For each laser : ON/OFF button, power gauge (left : %, right : mW) and a box to enter the
-        power by hand ('20' => 20 %, '20 mW' => 20 mW, validated with Enter).
+        """Open the window to control the lasers. For each laser : ON/OFF button, power gauge (left : %,
+        right : mW) and two boxes to enter the power by hand, one in % and one in mW (validated with Enter).
+
+        The window runs in its own Python process (tkinter in a thread of the kernel crashes it, with the
+        threads of the other instruments) : the console stays available. This process only imports this
+        module (subprocess, not multiprocessing which would run the main script again). The serial ports
+        stay in the kernel, a thread (without tkinter) sends the commands of the window to the lasers and
+        their state to the window, through a local connection.
 
         Parameters
         ----------
@@ -249,16 +287,108 @@ class Combiner:
         if not self.lasers:
             print('No laser connected, run combi.init() first')
             return
+        if self._gui is not None and self._gui.poll() is None:
+            print('The control window is already open')
+            return
 
-        def start_gui():
-            gui = CombinerControl(self, x, y)
-            gui.run() # The mainloop runs here, in its own thread
+        key = os.urandom(16)
+        listener = Listener(('127.0.0.1', 0), authkey = key)   # local connection with the window
+        settings = {'port': listener.address[1], 'title': str(self.model) + ', id = ' + str(self.serial_number),
+                    'lasers': [[wavelength, info['max_power']] for wavelength, info in self.lasers.items()], 'x': x, 'y': y}
+        env = dict(os.environ, COMBINER_WINDOW_KEY = key.hex())
+        log = tempfile.NamedTemporaryFile('w+', prefix = 'combiner_window_', suffix = '.log', delete = False)
+        self._gui = subprocess.Popen([sys.executable, '-c', 'from spas.combiner_module import _control_window_main; _control_window_main()',
+                                      json.dumps(settings)], env = env, stdout = log, stderr = subprocess.STDOUT,
+                                     creationflags = getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        threading.Thread(target = self._serve_window, args = (listener, log), daemon = True).start()
 
-        # daemon=True lets the window close when Python is closed
-        threading.Thread(target = start_gui, daemon = True).start()
+    def _connect_window(self, listener, log):
+        """Wait for the connection of the window (20 s max). Return the connection, None if it failed."""
+        process = self._gui
+        connected = threading.Event()
+
+        def watchdog():   # accept() has no timeout : the listener is closed if the window does not connect
+            t0 = time.time()
+            while not connected.is_set() and process.poll() is None and time.time() - t0 < 20:
+                time.sleep(0.1)
+            if not connected.is_set():
+                listener.close()
+
+        threading.Thread(target = watchdog, daemon = True).start()
+        try:
+            conn = listener.accept()
+            connected.set()
+            return conn
+        except Exception:
+            time.sleep(0.5)
+            log.seek(0)
+            print('Control window of the lasers : not opened.' + nl_text(log.read()))
+            if process.poll() is None:
+                process.kill()
+            return None
+        finally:
+            listener.close()
+
+    def _laser_state(self, wavelength: float):
+        """Last known power (%) and state of a laser, without serial communication (state None if not known)."""
+        laser = self._laser(wavelength)
+        state = None if getattr(laser, 'ttl_port', None) is not None else getattr(laser, 'output', None)
+        return getattr(laser, 'power_pourcent', None), state
+
+    def _serve_window(self, listener, log):
+        """Thread of the kernel (no tkinter) : executes the commands of the control window and sends it
+        the state of the lasers (read after each command, last known values every second)."""
+        conn = self._connect_window(listener, log)
+        if conn is None:
+            return
+        self._gui_conn = conn
+        try:
+            for wavelength in self.lasers:
+                conn.send(('laser', wavelength) + tuple(self.read_laser(wavelength)))
+            last_update = time.time()
+            while self.device is not None:
+                if conn.poll(0.1):
+                    message = conn.recv()
+                    if message[0] == 'closed':
+                        break
+                    command, wavelength = message[0], message[1]
+                    try:
+                        if command == 'power':
+                            self.set_power(wavelength, *self.clamp_power(wavelength, message[2], message[3]))
+                        elif command == 'on':
+                            self.laser_on(wavelength)
+                        elif command == 'off':
+                            self.laser_off(wavelength)
+                    except Exception as e:
+                        conn.send(('error', f"Laser {wavelength:g} nm : {e}"))
+                    conn.send(('laser', wavelength) + tuple(self.read_laser(wavelength)))
+                if time.time() - last_update > 1 and self.device is not None:
+                    conn.send(('state', {wavelength: self._laser_state(wavelength) for wavelength in self.lasers}))
+                    last_update = time.time()
+        except (EOFError, OSError):   # window closed or crashed
+            pass
+        except Exception as e:
+            print('Control window of the lasers : communication stopped (' + str(e) + ')')
+        finally:
+            conn.close()
+            self._gui_conn = None
+
+    def _close_window(self):
+        """Close the control window, if it is open."""
+        if self._gui is not None and self._gui.poll() is None:
+            try:
+                self._gui_conn.send(('close',))
+            except Exception:
+                pass
+            try:
+                self._gui.wait(2)
+            except subprocess.TimeoutExpired:
+                self._gui.kill()
+        self._gui = None
 
     def disconnect(self):
-        """Set all the lasers to 0 W, then OFF, and close."""
+        """Close the control window, set all the lasers to 0 W, then OFF, and close."""
+        self._close_window()
         for wavelength in self.lasers:
             try:
                 self.set_power(wavelength, 0, 'mW')
@@ -270,8 +400,9 @@ class Combiner:
                 print('Warning, laser ' + f"{wavelength:g}" + ' nm : not switched OFF (' + str(e) + ')')
         print('Lasers set to 0 W and OFF')
 
-        self.device.close()
-        self.device = None
+        with self.lock:
+            self.device.close()
+            self.device = None
         self.lasers = {}
         print('Combiner disconnected')
 
@@ -302,8 +433,26 @@ def text_color(background: str) -> str:
     return 'black' if 0.299 * r + 0.587 * g + 0.114 * b > 140 else 'white'
 
 
+def nl_text(text: str) -> str:
+    """Text preceded by a new line, '' if empty (for the error messages)."""
+    text = text.strip()
+    return '\n' + text if text else ''
+
+
+def _control_window_main():
+    """Entry point of the process of the control window (tkinter in its main thread), launched by
+    Combiner.control() : settings in argv (json), key of the connection in the environment."""
+    settings = json.loads(sys.argv[1])
+    conn = Client(('127.0.0.1', settings['port']), authkey = bytes.fromhex(os.environ['COMBINER_WINDOW_KEY']))
+    lasers = {wavelength: max_power for wavelength, max_power in settings['lasers']}
+    CombinerControl(conn, lasers, settings['title'], settings['x'], settings['y'] or 0).run()
+
+
 class CombinerControl:
-    """Window to control the lasers of the combiner: ON/OFF, power gauge (left : %, right : mW), manual value."""
+    """Window to control the lasers of the combiner: ON/OFF, power gauge (left : %, right : mW), manual values.
+    It runs in its own process and communicates with the kernel (Combiner._serve_window) through conn :
+    it sends ('power', wavelength, value, unit), ('on', wavelength), ('off', wavelength), ('closed',) and
+    receives ('laser', wavelength, percent, state), ('state', {wavelength: (percent, state)}), ('error', text), ('close',)."""
 
     GAUGE_H = 200          # height of the gauge (pixels)
     GAUGE_MARGIN = 10      # margin above and below the gauge
@@ -311,27 +460,27 @@ class CombinerControl:
     CANVAS_W = 110
     TICKS = (0, 25, 50, 75, 100)   # (%)
 
-    def __init__(self, combi: Combiner, x: Optional[int] = None, y: int = 0):
-        self.combi = combi
+    def __init__(self, conn, lasers: dict, title: str, x: Optional[int] = None, y: int = 0):
+        self.conn = conn
         self.widgets = {}      # {wavelength: widgets and displayed values of the laser}
+        self.pending = set()   # lasers waiting for the answer to a command (the periodic states are ignored)
 
         self.root = tk.Tk()
-        self.root.title(str(combi.model) + ', id = ' + str(combi.serial_number))
+        self.root.title(title)
         self.root.attributes('-topmost', True)
         self.root.resizable(False, False)
         if x is not None:
             self.root.geometry('+' + str(int(x)) + '+' + str(int(y)))
+        self.root.protocol('WM_DELETE_WINDOW', self.close)
 
         frame = tk.Frame(self.root, padx = 5, pady = 5)
         frame.pack()
-        for col, (wavelength, info) in enumerate(combi.lasers.items()):
-            self._build_laser(frame, col, wavelength, info['max_power'])
+        for col, (wavelength, max_power) in enumerate(lasers.items()):
+            self._build_laser(frame, col, wavelength, max_power)
 
-        tk.Button(self.root, text = 'CLOSE', command = self.root.destroy).pack(pady = (0, 8), fill = 'x', padx = 8)
+        tk.Button(self.root, text = 'CLOSE', command = self.close).pack(pady = (0, 8), fill = 'x', padx = 8)
 
-        for wavelength in self.widgets:
-            self._read(wavelength)
-        self.root.after(1000, self._refresh)
+        self.root.after(100, self._poll)
 
     # ----- construction -----
     def _build_laser(self, parent, col, wavelength, max_power):
@@ -339,10 +488,15 @@ class CombinerControl:
         box = tk.LabelFrame(parent, text = f"{wavelength:g} nm", font = ('Arial', 10, 'bold'), padx = 3, pady = 3)
         box.grid(row = 0, column = col, padx = 3)
 
-        entry = tk.Entry(box, width = 8, justify = 'center')
-        entry.pack()
-        entry.bind('<Return>', lambda event, w = wavelength: self._entry_apply(w))
-        tk.Label(box, text = "% or 'x mW'", font = ('Arial', 7), fg = 'gray').pack()
+        # two boxes to enter the power by hand (Enter to validate) : in % and in mW
+        entries = tk.Frame(box)
+        entries.pack()
+        entry = {}
+        for column, unit in enumerate(('%', 'mW')):
+            entry[unit] = tk.Entry(entries, width = 5, justify = 'center')
+            entry[unit].grid(row = 0, column = 2 * column)
+            entry[unit].bind('<Return>', lambda event, w = wavelength, u = unit: self._entry_apply(w, u))
+            tk.Label(entries, text = unit, font = ('Arial', 8)).grid(row = 0, column = 2 * column + 1, padx = (1, 3))
 
         canvas = tk.Canvas(box, width = self.CANVAS_W, height = self.GAUGE_H + 2 * self.GAUGE_MARGIN, highlightthickness = 0)
         canvas.pack()
@@ -382,9 +536,13 @@ class CombinerControl:
             y = self._y(wid['percent'])
             wid['canvas'].coords(wid['fill'], self.TROUGH_X[0] + 1, y, self.TROUGH_X[1] - 1, self._y(0))
             wid['canvas'].coords(wid['cursor'], self.TROUGH_X[0] - 6, y - 3, self.TROUGH_X[1] + 6, y + 3)
-            if self.root.focus_get() is not wid['entry']:   # do not erase a value being typed
-                wid['entry'].delete(0, 'end')
-                wid['entry'].insert(0, f"{wid['percent']:.3g} %")
+            power_mW = None if wid['max_power'] is None else wid['percent'] / 100 * wid['max_power']
+            values = {'%': f"{wid['percent']:.3g}", 'mW': '?' if power_mW is None else f"{power_mW:.3g}"}
+            focus = self.root.focus_get()
+            for unit, entry in wid['entry'].items():
+                if focus is not entry:   # do not erase a value being typed
+                    entry.delete(0, 'end')
+                    entry.insert(0, values[unit])
         if state is not None:
             wid['state'] = state
             color = wavelength_to_color(wavelength)
@@ -392,31 +550,37 @@ class CombinerControl:
                                  fg = text_color(color) if state else 'black', activebackground = color if state else '#e0e0e0',
                                  activeforeground = text_color(color) if state else 'black')
 
-    def _read(self, wavelength):
-        """Read the power and the state on the laser."""
-        percent, state = self.combi.read_laser(wavelength)
-        self._show(wavelength, percent, state)
-
-    def _refresh(self):
-        """Display the last known values (no serial communication), in case they are changed from the console."""
+    def _poll(self):
+        """Messages from the kernel."""
         try:
-            for wavelength, wid in self.widgets.items():
-                if wid['dragging']:
-                    continue
-                laser = self.combi._laser(wavelength)
-                state = None if getattr(laser, 'ttl_port', None) is not None else getattr(laser, 'output', None)
-                self._show(wavelength, getattr(laser, 'power_pourcent', None), state)
-            self.root.after(1000, self._refresh)
-        except Exception:   # combiner disconnected
-            pass
+            while self.conn.poll():
+                message = self.conn.recv()
+                if message[0] == 'laser':   # answer to a command : values read on the laser
+                    wavelength = message[1]
+                    self.pending.discard(wavelength)
+                    if not self.widgets[wavelength]['dragging']:
+                        self._show(wavelength, message[2], message[3])
+                elif message[0] == 'state':   # last known values, in case they are changed from the console
+                    for wavelength, (percent, state) in message[1].items():
+                        if wavelength not in self.pending and not self.widgets[wavelength]['dragging']:
+                            self._show(wavelength, percent, state)
+                elif message[0] == 'error':
+                    messagebox.showerror('Error', message[1], parent = self.root)
+                elif message[0] == 'close':
+                    self.root.destroy()
+                    return
+        except (EOFError, OSError):   # kernel stopped
+            self.root.destroy()
+            return
+        self.root.after(100, self._poll)
 
     # ----- actions -----
-    def _set_power(self, wavelength, power, unit = '%'):
+    def _send(self, *message):
+        self.pending.add(message[1])
         try:
-            self.combi.set_power(wavelength, *self.combi.clamp_power(wavelength, power, unit))
-        except Exception as e:
-            messagebox.showerror('Error', f"Laser {wavelength:g} nm, power not set : {e}", parent = self.root)
-        self._read(wavelength)
+            self.conn.send(message)
+        except (EOFError, OSError):   # kernel stopped
+            self.root.destroy()
 
     def _drag(self, wavelength, event):
         self.widgets[wavelength]['dragging'] = True
@@ -426,33 +590,34 @@ class CombinerControl:
     def _drag_apply(self, wavelength):
         wid = self.widgets[wavelength]
         wid['dragging'] = False
-        self._set_power(wavelength, round(wid['percent'], 1), '%')
+        self._send('power', wavelength, round(wid['percent'], 1), '%')
 
-    def _entry_apply(self, wavelength):
+    def _entry_apply(self, wavelength, unit):
         wid = self.widgets[wavelength]
-        text = wid['entry'].get().strip().lower().replace(',', '.')
-        unit = 'mW' if text.endswith('mw') else '%'
         try:
-            value = float(text.replace('mw', '').replace('%', '').strip())
+            value = float(wid['entry'][unit].get().strip().replace(',', '.'))
         except ValueError:
-            messagebox.showerror('Error', "Enter a number : '20' for 20 % or '20 mW'", parent = self.root)
+            messagebox.showerror('Error', f"Laser {wavelength:g} nm : enter a number (in {unit})", parent = self.root)
             return
-        max_power = wid['max_power']
-        if value < 0 or (unit == '%' and value > 100) or (unit == 'mW' and max_power is not None and value > max_power):
-            messagebox.showerror('Error', f"Laser {wavelength:g} nm : value out of range (0 - 100 % or 0 - {max_power} mW)", parent = self.root)
+        max_value = 100 if unit == '%' else wid['max_power']
+        if unit == 'mW' and max_value is None:
+            messagebox.showerror('Error', f"Laser {wavelength:g} nm : max power unknown, enter the power in %", parent = self.root)
+            return
+        if not 0 <= value <= max_value:
+            messagebox.showerror('Error', f"Laser {wavelength:g} nm : value out of range (0 - {max_value:g} {unit})", parent = self.root)
             return
         self.root.focus_set()   # leave the box : it is updated with the value read on the laser
-        self._set_power(wavelength, value, unit)
+        self._send('power', wavelength, value, unit)
 
     def _toggle(self, wavelength):
+        self._send('off' if self.widgets[wavelength]['state'] else 'on', wavelength)
+
+    def close(self):
         try:
-            if self.widgets[wavelength]['state']:
-                self.combi.laser_off(wavelength)
-            else:
-                self.combi.laser_on(wavelength)
-        except Exception as e:
-            messagebox.showerror('Error', f"Laser {wavelength:g} nm : {e}", parent = self.root)
-        self._read(wavelength)
+            self.conn.send(('closed',))
+        except (EOFError, OSError):
+            pass
+        self.root.destroy()
 
     def run(self):
         self.root.mainloop()

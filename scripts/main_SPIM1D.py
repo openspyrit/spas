@@ -48,7 +48,7 @@ stage.move_to_middle()
 position = stage.read_position(verbose = True)
 # stage.go_to_zero()
 #%% Control the lasers
-combi.control()   # ON/OFF, power gauge (left : %, right : mW), box : '20' => 20 %, '20 mW' => 20 mW (Enter)
+combi.control()  
 #%% setup Spatial Camera
 cam_spat_params = cam_spat.setup(expos_time  = 0.1,  # (s)
                                  gain        = 1,        # 1 or 2                              
@@ -74,8 +74,7 @@ shutter.open()
 x_win, y_win = cam_spat.display_below_profile()
 stage.stage_adjustment(x = x_win, y = y_win)   # window on the right of the image, below the profile
 time.sleep(1)
-play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_33', 
-                 
+play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_33',                  
                  pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) 
 cam_spat.display(display_max = True, display_profile = True)
 DMD.Halt()

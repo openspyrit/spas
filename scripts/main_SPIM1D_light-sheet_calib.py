@@ -48,7 +48,7 @@ stage.move_to_middle()
 position = stage.read_position(verbose = True)
 # stage.go_to_zero()
 #%% Control the lasers
-combi.control()   # ON/OFF, power gauge (left : %, right : mW), box : '20' => 20 %, '20 mW' => 20 mW (Enter)
+combi.control()   # ON/OFF, power gauge (left : %, right : mW), boxes in % or in mW (Enter)
 #%% setup Spatial Camera
 cam_spat_params = cam_spat.setup(expos_time  = 0.25,  # (s)
                                  gain        = 1,        # 1 or 2                              
