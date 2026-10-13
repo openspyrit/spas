@@ -47,10 +47,10 @@ combi.init(model = 'combiner', SN = '2')
 stage.move_to_middle()
 position = stage.read_position(verbose = True)
 # stage.go_to_zero()
-combi.set_power(473, 10, unit = 'mW')   # laser (nm), power
+combi.set_power(473, 40, unit = 'mW')   # laser (nm), power
 combi.laser_on(473)
 #%% setup Spatial Camera
-cam_spat_params = cam_spat.setup(expos_time  = 0.1,  # (s)
+cam_spat_params = cam_spat.setup(expos_time  = 0.2,  # (s)
                                  gain        = 1,        # 1 or 2                              
                                  width       = 2048,     # max = 2048
                                  height      = 2048,     # max = 2048
@@ -70,13 +70,12 @@ DMD.Halt()
 shutter.close()
 #%% display spatial camera in continous mode
 x_win, y_win = cam_spat.display_below_profile()
-combi.control(x = x_win, y = y_win)   # control of the lasers : below the profile, on the left
+combi.control(x = x_win, y = y_win)   
 mirror.set_position('spatial', verbose = True)
 shutter.open()
-stage.stage_adjustment(x = x_win + combi.control_window_size()[0], y = y_win + combi.control_window_size()[1] + 20,
-                       align = 'right')   # below the control of the lasers, on the right
+stage.stage_adjustment(x = x_win + combi.control_window_size()[0], y = y_win + combi.control_window_size()[1] + 20, align = 'right')  
 time.sleep(1)
-play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_33',                  
+play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_127',                  
                  pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) 
 cam_spat.display(display_max = True, display_profile = True)
 DMD.Halt()

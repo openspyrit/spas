@@ -20,7 +20,13 @@ Example:
 from pipython import GCSDevice, pitools
 import tkinter as tk
 from tkinter import messagebox
+import os
+import sys
+import json
+import tempfile
 import threading
+import subprocess
+from multiprocessing.connection import Listener, Client
 import numpy as np
 from typing import Optional
 from dataclasses import dataclass
@@ -53,6 +59,8 @@ class PIStage:
         self.serial_number = None
         self.axes = []
         self.axes_names = ['X', 'Y', 'Z']
+        self._gui = None        # process of the manual control window (subprocess.Popen)
+        self._gui_conn = None   # connection with the manual control window
 
 
     def init(self, model: str = 'C-884', SN: str = '0000000000', stages_model: Optional[list] = None, verbose: bool = False):
@@ -234,7 +242,12 @@ class PIStage:
 
 
     def stage_adjustment(self, x: Optional[int] = None, y: int = 0, align: str = 'left'):
-        """Open the window to move manually the axes, in a thread: the console stays available.
+        """Open the window to move manually the axes : the console stays available.
+
+        The window runs in its own Python process (tkinter in a thread of the kernel crashes it :
+        "Tcl_AsyncDelete: async handler deleted by the wrong thread"). The controller stays in the kernel,
+        a thread (without tkinter) sends the motions asked by the window to the stage and the positions
+        to the window, through a local connection.
 
         Parameters
         ----------
@@ -244,17 +257,117 @@ class PIStage:
             To place it on the right of the camera display: x = cam.display_width(curve = True) + 20.
             To place it on the right of the image, below the profile: x, y = cam.display_below_profile().
             The default is None : position chosen by Windows.
+            If the window is already open, it is moved there (nothing done if x is None).
         align : str, optional
             'left' : x is the left edge of the window, 'right' : x is its right edge. The default is 'left'.
         """
-        # Internal function used as the target of the thread
-        def start_gui():
-            gui = PIJogControl(self, x, y, align)
-            gui.run() # The mainloop runs here, in its own thread
+        if self.pidevice is None:
+            print('PI translation stage not connected, run stage.init() first')
+            return
+        if self._gui is not None and self._gui.poll() is None:   # already open : only moved
+            if x is not None and self._gui_conn is not None:
+                try:
+                    self._gui_conn.send(('move', int(x), int(y), align))
+                except Exception:
+                    pass
+            return
 
-        # daemon=True lets the window close when Python is closed
-        jog_thread = threading.Thread(target=start_gui, daemon=True)
-        jog_thread.start()
+        key = os.urandom(16)
+        listener = Listener(('127.0.0.1', 0), authkey = key)   # local connection with the window
+        settings = {'port': listener.address[1], 'title': 'PI manual control ' + str(self.model),
+                    'axes': list(self.axes), 'x': x, 'y': y, 'align': align}
+        env = dict(os.environ, PI_WINDOW_KEY = key.hex())
+        log = tempfile.NamedTemporaryFile('w+', prefix = 'PI_window_', suffix = '.log', delete = False)
+        self._gui = subprocess.Popen([sys.executable, '-c', 'from spas.PI_module import _jog_window_main; _jog_window_main()',
+                                      json.dumps(settings)], env = env, stdout = log, stderr = subprocess.STDOUT,
+                                     creationflags = getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        threading.Thread(target = self._serve_window, args = (listener, log), daemon = True).start()
+
+    def _connect_window(self, listener, log):
+        """Wait for the connection of the window (20 s max). Return the connection, None if it failed."""
+        process = self._gui
+        connected = threading.Event()
+
+        def watchdog():   # accept() has no timeout : the listener is closed if the window does not connect
+            t0 = time.time()
+            while not connected.is_set() and process.poll() is None and time.time() - t0 < 20:
+                time.sleep(0.1)
+            if not connected.is_set():
+                listener.close()
+
+        threading.Thread(target = watchdog, daemon = True).start()
+        try:
+            conn = listener.accept()
+            connected.set()
+            return conn
+        except Exception:
+            time.sleep(0.5)
+            log.seek(0)
+            text = log.read().strip()
+            print('Manual control window of the PI stage : not opened.' + ('\n' + text if text else ''))
+            if process.poll() is None:
+                process.kill()
+            return None
+        finally:
+            listener.close()
+
+    def _serve_window(self, listener, log):
+        """Thread of the kernel (no tkinter) : moves the axes asked by the window ('step', axis, direction, step)
+        and sends it the positions every 500 ms."""
+        conn = self._connect_window(listener, log)
+        if conn is None:
+            return
+        self._gui_conn = conn
+        try:
+            # Travel range limits of the axes
+            min_limits = self.pidevice.qTMN(self.axes)
+            max_limits = self.pidevice.qTMX(self.axes)
+            last_update = 0
+            while self.pidevice is not None:
+                if conn.poll(0.1):
+                    message = conn.recv()
+                    if message[0] == 'closed':
+                        break
+                    if message[0] == 'step':
+                        axis, direction, step = message[1:]
+                        try:
+                            new_pos = self.pidevice.qPOS(axis)[axis] + step * direction
+                            # Check of the limits
+                            if new_pos < min_limits[axis]:
+                                new_pos = min_limits[axis]
+                                print(f"MIN limit reached on the axis {axis}")
+                            elif new_pos > max_limits[axis]:
+                                new_pos = max_limits[axis]
+                                print(f"MAX limit reached on the axis {axis}")
+                            # Motion command
+                            self.pidevice.MOV(axis, new_pos)
+                        except Exception as e:
+                            conn.send(('error', f"Motion impossible: {e}"))
+                # Refreshed every 500 ms, in case of a slow motion
+                if time.time() - last_update > 0.5 and self.pidevice is not None:
+                    conn.send(('positions', dict(self.pidevice.qPOS(self.axes))))
+                    last_update = time.time()
+        except (EOFError, OSError):   # window closed or crashed
+            pass
+        except Exception as e:
+            if self.pidevice is not None:
+                print('Manual control window of the PI stage : communication stopped (' + str(e) + ')')
+        finally:
+            conn.close()
+            self._gui_conn = None
+
+    def _close_window(self):
+        """Close the manual control window, if it is open."""
+        if self._gui is not None and self._gui.poll() is None:
+            try:
+                self._gui_conn.send(('close',))
+            except Exception:
+                pass
+            try:
+                self._gui.wait(2)
+            except subprocess.TimeoutExpired:
+                self._gui.kill()
+        self._gui = None
 
 
     def disconnect(self, go_home: bool = True):
@@ -266,6 +379,7 @@ class PIStage:
         go_home: bool.
             set the three stage to zero before disconnection. The default is True.
         """
+        self._close_window()
         if go_home:
             self.go_to_zero()
 
@@ -284,32 +398,44 @@ class stage_parameters:
     class_description: str = 'Stage translation PI parameters'
 
 
+def _jog_window_main():
+    """Entry point of the process of the manual control window (tkinter in its main thread), launched by
+    PIStage.stage_adjustment() : settings in argv (json), key of the connection in the environment."""
+    settings = json.loads(sys.argv[1])
+    conn = Client(('127.0.0.1', settings['port']), authkey = bytes.fromhex(os.environ['PI_WINDOW_KEY']))
+    PIJogControl(conn, settings['axes'], settings['title'], settings['x'], settings['y'] or 0, settings['align']).run()
+
+
 class PIJogControl:
-    """Window to move manually the axes of the PI stage step by step."""
+    """Window to move manually the axes of the PI stage step by step.
+    It runs in its own process and communicates with the kernel (PIStage._serve_window) through conn :
+    it sends ('step', axis, direction, step), ('closed',) and receives ('positions', {axis: position}),
+    ('error', text), ('move', x, y, align), ('close',)."""
 
-    def __init__(self, stage: PIStage, x: Optional[int] = None, y: int = 0, align: str = 'left'):
-        self.pidevice = stage.pidevice
-        self.axes = stage.axes
-
-        # Travel range limits of the axes
-        self.min_limits = self.pidevice.qTMN(self.axes)
-        self.max_limits = self.pidevice.qTMX(self.axes)
+    def __init__(self, conn, axes: list, title: str, x: Optional[int] = None, y: int = 0, align: str = 'left'):
+        self.conn = conn
+        self.axes = axes
 
         self.root = tk.Tk()
-        self.root.title("PI manual control " + str(stage.model))
+        self.root.title(title)
         self.root.attributes("-topmost", True)
-        if x is not None:
-            if align == 'right':   # "-X" : X pixels between the right edge of the window and the right edge of the screen
-                self.root.geometry('-' + str(self.root.winfo_screenwidth() - int(x)) + '+' + str(int(y)))
-            else:
-                self.root.geometry('+' + str(int(x)) + '+' + str(int(y)))
+        self._place(x, y, align)
+        self.root.protocol('WM_DELETE_WINDOW', self.close)
 
         # Variable for the step of the motion
         self.step_var = tk.DoubleVar(value=0.1)
         self.pos_labels = {}
 
         self._build_ui()
-        self._update_positions()
+        self.root.after(100, self._poll)
+
+    def _place(self, x, y, align):
+        if x is None:
+            return
+        if align == 'right':   # "-X" : X pixels between the right edge of the window and the right edge of the screen
+            self.root.geometry('-' + str(self.root.winfo_screenwidth() - int(x)) + '+' + str(int(y)))
+        else:
+            self.root.geometry('+' + str(int(x)) + '+' + str(int(y)))
 
     def _build_ui(self):
         # Step section
@@ -335,35 +461,47 @@ class PIJogControl:
 
         # Close button
         tk.Button(self.root, text="FINISH & CLOSE", bg="#4CAF50", fg="white",
-                  command=self.root.destroy).pack(pady=20, fill='x')
+                  command=self.close).pack(pady=20, fill='x')
 
-    def _update_positions(self):
-        """Updates the display of the real positions."""
-        positions = self.pidevice.qPOS(self.axes)
-        for axis, pos in positions.items():
-            self.pos_labels[axis].config(text=f"{pos:.4f} mm")
-        # Refreshed every 500 ms, in case of a slow motion
-        self.root.after(500, self._update_positions)
+    def _poll(self):
+        """Messages from the kernel."""
+        try:
+            while self.conn.poll():
+                message = self.conn.recv()
+                if message[0] == 'positions':   # updates the display of the real positions
+                    for axis, pos in message[1].items():
+                        if axis in self.pos_labels:
+                            self.pos_labels[axis].config(text=f"{pos:.4f} mm")
+                elif message[0] == 'error':
+                    messagebox.showerror("Error", message[1], parent=self.root)
+                elif message[0] == 'move':
+                    self._place(*message[1:])
+                    self.root.lift()
+                elif message[0] == 'close':
+                    self.root.destroy()
+                    return
+        except (EOFError, OSError):   # kernel stopped
+            self.root.destroy()
+            return
+        self.root.after(100, self._poll)
 
     def move(self, axis, direction):
         try:
             step = self.step_var.get()
-            current_pos = self.pidevice.qPOS(axis)[axis]
-            new_pos = current_pos + (step * direction)
+        except tk.TclError:
+            messagebox.showerror("Error", "Step: enter a number (mm)", parent=self.root)
+            return
+        try:
+            self.conn.send(('step', axis, direction, step))
+        except (EOFError, OSError):   # kernel stopped
+            self.root.destroy()
 
-            # Check of the limits
-            if new_pos < self.min_limits[axis]:
-                new_pos = self.min_limits[axis]
-                print(f"MIN limit reached on the axis {axis}")
-            elif new_pos > self.max_limits[axis]:
-                new_pos = self.max_limits[axis]
-                print(f"MAX limit reached on the axis {axis}")
-
-            # Motion command
-            self.pidevice.MOV(axis, new_pos)
-
-        except Exception as e:
-            messagebox.showerror("Error", f"Motion impossible: {e}")
+    def close(self):
+        try:
+            self.conn.send(('closed',))
+        except (EOFError, OSError):
+            pass
+        self.root.destroy()
 
     def run(self):
         self.root.mainloop()
