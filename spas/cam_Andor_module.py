@@ -48,6 +48,7 @@ _opened_indexes = set()
 DISPLAY_HEIGHT = 900
 CURVE_WIDTH = 800
 PROFILE_HEIGHT = 200
+INTEGRAL_HEIGHT = 800
 WINDOW_GAP = 20
 # height (pixels) of the title bar and the borders of an OpenCV window
 WINDOW_FRAME = 40
@@ -600,6 +601,20 @@ class AndorCam:
         return x, y
 
 
+    def display_below_integral(self, x_offset: int = 0) -> tuple:
+        """Return the position (x, y) in pixels on the right of the image of display() and below
+        its integral curve window, to place another window there.
+
+        Parameters
+        ----------
+        x_offset : int
+            the same horizontal shift as given to display(). The default is 0.
+        """
+        x = self.display_width(curve = False, x_offset = x_offset) + WINDOW_GAP
+        y = INTEGRAL_HEIGHT + WINDOW_FRAME + WINDOW_GAP
+        return x, y
+
+
     def display(self, display_max: bool = False,
                 display_integral: bool = False, display_profile: bool = False, x_offset: int = 0):
         """
@@ -651,7 +666,7 @@ class AndorCam:
             if display_integral:
                 max_points = CURVE_WIDTH
                 vector = deque(maxlen=max_points)
-                curve_height = 800
+                curve_height = INTEGRAL_HEIGHT
                 curve_img = np.zeros((curve_height, max_points), dtype=np.uint8)
                 cv2.namedWindow("Integral Curve")
                 cv2.resizeWindow("Integral Curve", max_points, curve_height)

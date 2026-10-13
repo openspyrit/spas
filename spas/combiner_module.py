@@ -11,6 +11,8 @@ import os
 import sys
 import json
 import time
+import ctypes
+import ctypes.wintypes
 import tempfile
 import threading
 import subprocess
@@ -73,6 +75,7 @@ class Combiner:
         self.lock = threading.RLock()   # the control window and the console share the serial ports
         self._gui = None                # process of the control window (subprocess.Popen)
         self._gui_conn = None           # connection with the control window
+        self._window_size = None        # size (pixels) of the control window on the screen, sent by the window
 
 
     def init(self, model: str = 'combiner', SN: str = '2', default_power: float = 5, verbose: bool = True):
@@ -283,12 +286,17 @@ class Combiner:
         x, y : int, optional
             the position (pixels) of the top left corner of the window on the screen.
             The default is None : position chosen by Windows.
+            If the window is already open, it is moved there (nothing done if x is None).
         """
         if not self.lasers:
             print('No laser connected, run combi.init() first')
             return
-        if self._gui is not None and self._gui.poll() is None:
-            print('The control window is already open')
+        if self._gui is not None and self._gui.poll() is None:   # already open : only moved
+            if x is not None and self._gui_conn is not None:
+                try:
+                    self._gui_conn.send(('move', int(x), int(y)))
+                except Exception:
+                    pass
             return
 
         key = os.urandom(16)
@@ -329,6 +337,11 @@ class Combiner:
         finally:
             listener.close()
 
+    def control_window_size(self):
+        """Return the size (width, height) in pixels of the control window on the screen, with its title bar
+        and borders, to place another window below it. Default (820, 380) if the window has not sent it yet."""
+        return self._window_size if self._window_size is not None else (820, 380)
+
     def _laser_state(self, wavelength: float):
         """Last known power (%) and state of a laser, without serial communication (state None if not known)."""
         laser = self._laser(wavelength)
@@ -351,6 +364,9 @@ class Combiner:
                     message = conn.recv()
                     if message[0] == 'closed':
                         break
+                    if message[0] == 'size':   # size of the window on the screen
+                        self._window_size = (message[1], message[2])
+                        continue
                     command, wavelength = message[0], message[1]
                     try:
                         if command == 'power':
@@ -452,7 +468,7 @@ class CombinerControl:
     """Window to control the lasers of the combiner: ON/OFF, power gauge (left : %, right : mW), manual values.
     It runs in its own process and communicates with the kernel (Combiner._serve_window) through conn :
     it sends ('power', wavelength, value, unit), ('on', wavelength), ('off', wavelength), ('closed',) and
-    receives ('laser', wavelength, percent, state), ('state', {wavelength: (percent, state)}), ('error', text), ('close',)."""
+    receives ('laser', wavelength, percent, state), ('state', {wavelength: (percent, state)}), ('error', text), ('move', x, y), ('close',)."""
 
     GAUGE_H = 200          # height of the gauge (pixels)
     GAUGE_MARGIN = 10      # margin above and below the gauge
@@ -481,6 +497,21 @@ class CombinerControl:
         tk.Button(self.root, text = 'CLOSE', command = self.close).pack(pady = (0, 8), fill = 'x', padx = 8)
 
         self.root.after(100, self._poll)
+        self.root.after(500, self._send_size)
+
+    def _send_size(self):
+        """Send the size of the window on the screen (with its title bar and borders) to the kernel,
+        to place the other windows (Combiner.control_window_size)."""
+        try:
+            rect = ctypes.wintypes.RECT()
+            ctypes.windll.user32.GetWindowRect(int(self.root.wm_frame(), 16), ctypes.byref(rect))
+            width, height = rect.right - rect.left, rect.bottom - rect.top
+        except Exception:   # not Windows
+            width, height = self.root.winfo_width(), self.root.winfo_height()
+        try:
+            self.conn.send(('size', width, height))
+        except (EOFError, OSError):
+            pass
 
     # ----- construction -----
     def _build_laser(self, parent, col, wavelength, max_power):
@@ -566,6 +597,9 @@ class CombinerControl:
                             self._show(wavelength, percent, state)
                 elif message[0] == 'error':
                     messagebox.showerror('Error', message[1], parent = self.root)
+                elif message[0] == 'move':
+                    self.root.geometry('+' + str(message[1]) + '+' + str(message[2]))
+                    self.root.lift()
                 elif message[0] == 'close':
                     self.root.destroy()
                     return
