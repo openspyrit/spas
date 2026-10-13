@@ -23,6 +23,8 @@ Example:
 
 from pyAndorSpectrograph import ATSpectrograph
 
+import ctypes
+import time
 from dataclasses_json import dataclass_json
 from dataclasses import dataclass, InitVar
 from typing import Optional
@@ -42,6 +44,64 @@ SLITS = {('input', 'direct'):  ATSpectrograph.INPUT_DIRECT,
          ('input', 'side'):    ATSpectrograph.INPUT_SIDE,
          ('output', 'direct'): ATSpectrograph.OUTPUT_DIRECT,
          ('output', 'side'):   ATSpectrograph.OUTPUT_SIDE}
+
+# connection: number of retries before resetting the USB port, and delay (s) to let
+# Windows enumerate the spectrograph again after the reset
+CONNECT_RETRIES = 2
+USB_RESET_DELAY = 5
+
+
+def reset_ftdi_port(SN: Optional[str] = None) -> str:
+    """Reset the USB port of the spectrograph (equivalent to unplug / plug the USB cable).
+
+    The spectrograph is connected through an FTDI chip, controlled here with the FTDI
+    library ftd2xx.dll (installed in System32 with the FTDI driver).
+
+    Args:
+        SN (str):
+            the serial number of the spectrograph. The FTDI serial number starts with it
+            (ex: 'SR-2070A' for SN = 'SR-2070'). If None, all FTDI devices whose
+            description contains 'Shamrock' are reset.
+
+    Returns:
+        str: a message describing what has been done.
+    """
+    try:
+        ftdi = ctypes.WinDLL('ftd2xx.dll')
+    except OSError as error:
+        return 'USB reset impossible, ftd2xx.dll not found (' + str(error) + ')'
+
+    FT_OK = 0
+    FT_OPEN_BY_SERIAL_NUMBER = 1
+
+    nbr_devices = ctypes.c_ulong()
+    if ftdi.FT_CreateDeviceInfoList(ctypes.byref(nbr_devices)) != FT_OK:
+        return 'USB reset impossible, FT_CreateDeviceInfoList failed'
+
+    reset_serials = []
+    for index in range(nbr_devices.value):
+        flags, dev_type, dev_id, loc_id = ctypes.c_ulong(), ctypes.c_ulong(), ctypes.c_ulong(), ctypes.c_ulong()
+        serial = ctypes.create_string_buffer(16)
+        description = ctypes.create_string_buffer(64)
+        handle = ctypes.c_void_p()
+        if ftdi.FT_GetDeviceInfoDetail(index, ctypes.byref(flags), ctypes.byref(dev_type), ctypes.byref(dev_id),
+                                       ctypes.byref(loc_id), serial, description, ctypes.byref(handle)) != FT_OK:
+            continue
+        serial = serial.value.decode(errors = 'replace')
+        description = description.value.decode(errors = 'replace')
+        if (SN is not None and not serial.startswith(SN)) or (SN is None and 'shamrock' not in description.lower()):
+            continue
+
+        handle = ctypes.c_void_p()
+        if ftdi.FT_OpenEx(serial.encode(), FT_OPEN_BY_SERIAL_NUMBER, ctypes.byref(handle)) != FT_OK:
+            continue
+        ftdi.FT_CyclePort(handle)
+        ftdi.FT_Close(handle)
+        reset_serials.append(serial)
+
+    if not reset_serials:
+        return 'USB reset impossible, no FTDI device found for SN = ' + str(SN)
+    return 'USB port reset for FTDI device(s) ' + str(reset_serials)
 
 
 @dataclass_json
@@ -112,31 +172,70 @@ class Shamrock:
             return
 
         self.sdk = ATSpectrograph()
+
+        # After the spectrograph is switched on, the first opening of its FTDI USB chip often
+        # fails (Solis retries internally). So: retry, then reset the USB port and retry again.
+        error = self._try_connect(SN, device)
+        for attempt in range(1, CONNECT_RETRIES + 1):
+            if error is None:
+                break
+            print('Spectrograph: ' + error + ' -> retry ' + str(attempt) + '/' + str(CONNECT_RETRIES))
+            time.sleep(1)
+            error = self._try_connect(SN, device)
+
+        if error is not None:
+            print('Spectrograph: ' + error + ' -> reset of the USB port of the spectrograph')
+            reset_message = reset_ftdi_port(SN)
+            print('Spectrograph: ' + reset_message)
+            time.sleep(USB_RESET_DELAY)
+            error = self._try_connect(SN, device)
+
+        if error is not None:
+            self.sdk = None
+            raise RuntimeError('Spectrograph: ' + error + '. Check that the spectrograph is switched on, '
+                               'that Solis is closed and that no other Python console is connected to it.')
+
+        print('Spectrograph Andor Shamrock, SN = ' + self.get_serial_number() + ' connected')
+
+
+    def _try_connect(self, SN: Optional[str], device: int) -> Optional[str]:
+        """Initialize the ATSpectrograph library and search for the spectrograph.
+
+        Args:
+            SN (str):
+                the serial number of the spectrograph, or None to use device.
+            device (int):
+                the index of the spectrograph, used if SN is None.
+
+        Returns:
+            Optional[str]: None if the spectrograph is connected (self.device is set),
+            else the error message. In case of error, the library is closed.
+        """
         ret = self.sdk.Initialize("")
         if ret != ATSpectrograph.ATSPECTROGRAPH_SUCCESS:
             (_, description) = self.sdk.GetFunctionReturnDescription(ret, 64)
-            raise RuntimeError('Spectrograph: Initialize failed, error ' + str(ret) + ' : ' + description +
-                               '. Check that the spectrograph is switched on and that Solis is closed.')
+            self.sdk.Close()
+            return 'Initialize failed, error ' + str(ret) + ' : ' + description
 
         (ret, nbr_devices) = self.sdk.GetNumberDevices()
-        self.check_return(ret, 'GetNumberDevices')
         serial_numbers = []
-        for index in range(nbr_devices):
-            (ret, serial_number) = self.sdk.GetSerialNumber(index, 64)
-            self.check_return(ret, 'GetSerialNumber')
-            serial_numbers.append(serial_number)
+        if ret == ATSpectrograph.ATSPECTROGRAPH_SUCCESS:
+            for index in range(nbr_devices):
+                (ret_sn, serial_number) = self.sdk.GetSerialNumber(index, 64)
+                serial_numbers.append(serial_number if ret_sn == ATSpectrograph.ATSPECTROGRAPH_SUCCESS else '?')
 
         if SN is not None:
-            if SN not in serial_numbers:
-                self.sdk.Close()
-                raise RuntimeError('Spectrograph: SN = ' + SN + ' not found. Spectrograph(s) detected : ' + str(serial_numbers))
-            device = serial_numbers.index(SN)
-        elif device >= nbr_devices:
+            if SN in serial_numbers:
+                self.device = serial_numbers.index(SN)
+                return None
             self.sdk.Close()
-            raise RuntimeError('Spectrograph: device ' + str(device) + ' not found. Spectrograph(s) detected : ' + str(serial_numbers))
+            return 'SN = ' + SN + ' not found. Spectrograph(s) detected : ' + str(serial_numbers)
 
-        self.device = device
-        print('Spectrograph Andor Shamrock, SN = ' + serial_numbers[device] + ' connected')
+        if device < len(serial_numbers):
+            self.device = device
+            return None
+        self.sdk.Close()
+        return 'device ' + str(device) + ' not found. Spectrograph(s) detected : ' + str(serial_numbers)
 
 
     def get_serial_number(self) -> str:

@@ -77,9 +77,10 @@ for pat in list_pat:
 #%% display spatial camera in continous mode
 mirror.set_position('spatial', verbose = True)
 shutter.open()
-# stage.stage_adjustment(x = cam_spat.display_width(curve = True) + 20, y = 0)   # window on the right of the profile / integral curve
+# x_win, y_win = cam_spat.display_below_profile()
+# stage.stage_adjustment(x = x_win, y = y_win)   # window on the right of the image, below the profile
 time.sleep(1)
-play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_33', 
+play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_33',
                  pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) 
 cam_spat.display(display_max = True, display_profile = True)
 DMD.Halt()
@@ -114,11 +115,12 @@ shutter.close()
 #%% display spectral camera in continous mode
 mirror.set_position('spectral', verbose = True)
 shutter.open()
-# stage.stage_adjustment(x = cam_spec.display_width(curve = True) + 20, y = 0)   # window on the right of the profile / integral curve
-# time.sleep(1)
+x_offset = -120   # (pixels) shift of the windows to the left, so that the 3 windows fit in the screen
+stage.stage_adjustment(x = cam_spec.display_width(curve = True, x_offset = x_offset) + 20, y = 0)   # window on the right of the integral curve
+time.sleep(1)
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'white', 
                               pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4) 
-cam_spec.display(display_max = False, display_integral = True)
+cam_spec.display(display_max = False, display_integral = True, x_offset = x_offset)
 DMD.Halt()
 shutter.close()
 #%% setup acquisition
@@ -140,8 +142,8 @@ pattern_compression      = 1
 pattern_dim              = '1D'
 scan_mode                = 'Walsh_sparse'  #'Walsh_inv' #'Raster_inv' #'Raster' #
 source                   = 'laser-473nm'#white_LED'#'No source'#'White_Zeiss_lamp'#'Thorlabs_White_halogen_lamp'#'HG-1_Oceanoptics'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
-object_name              = 'fluo-cuve3'#'fluo_µsphere-gel-bin10' #
-data_folder_name         = '2026-07-21_calib_light_sheet'#'Patient-69_exvivo_LGG_BU'
+object_name              = 'fluo-cuve'#'fluo_µsphere-gel-bin10' #
+data_folder_name         = '2026-10-05_calib_light_sheet'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_Lc_' + str(Lc[0][0]) + 'nm_Gr_' + str(Lc[0][1]) + '_' + scan_mode + '_im_'+str(pattern_thickness)+'x'+str(Np)+'_ti_'+str(round(ti))+'ms_zoom_x'+str(zoom)
 
 all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
@@ -181,7 +183,7 @@ if all_path.aborted == False:
         pass
                   
     DMD_params = setup_DMD(DMD = DMD, DMD_initial_memory = DMD_initial_memory, acquisition_params = acquisition_params, 
-                           integration_time = ti, add_illumination_time = 1000000 - ti*1000) # (µs) doit être > ReadoutTime de la caméra, quel que soit le binning : 24.6 ms à 100 MHz sur 2048 lignes (9.8 ms à 270 MHz, proportionnel au nombre de lignes lues). 30000 = 5 ms de marge. 1000000 pour la mesure de la calibration du feuillet
+                           integration_time = ti, add_illumination_time = 30000)# - ti*1000) # (µs) doit être > ReadoutTime de la caméra, quel que soit le binning : 24.6 ms à 100 MHz sur 2048 lignes (9.8 ms à 270 MHz, proportionnel au nombre de lignes lues). 30000 = 5 ms de marge. 1000000 pour la mesure de la calibration du feuillet
     
 
     if DMD_params.patterns != None:
@@ -339,16 +341,21 @@ import torch
 # H_exp = np.load(Path(data_folder + mat_folder) / f'motifs_Hadamard_{M}_{N}.npy')
 # H_exp /= H_exp[0,16:500].mean()
 all_path_bu = all_path
-all_path_bu.raw_data_path = '../../data/2026-07-02_calib_light_sheet/obj_fluo_cuve_source_laser-473nm_Lc_580.0nm_Gr_1_Walsh_sparse_im_4x256_ti_25ms_zoom_x1/raw_data'
+all_path_bu.raw_data_path = '../../data/2026-10-05_calib_light_sheet/obj_fluo-cuve_source_laser-473nm_Lc_620.0nm_Gr_1_Walsh_sparse_im_16x128_ti_250ms_zoom_x1/raw_data'
 acquisition_params_bu = acquisition_params
-acquisition_params_bu.Nz = 7.5001265
-acquisition_params_bu.Lc[0] = (580.0, 1)
+acquisition_params_bu.Nz = 7.5000029
+acquisition_params_bu.Lc[0] = (620.0, 1)
 acquisition_params_bu.NAverages = 1
 
 spatial_acqui = spatial_reco(acquisition_params_bu, all_path_bu)
 prof = np.empty((spatial_acqui.shape[1], spatial_acqui.shape[2]))    
 for i in range(spatial_acqui.shape[2]):
-    prof[:, i] = spatial_acqui[1024, :, i]
+    # prof[:, i] = spatial_acqui[1024, :, i]
+    prof[:, i] =np.mean(spatial_acqui[1024-100:1024+100, :, i], axis=0)
+    
+plt.figure()
+plt.plot(prof[:,33])
+plt.title('33')
 
 prof2 = np.rot90(prof, 1)
 prof3 = np.flip(prof2, axis = 0)
@@ -362,7 +369,12 @@ plt.figure()
 plt.imshow(H_exp)
 plt.title('H_exp')
 
-H_exp_rogn = H_exp[:, 512:512+1024]
+# H_exp_rogn = H_exp[:, 512:512+1024]
+H_exp_rogn = H_exp[:, 728:1488]
+plt.figure()
+plt.imshow(H_exp_rogn)
+plt.title('H_exp_rogn')
+
 H_exp_bin = binArray(H_exp_rogn, axis = 1, binstep = 4, binsize = 4)
 
 plt.figure()

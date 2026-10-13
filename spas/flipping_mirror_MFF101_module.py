@@ -2,7 +2,7 @@
 """
 Created on Tue Apr 14 09:32:21 2026
 
-@author: equipe-onli
+@author: mahieu
 """
 # -*- coding: utf-8 -*-
 
@@ -69,8 +69,9 @@ class MFF:
         Initialize the flipping mirror.
         -------------------------------
         Args:
-            model (str): the model of the flipper, compared (case insensitive) to the name read from the device.
-                         The default is 'MFF101'.
+            model (str): the model of the flipper (MFF101 or MFF102), only displayed. Kinesis cannot read it:
+                         the device reports its controller type ("MFF002 APT Filter Flipper") for both models,
+                         so only the device type (filter flipper) is checked. The default is 'MFF101'.
             SN (str): the serial number of the flipper.
         Raises:
             InstrumentNotFoundError: Si instrument introuvable.
@@ -80,8 +81,8 @@ class MFF:
         self.open_communication()
         info = self.device.GetDeviceInfo()
         device_name = str(info.Name) + ' ' + str(info.Description)
-        if model.lower() not in device_name.lower():
-            print('Warning, the flipping mirror SN = ' + SN + ' is a "' + device_name + '", not a ' + model)
+        if 'flipper' not in device_name.lower():
+            print('Warning, the device SN = ' + SN + ' is a "' + device_name + '", not a filter flipper (' + model + ')')
 
     def _init_communication_settings(self) -> None:
         """ Déclaration des variables de communication. """

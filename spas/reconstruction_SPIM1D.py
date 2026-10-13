@@ -128,11 +128,11 @@ def spatial_reco(acquisition_params, all_path):
                 raw_data = raw_data_file['arr_0']
                 raw_data_file.close()
                 
-                if fisrt_pass == True:
-                    spatial_acqui = np.empty((raw_data.T.shape + (NR, NLc, NA)), dtype = np.int16)
-                    fisrt_pass = False
-                 
                 raw_data = np.rot90(raw_data, k=1, axes=(0,1))
+
+                if fisrt_pass == True:
+                    spatial_acqui = np.empty((raw_data.shape + (NR, NLc, NA)), dtype = raw_data.dtype)
+                    fisrt_pass = False
                 if len(spatial_acqui.shape) == 6:
                     spatial_acqui[:, :, :, iNR, iLc, iNA] = raw_data
                 elif len(spatial_acqui.shape) == 5:

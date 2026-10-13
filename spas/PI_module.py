@@ -71,32 +71,32 @@ class PIStage:
             print the steps of the initialization. The default is False.
         """
         try:
-            # 1. Connexion au contrôleur
+            # 1. Connection to the controller
             self.pidevice = GCSDevice(model)
             self.pidevice.ConnectUSB(serialnum=SN)
             if verbose:
                 print(f"Connected to {self.pidevice.qIDN().strip()}")
             # check the available axes
             self.axes = self.tools.getaxeslist(self.pidevice, None)
-            # 2. Assignation des platines (CST)
-            # Indispensable pour que le contrôleur sache quel moteur il pilote
+            # 2. Assignment of the stages (CST)
+            # Required so that the controller knows which motor it drives
             if stages_model is None:
                 stages_model = ['M-111.1DG'] * len(self.axes)
             if verbose:
                 print("Assigning the stages...")
             self.pidevice.CST(self.axes, stages_model)
-            # 3. Activation du Servo (SVO)
-            # Les moteurs DC comme le M-111.1DG ne bougent pas si le servo est sur False
+            # 3. Activation of the servo (SVO)
+            # DC motors such as the M-111.1DG do not move if the servo is False
             if verbose:
                 print("Activating the servos...")
             self.pidevice.SVO(self.axes, [True] * len(self.axes))
-            # 4. Référencement (Homing)
-            # On lance la recherche de la limite négative (FNL) pour calibrer le zéro
+            # 4. Referencing (homing)
+            # Search of the negative limit (FNL) to calibrate the zero
             if verbose:
                 print("Referencing the axes (homing)...")
             self.pidevice.FNL(self.axes)
-            # 5. Attente de la fin du référencement
-            # Très important : bloque le code jusqu'à ce que les axes soient à l'arrêt et référencés
+            # 5. Wait for the end of the referencing
+            # Very important: blocks the code until the axes are stopped and referenced
             self.tools.waitontarget(self.pidevice, self.axes)
             if verbose:
                 print("All the axes are referenced and ready.")
@@ -174,7 +174,7 @@ class PIStage:
 
     def move_to_middle(self):
         """Move the 3 axes to the middle of their travel range, with a window to stop the motion."""
-        # On ajoute un flag 'done' pour la surveillance
+        # 'done' flag for the monitoring
         status = {"stop": False, "done": False}
 
         def emergency_stop():
@@ -184,7 +184,7 @@ class PIStage:
                 print("EMERGENCY STOP: commands sent.")
             except Exception as e:
                 print(f"Error during the stop: {e}")
-            status["done"] = True # Force la sortie du polling
+            status["done"] = True # Forces the exit of the polling
 
         root = tk.Tk()
         root.title("Motion control")
@@ -194,12 +194,12 @@ class PIStage:
         tk.Button(root, text="STOP", bg="red", fg="white", font=("Arial", 14, "bold"),
                   command=emergency_stop).pack(pady=10)
 
-        # Fonction de surveillance (Polling)
+        # Monitoring function (polling)
         def check_status():
             if status["done"]:
-                root.quit() # Arrête le mainloop immédiatement
+                root.quit() # Stops the mainloop immediately
             else:
-                # On se ré-appelle dans 100ms pour garder la boucle "éveillée"
+                # Called again in 100 ms to keep the loop "awake"
                 root.after(100, check_status)
 
         def motion_thread():
@@ -216,9 +216,9 @@ class PIStage:
             except Exception as e:
                 print(f"Error in the motion thread: {e}")
             finally:
-                status["done"] = True # Signale à la GUI qu'on a fini
+                status["done"] = True # Tells the GUI that the motion is finished
 
-        # On lance la surveillance AVANT le mainloop
+        # The monitoring is started BEFORE the mainloop
         root.after(100, check_status)
 
         t = threading.Thread(target=motion_thread, daemon=True)
@@ -226,7 +226,7 @@ class PIStage:
 
         root.mainloop()
 
-        # Nettoyage final
+        # Final cleaning
         try:
             root.destroy()
         except:
@@ -241,14 +241,15 @@ class PIStage:
         x, y : int, optional
             the position (pixels) of the top left corner of the window on the screen.
             To place it on the right of the camera display: x = cam.display_width(curve = True) + 20.
+            To place it on the right of the image, below the profile: x, y = cam.display_below_profile().
             The default is None : position chosen by Windows.
         """
-        # On crée une fonction interne qui servira de cible au thread
+        # Internal function used as the target of the thread
         def start_gui():
             gui = PIJogControl(self, x, y)
-            gui.run() # Le mainloop tournera ici, dans son propre thread
+            gui.run() # The mainloop runs here, in its own thread
 
-        # daemon=True permet à la fenêtre de se fermer si vous quittez Python
+        # daemon=True lets the window close when Python is closed
         jog_thread = threading.Thread(target=start_gui, daemon=True)
         jog_thread.start()
 
@@ -287,7 +288,7 @@ class PIJogControl:
         self.pidevice = stage.pidevice
         self.axes = stage.axes
 
-        # Récupération des limites et positions actuelles
+        # Travel range limits of the axes
         self.min_limits = self.pidevice.qTMN(self.axes)
         self.max_limits = self.pidevice.qTMX(self.axes)
 
@@ -297,7 +298,7 @@ class PIJogControl:
         if x is not None:
             self.root.geometry('+' + str(int(x)) + '+' + str(int(y)))
 
-        # Variable pour le pas de déplacement
+        # Variable for the step of the motion
         self.step_var = tk.DoubleVar(value=0.1)
         self.pos_labels = {}
 
@@ -305,37 +306,37 @@ class PIJogControl:
         self._update_positions()
 
     def _build_ui(self):
-        # Section Pas de déplacement
+        # Step section
         step_frame = tk.Frame(self.root, pady=10)
         step_frame.pack()
         tk.Label(step_frame, text="Step (mm):").grid(row=0, column=0)
         tk.Entry(step_frame, textvariable=self.step_var, width=10).grid(row=0, column=1)
 
-        # Section Axes
+        # Axes section
         axes_frame = tk.Frame(self.root, padx=20, pady=10)
         axes_frame.pack()
 
         for i, axis in enumerate(self.axes):
             tk.Label(axes_frame, text=f"Axis {axis}", font=('Arial', 10, 'bold')).grid(row=i, column=0, padx=10)
 
-            # Affichage Position
+            # Position display
             self.pos_labels[axis] = tk.Label(axes_frame, text="0.000", fg="blue", font=('Consolas', 12))
             self.pos_labels[axis].grid(row=i, column=1, padx=10)
 
-            # Boutons de mouvement
+            # Motion buttons
             tk.Button(axes_frame, text=" ◀ ", command=lambda a=axis: self.move(a, -1)).grid(row=i, column=2, pady=5)
             tk.Button(axes_frame, text=" ▶ ", command=lambda a=axis: self.move(a, 1)).grid(row=i, column=3, pady=5)
 
-        # Bouton Fermer
+        # Close button
         tk.Button(self.root, text="FINISH & CLOSE", bg="#4CAF50", fg="white",
                   command=self.root.destroy).pack(pady=20, fill='x')
 
     def _update_positions(self):
-        """Met à jour l'affichage des positions réelles."""
+        """Updates the display of the real positions."""
         positions = self.pidevice.qPOS(self.axes)
         for axis, pos in positions.items():
             self.pos_labels[axis].config(text=f"{pos:.4f} mm")
-        # On rafraîchit toutes les 500ms au cas où un mouvement est lent
+        # Refreshed every 500 ms, in case of a slow motion
         self.root.after(500, self._update_positions)
 
     def move(self, axis, direction):
@@ -344,7 +345,7 @@ class PIJogControl:
             current_pos = self.pidevice.qPOS(axis)[axis]
             new_pos = current_pos + (step * direction)
 
-            # Vérification des bornes
+            # Check of the limits
             if new_pos < self.min_limits[axis]:
                 new_pos = self.min_limits[axis]
                 print(f"MIN limit reached on the axis {axis}")
@@ -352,7 +353,7 @@ class PIJogControl:
                 new_pos = self.max_limits[axis]
                 print(f"MAX limit reached on the axis {axis}")
 
-            # Commande de mouvement
+            # Motion command
             self.pidevice.MOV(axis, new_pos)
 
         except Exception as e:

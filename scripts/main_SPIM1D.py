@@ -28,7 +28,7 @@ from spas.visualization_SPIM1D import plot_acqui
 from spas.transfer_data_to_girder import transfer_data_SPIM1D
 #%% Initialize hardware
 spectrograph = Shamrock()
-spectrograph.init(model = 'andor_shamrock', SN = 'SR-2070')   # Shamrock 500i (focal length 500 mm)
+spectrograph.init(model = 'andor_shamrock', SN = 'SR-2070')   
 DMD, DMD_initial_memory = init_DMD(dmd_lib_version = '4.3')
 cam_spat = AndorCam()
 cam_spat.init(model = 'ZYLA-4.2P-USB3-S', SN = 'VSC-10323', arm = 'spatial')
@@ -45,7 +45,7 @@ stage.move_to_middle()
 position = stage.read_position(verbose = True)
 # stage.go_to_zero()
 #%% setup Spatial Camera
-cam_spat_params = cam_spat.setup(expos_time  = 0.000001,  # (s)
+cam_spat_params = cam_spat.setup(expos_time  = 0.1,  # (s)
                                  gain        = 1,        # 1 or 2                              
                                  width       = 2048,     # max = 2048
                                  height      = 2048,     # max = 2048
@@ -66,7 +66,8 @@ shutter.close()
 #%% display spatial camera in continous mode
 mirror.set_position('spatial', verbose = True)
 shutter.open()
-# stage.stage_adjustment(x = cam_spat.display_width(curve = True) + 20, y = 0)   # window on the right of the profile / integral curve
+x_win, y_win = cam_spat.display_below_profile()
+stage.stage_adjustment(x = x_win, y = y_win)   # window on the right of the image, below the profile
 time.sleep(1)
 play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_33', 
                  
@@ -76,13 +77,13 @@ DMD.Halt()
 shutter.close()
 position = stage.read_position(verbose = True)
 #%% setup the Spectrograph
-spectrograph_params = spectrograph.setup(grating_nbr =   1, print_select   = True,   # Arg:  1
+spectrograph_params = spectrograph.setup(grating_nbr =   1, print_select   = True,   # Arg: 1 => 300 l/mm. 2: Doesn't exist
                                          position    = 600, print_position = True,   # the central wavelength of the grating (nm)
                                          slit_width  = None,                         # the width of the input slit in (µm), None : not changed
                                          input_port  = None,                         # 'direct' or 'side', None : not changed
                                          output_port = None, print_ports  = True)    # 'direct' or 'side', None : not changed
 #%% setup Spectral Camera
-cam_spec_params = cam_spec.setup(expos_time  = 0.5,        # (s)
+cam_spec_params = cam_spec.setup(expos_time  = 0.0000001,        # (s)
                                  gain        = 1,        # 1 or 2                              
                                  width       = 2048,     # max = 2048
                                  height      = 2048,     # max = 2048
@@ -104,11 +105,12 @@ shutter.close()
 #%% display spectral camera in continous mode
 mirror.set_position('spectral', verbose = True)
 shutter.open()
-stage.stage_adjustment(x = cam_spec.display_width(curve = True) + 20, y = 0)   # window on the right of the profile / integral curve
+x_offset = -120   # (pixels) shift of the windows to the left, so that the 3 windows fit in the screen
+stage.stage_adjustment(x = cam_spec.display_width(curve = True, x_offset = x_offset) + 20, y = 0)   # window on the right of the integral curve
 time.sleep(1)
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'white', 
                               pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4) 
-cam_spec.display(display_max = False, display_integral = True)
+cam_spec.display(display_max = False, display_integral = True, x_offset = x_offset)
 DMD.Halt()
 shutter.close()
 position = stage.read_position(verbose = True)
@@ -252,19 +254,24 @@ def binArray(data, axis, binstep, binsize, func=np.nanmean):
 
 
 all_path_bu = all_path
-all_path_bu.raw_data_path = '../../data/2026-07-21_calib_light_sheet/obj_fluo-cuve3_source_laser-473nm_Lc_620.0nm_Gr_1_Walsh_sparse_im_4x128_ti_750ms_zoom_x1/raw_data'
+# all_path_bu.raw_data_path = '../../data/2026-07-21_calib_light_sheet/obj_fluo-cuve3_source_laser-473nm_Lc_620.0nm_Gr_1_Walsh_sparse_im_4x128_ti_750ms_zoom_x1/raw_data'
+# acquisition_params_bu = acquisition_params
+# acquisition_params_bu.Nz = 7.5000029
+# acquisition_params_bu.Lc[0] = (620.0, 1)
+# acquisition_params_bu.NAverages = 1
+
+all_path_bu.raw_data_path = '../../data/2026-10-05_calib_light_sheet/obj_fluo-cuve_source_laser-473nm_Lc_620.0nm_Gr_1_Walsh_sparse_im_16x128_ti_250ms_zoom_x1/raw_data'
 acquisition_params_bu = acquisition_params
 acquisition_params_bu.Nz = 7.5000029
 acquisition_params_bu.Lc[0] = (620.0, 1)
 acquisition_params_bu.NAverages = 1
-
 # spatial_acqui = spatial_reco(acquisition_params_bu, all_path_bu)
 
 spatial_acqui_arr = np.load(all_path_bu.raw_data_path + '/spatial_Ny_7.5000029mm_Gr_1_Lc_620.0nm_NA_0.npz')
 spatial_acqui = spatial_acqui_arr['arr_0']
 
-rogne1 = 620
-rogne2 = 1320
+rogne1 = 728 #620
+rogne2 = 1488 #1320
 
 # prof = np.empty((spatial_acqui.shape[1], spatial_acqui.shape[2]))    
 prof = np.empty((rogne2 - rogne1, spatial_acqui.shape[2]))  
@@ -292,7 +299,7 @@ H_exp = pos - neg
 # plt.imshow(H_exp)
 # plt.title('H_exp')
 
-H_exp_rogn = H_exp[:, 512:512+1024]
+H_exp_rogn = H_exp[:, rogne1:rogne2]
 # H_exp_bin = binArray(H_exp_rogn, axis = 1, binstep = 4, binsize = 4)
 H_exp_bin = H_exp
 

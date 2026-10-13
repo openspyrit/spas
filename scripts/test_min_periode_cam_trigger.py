@@ -7,8 +7,6 @@ Created on Thu Oct  1 15:44:46 2026
 
 #%% test : minimum period between two triggers (spectral camera)
 from spas.acquisition_SPIM1D import check_timestamps
-
-
 mirror.set_position('spectral', verbose = True)
 shutter.open()
 for add_ill in [26000, 28000, 30000, 33000, 36000, 40000, 45000, 50000]:

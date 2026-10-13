@@ -47,7 +47,10 @@ _opened_indexes = set()
 # the profile or the integral curve on its right
 DISPLAY_HEIGHT = 900
 CURVE_WIDTH = 800
+PROFILE_HEIGHT = 200
 WINDOW_GAP = 20
+# height (pixels) of the title bar and the borders of an OpenCV window
+WINDOW_FRAME = 40
 
 
 def get_sdk3() -> AndorSDK3:
@@ -567,13 +570,15 @@ class AndorCam:
         return data
 
 
-    def display_width(self, curve: bool = False) -> int:
-        """Return the width (pixels) of the windows of display(), to place another window on their right.
+    def display_width(self, curve: bool = False, x_offset: int = 0) -> int:
+        """Return the right edge (pixels) of the windows of display(), to place another window on their right.
 
         Parameters
         ----------
         curve : bool
             True if the profile or the integral curve is displayed on the right of the image.
+        x_offset : int
+            the same horizontal shift as given to display(). The default is 0.
         """
         width = self.get("AOIWidth")
         height = self.get("AOIHeight")
@@ -584,11 +589,19 @@ class AndorCam:
         if curve:
             width_win = width_win + WINDOW_GAP + CURVE_WIDTH
 
-        return width_win
+        return width_win + x_offset
+
+
+    def display_below_profile(self) -> tuple:
+        """Return the position (x, y) in pixels on the right of the image of display() and below
+        its profile window, to place another window there."""
+        x = self.display_width(curve = False) + WINDOW_GAP
+        y = PROFILE_HEIGHT + WINDOW_FRAME + WINDOW_GAP
+        return x, y
 
 
     def display(self, display_max: bool = False,
-                display_integral: bool = False, display_profile: bool = False):
+                display_integral: bool = False, display_profile: bool = False, x_offset: int = 0):
         """
         Continuous image display of the camera with optional integral/mean curve using OpenCV.
         Press 'q' to exit.
@@ -601,6 +614,9 @@ class AndorCam:
                 Display the mean value of the image as a curve. Default is False.
             display_profile (bool):
                 Display the profile image to see the edge of the light sheet. Default is False.
+            x_offset (int):
+                horizontal shift (pixels) of the windows. A negative value moves them to the left
+                (the left part of the image goes out of the screen) so that all the windows fit. Default is 0.
         Returns:
         -------
             None
@@ -652,7 +668,7 @@ class AndorCam:
                 windows.append("Profile")
 
             if display_profile:
-                curve_height = 200  # Hauteur de l'image de la courbe
+                curve_height = PROFILE_HEIGHT  # Hauteur de l'image de la courbe
                 fixed_width = CURVE_WIDTH    # Largeur fixe de la fenêtre
                 # Initialiser l'image pour la courbe (noire, 1 canal)
                 curve_img = np.zeros((curve_height, fixed_width), dtype=np.uint8)
@@ -722,7 +738,7 @@ class AndorCam:
 
                 # Display camera image
                 cv2.imshow(window_name, data_8b_resize)
-                cv2.moveWindow(window_name, 0, 0)
+                cv2.moveWindow(window_name, x_offset, 0)
 
                 # Display integral curve (if enabled)
                 if display_integral:
@@ -751,7 +767,7 @@ class AndorCam:
 
                     # Display curve
                     cv2.imshow("Integral Curve", curve_img)
-                    cv2.moveWindow("Integral Curve", width_win + WINDOW_GAP, 0)
+                    cv2.moveWindow("Integral Curve", x_offset + width_win + WINDOW_GAP, 0)
 
                 if display_profile:
                     # define offset and thickness of the profile
@@ -789,7 +805,7 @@ class AndorCam:
 
                     # Afficher le profil
                     cv2.imshow("Profile", curve_img)
-                    cv2.moveWindow("Profile", width_win + WINDOW_GAP, 0)
+                    cv2.moveWindow("Profile", x_offset + width_win + WINDOW_GAP, 0)
 
                 if windows_to_front:
                     # set topmost then release it: the windows come in front once, without staying always on top
