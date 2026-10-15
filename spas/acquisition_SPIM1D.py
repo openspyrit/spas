@@ -524,6 +524,7 @@ def save_metadata(DMD_params,#: DMDParameters,
 
 
 import tkinter as tk
+import gc
 
 def popup():
     """
@@ -566,6 +567,11 @@ def popup():
     ok_button.pack(side="right", padx=10)
 
     window.mainloop()
+    # the callbacks keep a reference cycle to window : freed by the garbage collector, maybe in a camera
+    # thread => kernel crash "Tcl_AsyncDelete: async handler deleted by the wrong thread".
+    # Cycle broken and Tcl interpreter freed now, in the main thread.
+    window = None
+    gc.collect()
     return result["choice"]
 
    

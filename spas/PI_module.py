@@ -26,6 +26,7 @@ import json
 import tempfile
 import threading
 import subprocess
+import gc
 from multiprocessing.connection import Listener, Client
 import numpy as np
 from typing import Optional
@@ -239,6 +240,11 @@ class PIStage:
             root.destroy()
         except:
             pass
+        # the callbacks keep a reference cycle to root : freed by the garbage collector, maybe in another thread
+        # (cameras, .NET) => kernel crash "Tcl_AsyncDelete: async handler deleted by the wrong thread".
+        # Cycle broken and Tcl interpreter freed now, in the main thread.
+        root = None
+        gc.collect()
 
 
     def stage_adjustment(self, x: Optional[int] = None, y: int = 0, align: str = 'left'):
