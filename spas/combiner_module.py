@@ -34,6 +34,136 @@ except ImportError:   # package only needed to drive the lasers, not to read the
 
 MIN_POWER_MW = 1   # minimum power accepted by the driver (0 is accepted too)
 
+OBIS_USB_ID = 'USB\\VID_0D4D&PID_003B\\'    # Obis, always enumerated : used to find the hub of the combiner
+FAILED_USB_ID = 'USB\\VID_0000&PID_000'     # "Unknown USB device (device descriptor request failed)"
+
+
+def _usb_present_ids() -> List[str]:
+    """Instance ids of the USB devices present (Windows configuration manager)."""
+    cfgmgr = ctypes.windll.cfgmgr32
+    flags = 0x101   # CM_GETIDLIST_FILTER_ENUMERATOR | CM_GETIDLIST_FILTER_PRESENT
+    size = ctypes.c_ulong()
+    if cfgmgr.CM_Get_Device_ID_List_SizeW(ctypes.byref(size), 'USB', flags) != 0:
+        return []
+    buffer = ctypes.create_unicode_buffer(size.value)
+    if cfgmgr.CM_Get_Device_ID_ListW('USB', buffer, size, flags) != 0:
+        return []
+    return [i for i in ctypes.wstring_at(buffer, size.value).split('\0') if i]
+
+
+def _usb_parent(instance_id: str) -> Optional[str]:
+    """Instance id of the parent of a device, None if not found."""
+    cfgmgr = ctypes.windll.cfgmgr32
+    node, parent = ctypes.c_ulong(), ctypes.c_ulong()
+    if cfgmgr.CM_Locate_DevNodeW(ctypes.byref(node), instance_id, 0) != 0:
+        return None
+    if cfgmgr.CM_Get_Parent(ctypes.byref(parent), node, 0) != 0:
+        return None
+    buffer = ctypes.create_unicode_buffer(256)
+    if cfgmgr.CM_Get_Device_IDW(parent, buffer, 256, 0) != 0:
+        return None
+    return buffer.value
+
+
+def combiner_usb_hub() -> Optional[str]:
+    """Instance id of the USB hub of the combiner : grandparent of an Obis (Obis -> internal hub -> hub of the combiner)."""
+    obis = [i for i in _usb_present_ids() if i.upper().startswith(OBIS_USB_ID)]
+    if not obis:
+        return None
+    hub = _usb_parent(obis[0])
+    hub = _usb_parent(hub) if hub else None
+    if hub is None or hub.upper().startswith('USB\\ROOT_HUB'):
+        return None
+    return hub
+
+
+def combiner_failed_usb(hub: str) -> List[str]:
+    """Devices below the hub of the combiner whose USB enumeration failed (LuxX not seen by Windows)."""
+    failed = []
+    for instance_id in _usb_present_ids():
+        if not instance_id.upper().startswith(FAILED_USB_ID):
+            continue
+        parent = _usb_parent(instance_id)
+        for _ in range(4):   # the combiner has 2 levels of hubs
+            if parent is None:
+                break
+            if parent.upper() == hub.upper():
+                failed.append(instance_id)
+                break
+            parent = _usb_parent(parent)
+    return failed
+
+
+def restart_usb_device(instance_id: str, timeout: float = 30) -> bool:
+    """Restart a USB device with pnputil (same as unplugging / replugging it). Needs the administrator
+    rights : UAC prompt. Return True if pnputil succeeded."""
+    class SHELLEXECUTEINFOW(ctypes.Structure):
+        _fields_ = [('cbSize', ctypes.wintypes.DWORD), ('fMask', ctypes.c_ulong), ('hwnd', ctypes.wintypes.HWND),
+                    ('lpVerb', ctypes.wintypes.LPCWSTR), ('lpFile', ctypes.wintypes.LPCWSTR),
+                    ('lpParameters', ctypes.wintypes.LPCWSTR), ('lpDirectory', ctypes.wintypes.LPCWSTR),
+                    ('nShow', ctypes.c_int), ('hInstApp', ctypes.wintypes.HINSTANCE), ('lpIDList', ctypes.c_void_p),
+                    ('lpClass', ctypes.wintypes.LPCWSTR), ('hkeyClass', ctypes.wintypes.HKEY),
+                    ('dwHotKey', ctypes.wintypes.DWORD), ('hIcon', ctypes.wintypes.HANDLE),
+                    ('hProcess', ctypes.wintypes.HANDLE)]
+
+    info = SHELLEXECUTEINFOW()
+    info.cbSize = ctypes.sizeof(info)
+    info.fMask = 0x40   # SEE_MASK_NOCLOSEPROCESS
+    info.lpVerb = 'runas'
+    info.lpFile = 'pnputil.exe'
+    info.lpParameters = '/restart-device "' + instance_id + '"'
+    info.nShow = 0      # SW_HIDE
+    if not ctypes.windll.shell32.ShellExecuteExW(ctypes.byref(info)) or not info.hProcess:
+        return False    # UAC refused
+    kernel32 = ctypes.windll.kernel32
+    kernel32.WaitForSingleObject(info.hProcess, int(timeout * 1000))
+    code = ctypes.wintypes.DWORD()
+    kernel32.GetExitCodeProcess(info.hProcess, ctypes.byref(code))
+    kernel32.CloseHandle(info.hProcess)
+    return code.value == 0
+
+
+def wait_usb_stable(min_wait: float = 3, stable: float = 2, timeout: float = 30):
+    """Wait for the end of the USB enumeration : list of the USB devices unchanged during 'stable' seconds."""
+    time.sleep(min_wait)
+    t_end = time.time() + timeout
+    previous, t_change = None, time.time()
+    while time.time() < t_end:
+        ids = sorted(_usb_present_ids())
+        if ids != previous:
+            previous, t_change = ids, time.time()
+        elif time.time() - t_change >= stable:
+            return
+        time.sleep(0.5)
+
+
+def check_combiner_usb(max_resets: int = 2, verbose: bool = True) -> bool:
+    """Check that all the lasers of the combiner are enumerated by Windows. If not (some LuxX seen as
+    'Unknown USB device'), restart the USB hub of the combiner (UAC prompt), as unplugging / replugging
+    its cable. Return True if no failed device remains."""
+    hub = combiner_usb_hub()
+    if hub is None:
+        if verbose:
+            print('Warning, combiner : USB hub not found (no Obis detected), USB check skipped')
+        return True
+    for attempt in range(1, max_resets + 1):
+        failed = combiner_failed_usb(hub)
+        if not failed:
+            return True
+        print('Combiner : ' + str(len(failed)) + ' laser(s) not enumerated by Windows, restart of the USB hub (' +
+              str(attempt) + '/' + str(max_resets) + ', accept the administrator prompt)')
+        if not restart_usb_device(hub):
+            print('Warning, combiner : USB hub not restarted (administrator prompt refused or pnputil error)')
+            return False
+        wait_usb_stable()
+        hub = combiner_usb_hub() or hub
+    failed = combiner_failed_usb(hub)
+    if failed:
+        print('Warning, combiner : ' + str(len(failed)) + ' laser(s) still not enumerated, unplug / replug the USB cable')
+    else:
+        print('Combiner : all the lasers enumerated after the USB hub restart')
+    return not failed
+
 
 @dataclass_json
 @dataclass
@@ -78,7 +208,8 @@ class Combiner:
         self._window_size = None        # size (pixels) of the control window on the screen, sent by the window
 
 
-    def init(self, model: str = 'combiner', SN: str = '2', default_power: float = 5, verbose: bool = True):
+    def init(self, model: str = 'combiner', SN: str = '2', default_power: float = 5, verbose: bool = True,
+             usb_check: bool = True):
         """
         Initialize the laser combiner and detect the connected lasers
 
@@ -93,9 +224,14 @@ class Combiner:
         verbose : bool
             print the connected lasers. The default is True.
             The detected lasers are stored in self.lasers.
+        usb_check : bool
+            before the connection, restart the USB hub of the combiner if some lasers are not enumerated
+            by Windows (administrator prompt). The default is True.
         """
         if CombinerDriver is None:
             raise ImportError('creatis_pilot_combiner package not found in ' + COMBINER_LIB_PATH)
+        if usb_check:
+            check_combiner_usb()
         self.device = CombinerDriver()
         self.device.init_lasers()
         self.model = model
