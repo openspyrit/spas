@@ -84,7 +84,7 @@ x_win, y_win = cam_spat.display_below_profile()
 combi.control(x = x_win, y = y_win)   
 mirror.set_position('spatial', verbose = True)
 shutter.open()
-stage.stage_adjustment(x = x_win + combi.control_window_size()[0], y = y_win + combi.control_window_size()[1] + 20, align = 'right')  
+stage.stage_adjustment(obj_stage = obj_stage, cam = cam_spat, x = x_win + combi.control_window_size()[0], y = y_win + combi.control_window_size()[1] + 20, align = 'right')  
 time.sleep(1)
 play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_33',                  
                  pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16,
@@ -126,7 +126,7 @@ x_win, y_win = cam_spec.display_below_integral(x_offset = x_offset)
 combi.control(x = x_win, y = y_win)   # control of the lasers : below the integral curve, on the left
 mirror.set_position('spectral', verbose = True)
 shutter.open()
-stage.stage_adjustment(x = cam_spec.display_width(curve = True, x_offset = x_offset) + 20, y = 0)   # window on the right of the integral curve
+stage.stage_adjustment(obj_stage = obj_stage, x = cam_spec.display_width(curve = True, x_offset = x_offset) + 20, y = 0)   # window on the right of the integral curve
 time.sleep(1)
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'white', 
                               pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4,

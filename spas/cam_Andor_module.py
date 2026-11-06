@@ -34,6 +34,7 @@ from dataclasses import dataclass, InitVar
 from dataclasses_json import dataclass_json
 from scipy import signal
 from collections import deque
+import time
 import cv2
 
 
@@ -87,6 +88,12 @@ class AndorCam:
             (start of the exposure, read in the metadata of the frame).
     """
 
+    # defaults of the attributes added after the first versions : an object created before a reload of the module
+    # (Spyder) does not have them
+    _live = False
+    _live_frame = None
+    _live_count = 0
+
     def __init__(self):
         self.sdk = None
         self.index = None
@@ -102,6 +109,10 @@ class AndorCam:
         self._aoi = None
         self._metadata_timestamp = False
         self._clock_frequency = None
+        # last frame of display(), shared with the other threads (autofocus) : the camera is used by display() only
+        self._live = False
+        self._live_frame = None
+        self._live_count = 0
 
 
     def init(self, model: str = 'Zyla', SN: str = '', arm: str = 'spatial'):
@@ -355,6 +366,34 @@ class AndorCam:
             self.setup_acquisition(nframes)
 
         return image
+
+
+    def is_live(self) -> bool:
+        """Return True if display() is running."""
+        return self._live
+
+
+    def fresh_frame(self, timeout: Optional[float] = None) -> np.ndarray:
+        """Return a frame whose exposure started after the call (e.g. after a motion of a stage).
+
+        If display() is running (in another thread), the frame is taken from the display : the next frame may have
+        started its exposure before the call, so the second one is returned. Otherwise a frame is acquired (snap).
+        """
+        if timeout is None:
+            timeout = self.get("ExposureTime") + 5
+        if not self._live:
+            return self.snap(timeout)
+
+        count = self._live_count
+        t0 = time.time()
+        while self._live_count < count + 2:
+            if not self._live:
+                raise RuntimeError(self.arm + ' camera: display stopped')
+            if time.time() - t0 > 2 * timeout:
+                raise TimeoutError(self.arm + ' camera: no frame received from the display after ' + str(2 * timeout) + ' s')
+            time.sleep(0.01)
+
+        return self._live_frame
 
     ########################### setup #########################################
     def setup(self, expos_time: float = 0.1, ExternalTriggerDelay: float = 0, gain: int = 1,
@@ -692,10 +731,13 @@ class AndorCam:
             print('Start acquisition...\n')
             self.setup_acquisition(10)
             self.start_acquisition()
+            self._live = True
 
             while True:
                 # Acquire image
                 data = self.read_latest_frame(timeout=current_exposure_time + 5)
+                self._live_frame = data   # shared with fresh_frame() (autofocus)
+                self._live_count += 1
 
                 if self.arm == 'spatial':
                     data = np.rot90(data, k=1, axes=(0, 1))
@@ -838,6 +880,7 @@ class AndorCam:
         except Exception as e:
             print(f"Error: {e}")
         finally:
+            self._live = False
             cv2.destroyAllWindows()
             self.stop_acquisition()
             self.setup_acquisition(nframes)

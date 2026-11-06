@@ -13,7 +13,7 @@ Example:
     stage.move_to_middle()
     position = stage.read_position(verbose = True)
     stage.move_axis(axis = '2', array_to_move = [5.0], verbose = True)
-    stage.stage_adjustment()
+    stage.stage_adjustment(obj_stage = obj_stage)   # obj_stage (CollectObjStage) : optional 4th axis of the window
     stage.disconnect(go_home = True)
 """
 
@@ -35,6 +35,9 @@ from dataclasses_json import dataclass_json
 import time
 
 
+OBJ_AXIS = 'obj'   # name of the axis of the stage of the collection objective in the manual control window
+
+
 class PIStage:
     """Class that controls the PI translation stages (X, Y, Z).
 
@@ -51,7 +54,19 @@ class PIStage:
             the axes of the controller ('1', '2', '3').
         axes_names (list):
             the names of the axes, in the same order: 'X', 'Y', 'Z'.
+        axes_labels (dict):
+            the role of each axis in the setup, displayed in the manual control window.
+        jog_direction (dict):
+            +1 or -1 for each axis : sign of the motion of the ▶ button of the manual control window.
     """
+
+    # defaults of the attributes added after the first versions : an object created before a reload of the module
+    # (Spyder) does not have them
+    _obj_stage = None
+    _af_cam = None
+    _af_thread = None
+    _af_stop = None
+    _af_status = ''
 
     def __init__(self):
         self.pidevice = None
@@ -60,8 +75,15 @@ class PIStage:
         self.serial_number = None
         self.axes = []
         self.axes_names = ['X', 'Y', 'Z']
+        self.axes_labels = {'1': 'optical axis', '2': 'thickness', '3': 'vertical'}
+        self.jog_direction = {'1': 1, '2': 1, '3': -1}   # axis 3 reversed
         self._gui = None        # process of the manual control window (subprocess.Popen)
         self._gui_conn = None   # connection with the manual control window
+        self._obj_stage = None  # stage of the collection objective (CollectObjStage), 4th axis of the window
+        self._af_cam = None     # camera of the autofocus of the collection objective (AndorCam)
+        self._af_thread = None
+        self._af_stop = threading.Event()
+        self._af_status = ''
 
 
     def init(self, model: str = 'C-884', SN: str = '0000000000', stages_model: Optional[list] = None, verbose: bool = False):
@@ -247,7 +269,7 @@ class PIStage:
         gc.collect()
 
 
-    def stage_adjustment(self, x: Optional[int] = None, y: int = 0, align: str = 'left'):
+    def stage_adjustment(self, x: Optional[int] = None, y: int = 0, align: str = 'left', obj_stage = None, cam = None):
         """Open the window to move manually the axes : the console stays available.
 
         The window runs in its own Python process (tkinter in a thread of the kernel crashes it :
@@ -266,6 +288,12 @@ class PIStage:
             If the window is already open, it is moved there (nothing done if x is None).
         align : str, optional
             'left' : x is the left edge of the window, 'right' : x is its right edge. The default is 'left'.
+        obj_stage : CollectObjStage, optional
+            the stage of the collection objective (spas.stage_collect_obj_module), added to the window as a
+            4th axis "collect objective". The default is None : only the PI axes.
+        cam : AndorCam, optional
+            the camera used by the AUTOFOCUS button of the window (moves obj_stage, see CollectObjStage.autofocus),
+            the spatial camera : its display() must be running. The default is None : no autofocus button.
         """
         if self.pidevice is None:
             print('PI translation stage not connected, run stage.init() first')
@@ -278,10 +306,21 @@ class PIStage:
                     pass
             return
 
+        self._obj_stage = obj_stage
+        self._af_cam = cam
+        if self._af_stop is None:
+            self._af_stop = threading.Event()
+        axes = list(self.axes)
+        labels = {axis: f"Axis {axis} ({self.axes_labels[axis]})" if axis in self.axes_labels else f"Axis {axis}"
+                  for axis in axes}
+        if obj_stage is not None:
+            axes.append(OBJ_AXIS)
+            labels[OBJ_AXIS] = f"Axis {len(axes)} (collect objective)"
         key = os.urandom(16)
         listener = Listener(('127.0.0.1', 0), authkey = key)   # local connection with the window
         settings = {'port': listener.address[1], 'title': 'PI manual control ' + str(self.model),
-                    'axes': list(self.axes), 'x': x, 'y': y, 'align': align}
+                    'axes': axes, 'labels': labels, 'x': x, 'y': y, 'align': align,
+                    'autofocus': obj_stage is not None and cam is not None}
         env = dict(os.environ, PI_WINDOW_KEY = key.hex())
         log = tempfile.NamedTemporaryFile('w+', prefix = 'PI_window_', suffix = '.log', delete = False)
         self._gui = subprocess.Popen([sys.executable, '-c', 'from spas.PI_module import _jog_window_main; _jog_window_main()',
@@ -317,9 +356,56 @@ class PIStage:
         finally:
             listener.close()
 
+    def _obj_connected(self) -> bool:
+        return self._obj_stage is not None and self._obj_stage.device is not None
+
+    def _step_obj(self, direction, step):
+        """One step of the stage of the collection objective (4th axis of the window), without waiting for its end."""
+        if not self._obj_stage.is_homed():
+            raise RuntimeError('the stage of the collection objective is not homed (obj_stage.home())')
+        min_limit, max_limit = self._obj_stage.travel
+        new_pos = self._obj_stage.read_position() + step * direction
+        if new_pos < min_limit:
+            new_pos = min_limit
+            print("MIN limit reached on the collect objective axis")
+        elif new_pos > max_limit:
+            new_pos = max_limit
+            print("MAX limit reached on the collect objective axis")
+        self._obj_stage.move_to(new_pos, wait = False)
+
+    def _autofocus_running(self) -> bool:
+        return self._af_thread is not None and self._af_thread.is_alive()
+
+    def _start_autofocus(self, conn):
+        """Start the autofocus of the collection objective with the camera self._af_cam, in its own thread
+        (the window keeps receiving the positions and can stop it)."""
+        if self._autofocus_running():
+            return
+        if not self._obj_connected() or self._af_cam is None:
+            conn.send(('error', 'Autofocus impossible : stage_adjustment() needs obj_stage and cam'))
+            return
+        if not self._af_cam.is_live():
+            conn.send(('error', 'Autofocus impossible : start the display of the ' + str(self._af_cam.arm) + ' camera first'))
+            return
+
+        def run():
+            try:
+                self._obj_stage.autofocus(self._af_cam, stop_event = self._af_stop, status = set_status)
+            except Exception as e:
+                set_status('autofocus failed : ' + str(e))
+                print('autofocus failed : ' + str(e))
+
+        def set_status(text):
+            self._af_status = text
+
+        self._af_stop.clear()
+        self._af_status = 'autofocus started...'
+        self._af_thread = threading.Thread(target = run, daemon = True)
+        self._af_thread.start()
+
     def _serve_window(self, listener, log):
         """Thread of the kernel (no tkinter) : moves the axes asked by the window ('step', axis, direction, step)
-        and sends it the positions every 500 ms."""
+        and sends it the positions every 500 ms. The axis OBJ_AXIS is the stage of the collection objective."""
         conn = self._connect_window(listener, log)
         if conn is None:
             return
@@ -329,14 +415,27 @@ class PIStage:
             min_limits = self.pidevice.qTMN(self.axes)
             max_limits = self.pidevice.qTMX(self.axes)
             last_update = 0
+            last_af_state = None
             while self.pidevice is not None:
                 if conn.poll(0.1):
                     message = conn.recv()
                     if message[0] == 'closed':
+                        self._af_stop.set()
                         break
+                    if message[0] == 'autofocus':
+                        self._start_autofocus(conn)
+                    elif message[0] == 'stop_autofocus':
+                        self._af_stop.set()
                     if message[0] == 'step':
                         axis, direction, step = message[1:]
+                        direction = direction * self.jog_direction.get(axis, 1)
                         try:
+                            if axis == OBJ_AXIS:
+                                if self._autofocus_running():
+                                    print('autofocus in progress : the collect objective cannot be moved')
+                                elif self._obj_connected():
+                                    self._step_obj(direction, step)
+                                continue
                             new_pos = self.pidevice.qPOS(axis)[axis] + step * direction
                             # Check of the limits
                             if new_pos < min_limits[axis]:
@@ -351,8 +450,16 @@ class PIStage:
                             conn.send(('error', f"Motion impossible: {e}"))
                 # Refreshed every 500 ms, in case of a slow motion
                 if time.time() - last_update > 0.5 and self.pidevice is not None:
-                    conn.send(('positions', dict(self.pidevice.qPOS(self.axes))))
+                    positions = dict(self.pidevice.qPOS(self.axes))
+                    if self._obj_connected():
+                        positions[OBJ_AXIS] = self._obj_stage.read_position()
+                    conn.send(('positions', positions))
                     last_update = time.time()
+                # state of the autofocus, sent when it changes
+                af_state = (self._autofocus_running(), self._af_status)
+                if af_state != last_af_state:
+                    conn.send(('autofocus',) + af_state)
+                    last_af_state = af_state
         except (EOFError, OSError):   # window closed or crashed
             pass
         except Exception as e:
@@ -385,7 +492,11 @@ class PIStage:
         go_home: bool.
             set the three stage to zero before disconnection. The default is True.
         """
+        if self._af_stop is not None:
+            self._af_stop.set()
         self._close_window()
+        if self._autofocus_running():
+            self._af_thread.join(60)
         if go_home:
             self.go_to_zero()
 
@@ -409,18 +520,23 @@ def _jog_window_main():
     PIStage.stage_adjustment() : settings in argv (json), key of the connection in the environment."""
     settings = json.loads(sys.argv[1])
     conn = Client(('127.0.0.1', settings['port']), authkey = bytes.fromhex(os.environ['PI_WINDOW_KEY']))
-    PIJogControl(conn, settings['axes'], settings['title'], settings['x'], settings['y'] or 0, settings['align']).run()
+    PIJogControl(conn, settings['axes'], settings['title'], settings['x'], settings['y'] or 0, settings['align'],
+                 settings.get('labels'), settings.get('autofocus', False)).run()
 
 
 class PIJogControl:
     """Window to move manually the axes of the PI stage step by step.
     It runs in its own process and communicates with the kernel (PIStage._serve_window) through conn :
-    it sends ('step', axis, direction, step), ('closed',) and receives ('positions', {axis: position}),
-    ('error', text), ('move', x, y, align), ('close',)."""
+    it sends ('step', axis, direction, step), ('autofocus',), ('stop_autofocus',), ('closed',) and receives
+    ('positions', {axis: position}), ('autofocus', running, text), ('error', text), ('move', x, y, align), ('close',)."""
 
-    def __init__(self, conn, axes: list, title: str, x: Optional[int] = None, y: int = 0, align: str = 'left'):
+    def __init__(self, conn, axes: list, title: str, x: Optional[int] = None, y: int = 0, align: str = 'left',
+                 labels: Optional[dict] = None, autofocus: bool = False):
         self.conn = conn
         self.axes = axes
+        self.labels = labels or {}
+        self.autofocus = autofocus
+        self.af_running = False
 
         self.root = tk.Tk()
         self.root.title(title)
@@ -455,7 +571,8 @@ class PIJogControl:
         axes_frame.pack()
 
         for i, axis in enumerate(self.axes):
-            tk.Label(axes_frame, text=f"Axis {axis}", font=('Arial', 10, 'bold')).grid(row=i, column=0, padx=10)
+            tk.Label(axes_frame, text=self.labels.get(axis, f"Axis {axis}"), font=('Arial', 10, 'bold'),
+                     anchor='w').grid(row=i, column=0, padx=10, sticky='w')
 
             # Position display
             self.pos_labels[axis] = tk.Label(axes_frame, text="0.000", fg="blue", font=('Consolas', 12))
@@ -464,6 +581,14 @@ class PIJogControl:
             # Motion buttons
             tk.Button(axes_frame, text=" ◀ ", command=lambda a=axis: self.move(a, -1)).grid(row=i, column=2, pady=5)
             tk.Button(axes_frame, text=" ▶ ", command=lambda a=axis: self.move(a, 1)).grid(row=i, column=3, pady=5)
+
+        # Autofocus of the collection objective
+        if self.autofocus:
+            self.af_button = tk.Button(self.root, text="AUTOFOCUS (collect objective)", bg="#2196F3", fg="white",
+                                       command=self.toggle_autofocus)
+            self.af_button.pack(padx=20, fill='x')
+            self.af_label = tk.Label(self.root, text="", fg="gray25", font=('Arial', 9), wraplength=320)
+            self.af_label.pack(padx=20)
 
         # Close button
         tk.Button(self.root, text="FINISH & CLOSE", bg="#4CAF50", fg="white",
@@ -478,6 +603,13 @@ class PIJogControl:
                     for axis, pos in message[1].items():
                         if axis in self.pos_labels:
                             self.pos_labels[axis].config(text=f"{pos:.4f} mm")
+                elif message[0] == 'autofocus' and self.autofocus:
+                    self.af_running, text = message[1:]
+                    self.af_label.config(text=text)
+                    if self.af_running:
+                        self.af_button.config(text="STOP AUTOFOCUS", bg="#F44336")
+                    else:
+                        self.af_button.config(text="AUTOFOCUS (collect objective)", bg="#2196F3")
                 elif message[0] == 'error':
                     messagebox.showerror("Error", message[1], parent=self.root)
                 elif message[0] == 'move':
@@ -499,6 +631,12 @@ class PIJogControl:
             return
         try:
             self.conn.send(('step', axis, direction, step))
+        except (EOFError, OSError):   # kernel stopped
+            self.root.destroy()
+
+    def toggle_autofocus(self):
+        try:
+            self.conn.send(('stop_autofocus',) if self.af_running else ('autofocus',))
         except (EOFError, OSError):   # kernel stopped
             self.root.destroy()
 
