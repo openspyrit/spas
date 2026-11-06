@@ -168,3 +168,5 @@ main_Hadamard_spectro_ll.m
 setup_ll.m
 /Patterns/PosNeg
 **/communication
+# position of the stage of the collection objective, rewritten at each disconnection
+spas/stage_collect_obj_last_position.txt
