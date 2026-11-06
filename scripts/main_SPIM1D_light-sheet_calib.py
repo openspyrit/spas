@@ -23,6 +23,7 @@ from spas.cam_Andor_module import AndorCam
 from spas.PI_module import PIStage, stage_parameters
 from spas.shutter_TSC001_module import ThorlabsShutter
 from spas.flipping_mirror_MFF101_module import MFF
+from spas.stage_collect_obj_module import CollectObjStage
 from spas.combiner_module import Combiner
 from spas.acquisition_SPIM1D import AcquisitionParameters, func_path, acquire, define_wavelengths_matrix, plot_spectrum
 from spas.reconstruction_SPIM1D import live_hadamard_reco, spatial_reco
@@ -41,16 +42,21 @@ shutter = ThorlabsShutter()
 shutter.init(model = 'TSC001', SN = '85855593')
 mirror = MFF()
 mirror.init(model = 'MFF101', SN = '37010810')
+obj_stage = CollectObjStage()
+obj_stage.init(model = 'Z825B', SN = '83850559', home = True)   # translation stage of the collection objective (TDC001)
 combi = Combiner()
-combi.init(model = 'combiner', SN = '2')   # lasers numbered by increasing wavelength
+combi.init(model = 'combiner', SN = '2')
 #%% Move the PI stage to the middle and active one laser
 stage.move_to_middle()
 position = stage.read_position(verbose = True)
 # stage.go_to_zero()
-combi.set_power(473, 40, unit = 'mW')   # laser (nm), power
-combi.laser_on(473)
+
+obj_stage.go_to_last_position(verbose = True)   # collection objective back to its position of the last session
+
+combi.set_power(594, 40, unit = 'mW')   # laser (nm), power
+combi.laser_on(594)
 #%% setup Spatial Camera
-cam_spat_params = cam_spat.setup(expos_time  = 0.25,  # (s)
+cam_spat_params = cam_spat.setup(expos_time  = 0.3,  # (s)
                                  gain        = 1,        # 1 or 2                              
                                  width       = 2048,     # max = 2048
                                  height      = 2048,     # max = 2048
@@ -62,45 +68,55 @@ cam_spat_params = cam_spat.setup(expos_time  = 0.25,  # (s)
                                  snapshot    = False)    # if false => acquire video, if True => acquire an image 
 #%% get a snapshot of the spatial camera
 mirror.set_position('spatial', verbose = True)
-list_pat = [0, 33, 63, 127]
+list_pat = [33]# [0, 33, 63, 127, 255]
 # pat = 127
 for pat in list_pat:
     shutter.open()
     DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, zoom = 1, pattern_to_display = 'gray_'+str(pat), 
-                                  pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) # white, black or gray_ + pattern number
+                                  pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 256, pattern_thickness = 16,
+                                  offset_vert = 0, offset_horz = 0) # white, black or gray_ + pattern number
     data = cam_spat.snapshot(tilt_image = True) # data_format accepted: 8 or 16 bits
     DMD.Halt()
     shutter.close()
     
+    # if pat == 33:
+    thickness = 20
+    prof = np.mean(data[1024-int(thickness/2):1024+int(thickness/2),:], axis=0)
     plt.figure()
-    plt.plot(data[250,700:1800])
-    plt.plot(data[500,700:1800]+500)
-    plt.plot(data[1000,700:1800]+1000)
-    plt.plot(data[1500,700:1800]+1500)
-    plt.legend(['250','500','1000','1500'], loc=1)
+    plt.plot(prof)
     plt.title('pattern n°= ' + str(pat))
+    
+    # plt.figure()
+    # plt.plot(data[500,:])
+    # plt.plot(data[1000,:]+2000)
+    # plt.plot(data[1500,:]+4000)
+    # plt.legend(['500','1000','1500'], loc=1)
+    # plt.title('pattern n°= ' + str(pat))
 #%% display spatial camera in continous mode
+offset_vert = 0   # (micromirrors) vertical shift from the center of the DMD, > 0 : the pattern moves up
+offset_horz = 0   # (micromirrors) horizontal shift from the center of the DMD, > 0 : the pattern moves to the right
 x_win, y_win = cam_spat.display_below_profile()
-combi.control(x = x_win, y = y_win)   # control of the lasers : below the profile, on the left
+combi.control(x = x_win, y = y_win)   # control of the lasers : below the profile, on the left-
 mirror.set_position('spatial', verbose = True)
 shutter.open()
-# stage.stage_adjustment(x = x_win + combi.control_window_size()[0], y = y_win + combi.control_window_size()[1] + 20,
-#                        align = 'right')   # below the control of the lasers, on the right
+stage.stage_adjustment(x = x_win + combi.control_window_size()[0], y = y_win + combi.control_window_size()[1] + 20,
+                       align = 'right')   # below the control of the lasers, on the right
 time.sleep(1)
 play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_33',
-                 pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) 
+                 pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 256, pattern_thickness = 16,
+                 offset_vert = offset_vert, offset_horz = offset_horz) 
 cam_spat.display(display_max = True, display_profile = True)
 DMD.Halt()
 shutter.close()
 position = stage.read_position(verbose = True)
 #%% setup the Spectrograph
 spectrograph_params = spectrograph.setup(grating_nbr =   1, print_select   = True,   # Arg:  1 
-                                         position    = 620, print_position = True,   # the central wavelength of the grating
+                                         position    = 630, print_position = True,   # the central wavelength of the grating
                                          slit_width  = None,                         # the width of the input slit in (µm), None : not changed
                                          input_port  = None,                         # 'direct' or 'side', None : not changed
                                          output_port = None, print_ports  = True)    # 'direct' or 'side', None : not changed
 #%% setup Spectral Camera
-cam_spec_params = cam_spec.setup(expos_time  = 0.1,        # (s)
+cam_spec_params = cam_spec.setup(expos_time  = 0.05,        # (s)
                                  gain        = 1,        # 1 or 2                              
                                  width       = 2048,     # max = 2048
                                  height      = 2048,     # max = 2048
@@ -114,28 +130,30 @@ cam_spec_params = cam_spec.setup(expos_time  = 0.1,        # (s)
 mirror.set_position('spectral', verbose = True)
 shutter.open()
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, zoom = 1, pattern_to_display = 'gray_0', 
-                              pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4) 
+                              pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4,
+                              offset_vert = offset_vert, offset_horz = offset_horz) 
 data = cam_spec.snapshot(tilt_image = False) # data_format accepted: 8 or 16 bits
 DMD.Halt()
 plot_spectrum(data, cam_spec_params, spectrograph_params)
 shutter.close()
 #%% display spectral camera in continous mode
-x_offset = -120   # (pixels) shift of the windows to the left, so that the 3 windows fit in the screen
+x_offset = 0   # (pixels) shift of the windows to the left, so that the 3 windows fit in the screen
 x_win, y_win = cam_spec.display_below_integral(x_offset = x_offset)
 combi.control(x = x_win, y = y_win)   # control of the lasers : below the integral curve, on the left
 mirror.set_position('spectral', verbose = True)
 shutter.open()
 stage.stage_adjustment(x = cam_spec.display_width(curve = True, x_offset = x_offset) + 20, y = 0)   # window on the right of the integral curve
 time.sleep(1)
-DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'white', 
-                              pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4) 
+DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'gray_0', 
+                              pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4,
+                              offset_vert = offset_vert, offset_horz = offset_horz) 
 cam_spec.display(display_max = False, display_integral = True, x_offset = x_offset)
 DMD.Halt()
 shutter.close()
 #%% setup acquisition
 setup_version            = 'setup_v1.0'
 collection_access        = 'public' #'private'#
-Np                       = 128      # Number of pixels in one dimension of the image (image: NpxNp)
+Np                       = 256      # Number of pixels in one dimension of the image (image: NpxNp)
 Nz                       = np.array([position[1]])# to move the stage to acquire the third spatial dimension
 pattern_thickness        = 16
 ti                       = cam_spat_params.exposure_time_μs / 1000 # Integration time of the spectral camera
@@ -150,9 +168,9 @@ yh_offset                = 0        # Default = 0
 pattern_compression      = 1
 pattern_dim              = '1D'
 scan_mode                = 'Walsh_sparse'  #'Walsh_inv' #'Raster_inv' #'Raster' #
-source                   = 'laser-473nm'#white_LED'#'No source'#'White_Zeiss_lamp'#'Thorlabs_White_halogen_lamp'#'HG-1_Oceanoptics'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
+source                   = 'laser-405nm'#white_LED'#'No source'#'White_Zeiss_lamp'#'Thorlabs_White_halogen_lamp'#'HG-1_Oceanoptics'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
 object_name              = 'fluo-cuve'#'fluo_µsphere-gel-bin10' #
-data_folder_name         = '2026-10-05_calib_light_sheet'#'Patient-69_exvivo_LGG_BU'
+data_folder_name         = '2026-11-05_calib_light_sheet'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_Lc_' + str(Lc[0][0]) + 'nm_Gr_' + str(Lc[0][1]) + '_' + scan_mode + '_im_'+str(pattern_thickness)+'x'+str(Np)+'_ti_'+str(round(ti))+'ms_zoom_x'+str(zoom)
 
 all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
@@ -219,64 +237,40 @@ raw_data =  acquire(DMD                 = DMD,
                     verbose             = False,
                     acquisition_arm     = 'spatial',
                     combi               = combi)
-#%% Specral reconstruction
-from scipy import signal
-new_raw = np.zeros(raw_data.shape)
-for i in range(raw_data.shape[2]):
-    new_raw[:,:,i,0,0,0] = signal.medfilt2d(raw_data[:,:,i,0,0,0], kernel_size=3)
-    
-had_reco_all = live_hadamard_reco(new_raw, acquisition_params)
 #%% Spatial reconstruction
 spatial_acqui = spatial_reco(acquisition_params, all_path)
-#%% Plot Spatial and had reconstruction
-plot_acqui(had_reco_all, spatial_acqui, acquisition_params, all_path)
-#%% plot raw data
-from matplotlib import pyplot as plt
-
-for i in range(3):
-    plt.figure()
-    plt.imshow(np.squeeze(raw_data[:, :, i, 0, 0, 0]))
-    plt.colorbar()
-    plt.title('pattern n° ' + str(i))
-
-plt.figure()
-plt.imshow(np.squeeze(raw_data[:, 0, :, 0, 0, 0]))
-plt.title('y = 0')
-
-plt.figure()
-plt.imshow(np.squeeze(raw_data[0, :, :, 0, 0, 0]))
-plt.title('x = 0')
-
-plt.figure()
-plt.plot(np.squeeze(np.mean(np.mean(raw_data, axis=1),axis=0)))
-plt.title('mean for each pattern')
-plt.xlabel('pattern number')
 #%% plot spatial acqui
 from matplotlib import pyplot as plt
 plot_graph = True
 save_H_exp = True
+save_fig = True # save figures
 file_name = all_path.subfolder_path + '/H_exp.npy'
 
 if plot_graph:
     for i in range(spatial_acqui.shape[2]):
-        if i < 2 or i == 33 or i == 63 or i == 127:
+        if i < 2 or i == 33 or i == 63 or i == 127 or i == 255:
             plt.figure()
             plt.imshow(spatial_acqui[:, :, i])
             plt.title('pattern n°' + str(i))  
             plt.colorbar()
+            if save_fig:
+                plt.savefig(all_path.overview_path + '/im2D_pattren_N_' + str(i) + '.png')
 
-rogne1 = 600
-rogne2 = 1400
+rogne1 = 0
+rogne2 = 2047
+thickness = 20
 
 prof = np.empty((rogne2-rogne1, spatial_acqui.shape[2]))    
 for i in range(spatial_acqui.shape[2]):
-    prof[:, i] = np.mean(spatial_acqui[1024-10:1024+10, rogne1: rogne2, i], axis=0)
+    prof[:, i] = np.mean(spatial_acqui[1024-int(thickness/2):1024+int(thickness/2), rogne1: rogne2, i], axis=0)
     # prof[:, i] = spatial_acqui[1024, rogne1: rogne2, i]
     if plot_graph:
-        if i < 2 or i == 33 or i == 63 or i == 127:
+        if i < 2 or i == 33 or i == 63 or i == 127 or i == 255:
             plt.figure()
             plt.plot(prof[:,i])
             plt.title('pattern n°' + str(i)) 
+            if save_fig:
+                plt.savefig(all_path.overview_path + '/profile_pattren_N_' + str(i) + '.png')
 
 def binArray(data, axis, binstep, binsize, func=np.nanmean):
     """
@@ -324,22 +318,30 @@ plt.figure()
 plt.imshow(pos)
 plt.title('pos')
 plt.colorbar()
+if save_fig:
+    plt.savefig(all_path.overview_path + '/positive.png')
 
 plt.figure()
 plt.imshow(neg)
 plt.title('neg')
 plt.colorbar()
+if save_fig:
+    plt.savefig(all_path.overview_path + '/negative.png')
 
 plt.figure()
 plt.imshow(pos - neg)
 plt.title('diff')
 plt.colorbar()
+if save_fig:
+    plt.savefig(all_path.overview_path + '/difference.png')
 
 plt.figure()
 plt.imshow(pos + neg)
 plt.title('sum')
 plt.colorbar()
-
+if save_fig:
+    plt.savefig(all_path.overview_path + '/sum.png')
+    
 if save_H_exp:
     np.save(file_name, pos-neg)
 #%% reco avec la matrix de Had experimentale, mon propre code
@@ -732,6 +734,7 @@ cam_spec.disconnect()
 stage.disconnect(go_home = True)
 shutter.disconnect()
 mirror.disconnect()
+obj_stage.disconnect(go_home = True)
 combi.disconnect()
 #%% below, old prog
 # #%% Neural Network setup (executed it just one time)

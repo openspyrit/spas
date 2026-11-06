@@ -22,6 +22,7 @@ from spas.cam_Andor_module import AndorCam
 from spas.PI_module import PIStage, stage_parameters
 from spas.shutter_TSC001_module import ThorlabsShutter
 from spas.flipping_mirror_MFF101_module import MFF
+from spas.stage_collect_obj_module import CollectObjStage
 from spas.combiner_module import Combiner
 from spas.acquisition_SPIM1D import AcquisitionParameters, func_path, acquire, define_wavelengths_matrix, plot_spectrum
 from spas.reconstruction_SPIM1D import live_hadamard_reco, spatial_reco
@@ -41,14 +42,23 @@ shutter = ThorlabsShutter()
 shutter.init(model = 'TSC001', SN = '85855593')
 mirror = MFF()
 mirror.init(model = 'MFF101', SN = '37010810')
+obj_stage = CollectObjStage()
+obj_stage.init(model = 'Z825B', SN = '83850559', home = True)   # translation stage of the collection objective (TDC001)
 combi = Combiner()
 combi.init(model = 'combiner', SN = '2')   
 #%% Move the PI stage to the middle and active one laser
 stage.move_to_middle()
 position = stage.read_position(verbose = True)
 # stage.go_to_zero()
-combi.set_power(473, 40, unit = 'mW')   # laser (nm), power
-combi.laser_on(473)
+
+obj_stage.go_to_last_position(verbose = True)   # collection objective back to its position of the last session
+
+exc_lambda = 594 # (nm)
+combi.set_power(exc_lambda, 40, unit = 'mW')   # laser (nm), power
+combi.laser_on(exc_lambda)
+#%% offset of the patterns on the DMD (for play_one_pattern)
+offset_vert = 0   # (micromirrors) vertical shift from the center of the DMD, > 0 : the pattern moves up
+offset_horz = 0   # (micromirrors) horizontal shift from the center of the DMD, > 0 : the pattern moves to the right
 #%% setup Spatial Camera
 cam_spat_params = cam_spat.setup(expos_time  = 0.2,  # (s)
                                  gain        = 1,        # 1 or 2                              
@@ -64,7 +74,8 @@ cam_spat_params = cam_spat.setup(expos_time  = 0.2,  # (s)
 mirror.set_position('spatial', verbose = True)
 shutter.open()
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, zoom = 1, pattern_to_display = 'gray_33', # white, black or gray_ + pattern number
-                              pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) 
+                              pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16,
+                              offset_vert = offset_vert, offset_horz = offset_horz) 
 data = cam_spat.snapshot(tilt_image = True) # data_format accepted: 8 or 16 bits
 DMD.Halt()
 shutter.close()
@@ -75,8 +86,9 @@ mirror.set_position('spatial', verbose = True)
 shutter.open()
 stage.stage_adjustment(x = x_win + combi.control_window_size()[0], y = y_win + combi.control_window_size()[1] + 20, align = 'right')  
 time.sleep(1)
-play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_127',                  
-                 pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16) 
+play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_33',                  
+                 pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16,
+                 offset_vert = offset_vert, offset_horz = offset_horz) 
 cam_spat.display(display_max = True, display_profile = True)
 DMD.Halt()
 shutter.close()
@@ -102,7 +114,8 @@ cam_spec_params = cam_spec.setup(expos_time  = 0.0000001,        # (s)
 mirror.set_position('spectral', verbose = True)
 shutter.open()
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, zoom = 1, pattern_to_display = 'gray_0', 
-                              pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4) 
+                              pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4,
+                              offset_vert = offset_vert, offset_horz = offset_horz) 
 data = cam_spec.snapshot(tilt_image = False) # data_format accepted: 8 or 16 bits
 DMD.Halt()
 plot_spectrum(data, cam_spec_params, spectrograph_params)
@@ -116,7 +129,8 @@ shutter.open()
 stage.stage_adjustment(x = cam_spec.display_width(curve = True, x_offset = x_offset) + 20, y = 0)   # window on the right of the integral curve
 time.sleep(1)
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'white', 
-                              pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4) 
+                              pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4,
+                              offset_vert = offset_vert, offset_horz = offset_horz) 
 cam_spec.display(display_max = False, display_integral = True, x_offset = x_offset)
 DMD.Halt()
 shutter.close()
@@ -494,6 +508,7 @@ cam_spec.disconnect()
 stage.disconnect(go_home = True)
 shutter.disconnect()
 mirror.disconnect()
+obj_stage.disconnect(go_home = True)
 combi.disconnect()
 #%% below, old prog
 # #%% Neural Network setup (executed it just one time)

@@ -787,7 +787,7 @@ class AndorCam:
                 if display_profile:
                     # define offset and thickness of the profile
                     offset = int(data_64b.shape[0]/2)
-                    half_thick = 50
+                    half_thick = 25
                     # Extraire le profil (colonne centrale)
                     data_rogne = data[offset - half_thick:offset + half_thick, :]
 

@@ -417,13 +417,40 @@ def binArray(data, axis, binstep, binsize, func=np.nanmean):
 
 # from scipy.ndimage import rotate
 
+def _shift_pattern(pattern: np.ndarray, offset_vert: int = 0, offset_horz: int = 0) -> np.ndarray:
+    """Shift a pattern of the size of the DMD, the area uncovered is filled with zeros.
+
+    Args:
+        pattern (np.ndarray):
+            pattern of the size of the DMD (height, width).
+        offset_vert (int, optional):
+            vertical shift in micromirrors, > 0 moves the pattern up. Defaults to 0.
+        offset_horz (int, optional):
+            horizontal shift in micromirrors, > 0 moves the pattern to the right. Defaults to 0.
+    """
+    if offset_vert == 0 and offset_horz == 0:
+        return pattern
+
+    height, width = pattern.shape
+    dy = -int(offset_vert)   # rows are counted from the top of the DMD
+    dx = int(offset_horz)
+    shifted = np.zeros_like(pattern)
+    if abs(dy) < height and abs(dx) < width:
+        shifted[max(dy, 0):height + min(dy, 0), max(dx, 0):width + min(dx, 0)] =             pattern[max(-dy, 0):height + min(-dy, 0), max(-dx, 0):width + min(-dx, 0)]
+    if np.count_nonzero(shifted) < np.count_nonzero(pattern):
+        warnings.warn(f'pattern cropped by the edge of the DMD (offset_vert = {offset_vert}, offset_horz = {offset_horz})')
+    return shifted
+
+
 def _update_sequence(DMD: ALP4.ALP4,
                      DMD_params: DMDParameters,
                      acquisition_params: AcquisitionParameters,
                      pattern_source: str,
                      pattern_prefix: str,
                      pattern_order: List[int],
-                     bitplanes: int = 1):
+                     bitplanes: int = 1,
+                     offset_vert: int = 0,
+                     offset_horz: int = 0):
     """Send new complete pattern sequence to DMD.
 
     Args:
@@ -444,6 +471,10 @@ def _update_sequence(DMD: ALP4.ALP4,
             List of the pattern indices in a certain order for upload to DMD.
         bitplanes (int, optional): 
             Pattern bitplanes. Defaults to 1.
+        offset_vert (int, optional):
+            vertical shift of the patterns in micromirrors, > 0 moves them up. Defaults to 0.
+        offset_horz (int, optional):
+            horizontal shift of the patterns in micromirrors, > 0 moves them to the right. Defaults to 0.
     """
     
     import cv2
@@ -546,6 +577,7 @@ def _update_sequence(DMD: ALP4.ALP4,
         #     plt.colorbar()
         #     plt.title('pattern n°' + str(pattern_name))
         
+        patterns = _shift_pattern(patterns, offset_vert, offset_horz)
         patterns = patterns.ravel()
         
         DMD.SeqPut(
@@ -561,7 +593,9 @@ def setup_patterns(DMD: ALP4.ALP4,
                     DMD_params: DMDParameters, 
                     acquisition_params: AcquisitionParameters,
                     pattern_to_display: str = 'white', 
-                    loop: bool = False) -> None:
+                    loop: bool = False,
+                    offset_vert: int = 0,
+                    offset_horz: int = 0) -> None:
     """Read and send patterns to DMD.
 
     Reads patterns from a file and sends a percentage of them to the DMD,
@@ -584,6 +618,10 @@ def setup_patterns(DMD: ALP4.ALP4,
         loop (bool):
             is to projet in loop, one or few patterns continously (see AlpProjStartCont
             in the doc for more detail). Default is False
+        offset_vert (int):
+            vertical shift of the patterns in micromirrors, > 0 moves them up. Default is 0
+        offset_horz (int):
+            horizontal shift of the patterns in micromirrors, > 0 moves them to the right. Default is 0
     """
     
     file = np.load(Path(acquisition_params.pattern_order_source))
@@ -621,7 +659,7 @@ def setup_patterns(DMD: ALP4.ALP4,
             DMD.FreeSeq()
 
         _update_sequence(DMD, DMD_params, acquisition_params, acquisition_params.pattern_source, acquisition_params.pattern_prefix, 
-                         pattern_order, bitplanes)
+                         pattern_order, bitplanes, offset_vert, offset_horz)
         print(f'DMD available memory after sequence allocation: '
         f'{DMD.DevInquire(ALP_AVAIL_MEMORY)}')
         acquisition_params.pattern_amount = _sequence_limits(
@@ -728,7 +766,9 @@ def setup_DMD(DMD: ALP4,
               dark_phase_time: int = 44,
               DMD_trigger_in_delay: int = 0,
               pattern_to_display: str = 'white',
-              loop: bool = False
+              loop: bool = False,
+              offset_vert: int = 0,
+              offset_horz: int = 0
               ) -> Tuple[DMDParameters]:
     """Setup everything needed to start an acquisition.
 
@@ -781,6 +821,10 @@ def setup_DMD(DMD: ALP4,
         loop (bool):
             is to projet in loop, one or few patterns continuously (see AlpProjStartCont
             in the doc for more detail). Default is False
+        offset_vert (int):
+            vertical shift of the patterns in micromirrors, > 0 moves them up. Default is 0
+        offset_horz (int):
+            horizontal shift of the patterns in micromirrors, > 0 moves them to the right. Default is 0
     Raises:
         ValueError: Sum of dark phase and additional illumination time is lower
         than 400 us.
@@ -830,7 +874,8 @@ def setup_DMD(DMD: ALP4,
 
     setup_patterns(DMD=DMD, DMD_params=DMD_params, 
                     acquisition_params=acquisition_params, loop=loop,
-                    pattern_to_display=pattern_to_display)
+                    pattern_to_display=pattern_to_display,
+                    offset_vert=offset_vert, offset_horz=offset_horz)
     
     setup_timings(DMD, DMD_params, picture_time, illumination_time, 
                    DMD_output_synch_pulse_delay, synch_pulse_width, 
@@ -842,7 +887,8 @@ def setup_DMD(DMD: ALP4,
 def play_one_pattern(DMD, DMD_initial_memory, cam_Par, zoom: int = 1,
                      pattern_to_display: str = 'white', pattern_dim: str = '1D',
                      scan_mode: str = 'Walsh', Np: int = 64, pattern_thickness: int = 64,
-                     add_illumination_time: int = 30000):
+                     add_illumination_time: int = 30000,
+                     offset_vert: int = 0, offset_horz: int = 0):
     """
     play an unique pattern on the DMD in continue mode
 
@@ -868,6 +914,10 @@ def play_one_pattern(DMD, DMD_initial_memory, cam_Par, zoom: int = 1,
         the time (µs) added to the exposure time of the camera to define the picture time of the DMD.
         It must be longer than the readout time of the camera (24.6 ms for the Zyla at 100 MHz on 2048 rows),
         otherwise the camera ignores one trigger out of two. Default is 30000.
+    offset_vert: int.
+        vertical shift of the pattern in micromirrors from the center of the DMD, > 0 moves it up. Default is 0.
+    offset_horz: int.
+        horizontal shift of the pattern in micromirrors from the center of the DMD, > 0 moves it to the right. Default is 0.
 
     Returns
     -------
@@ -895,7 +945,8 @@ def play_one_pattern(DMD, DMD_initial_memory, cam_Par, zoom: int = 1,
     loop = True
     DMD_params = setup_DMD(DMD = DMD, DMD_initial_memory = DMD_initial_memory, acquisition_params = AcquisitionParameters, 
                            integration_time = ti, add_illumination_time = add_illumination_time,
-                           pattern_to_display = pattern_to_display, loop = loop)
+                           pattern_to_display = pattern_to_display, loop = loop,
+                           offset_vert = offset_vert, offset_horz = offset_horz)
     DMD.Run(loop=loop) # if loop=False : Run the whole sequence only once, if loop=True : Run continuously one pattern 
     
     # return DMD_params

@@ -50,7 +50,7 @@ def transfer_data_SPIM1D(DMD_params, cam_spat_params, cam_spec_params, spectrogr
         parent_data_folder = 'data'  
         
     collectionId = '63caa9497bef31845d991351'# '6140ba6929e3fc10d47dbe3e'
-    txt_file = open('E:/laurent/girder/no_name.txt', 'r', encoding='utf8')
+    txt_file = open('C:/Users/mahieu/girder/no_name.txt', 'r', encoding='utf8')
     apiKey = txt_file.read()
     txt_file.close()
     #%%############################## path ####################################
