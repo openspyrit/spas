@@ -43,7 +43,7 @@ shutter.init(model = 'TSC001', SN = '85855593')
 mirror = MFF()
 mirror.init(model = 'MFF101', SN = '37010810')
 obj_stage = CollectObjStage()
-obj_stage.init(model = 'Z825B', SN = '83850559', home = True)   # translation stage of the collection objective (TDC001)
+obj_stage.init(model = 'Z825B', SN = '83850559', home = True)
 combi = Combiner()
 combi.init(model = 'combiner', SN = '2')
 #%% Move the PI stage to the middle and active one laser
@@ -108,6 +108,7 @@ play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_
 cam_spat.display(display_max = True, display_profile = True)
 DMD.Halt()
 shutter.close()
+combi_params = combi.get_params(verbose = True)
 position = stage.read_position(verbose = True)
 #%% setup the Spectrograph
 spectrograph_params = spectrograph.setup(grating_nbr =   1, print_select   = True,   # Arg:  1 
@@ -150,6 +151,7 @@ DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params
 cam_spec.display(display_max = False, display_integral = True, x_offset = x_offset)
 DMD.Halt()
 shutter.close()
+combi_params = combi.get_params(verbose = True)
 #%% setup acquisition
 setup_version            = 'setup_v1.0'
 collection_access        = 'public' #'private'#
@@ -221,6 +223,7 @@ else:
     print('setup aborted')
 #%% Acquire
 # time.sleep(20)
+combi_params = combi.get_params(verbose = True)   # read again : the lasers can be changed in the control window
 raw_data =  acquire(DMD                 = DMD,
                     DMD_params          = DMD_params,
                     cam_spat            = cam_spat,
@@ -236,7 +239,7 @@ raw_data =  acquire(DMD                 = DMD,
                     all_path            = all_path,
                     verbose             = False,
                     acquisition_arm     = 'spatial',
-                    combi               = combi)
+                    combi_params        = combi_params)
 #%% Spatial reconstruction
 spatial_acqui = spatial_reco(acquisition_params, all_path)
 #%% plot spatial acqui
@@ -725,7 +728,8 @@ plt.imshow(s)
 
 #%% transfer data to girder
 transfer_data_SPIM1D(DMD_params, cam_spat_params, cam_spec_params, spectrograph_params, acquisition_params,
-                    setup_version, data_folder_name, data_name, collection_access, upload_metadata = 1)
+                    setup_version, data_folder_name, data_name, collection_access, upload_metadata = 1,
+                    combi_params = combi_params)
 #%% Disconnect
 spectrograph.disconnect(goto_zero = False)
 disconnect_DMD(DMD)

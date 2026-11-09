@@ -10,9 +10,10 @@ import os
 import shutil
 
 def transfer_data_SPIM1D(DMD_params, cam_spat_params, cam_spec_params, spectrograph_params, acquisition_params,
-                            setup_version, data_folder_name, data_name, collection_access, upload_metadata):
+                            setup_version, data_folder_name, data_name, collection_access, upload_metadata,
+                            combi_params = None):
     """
-    
+
 
     Parameters
     ----------
@@ -36,6 +37,9 @@ def transfer_data_SPIM1D(DMD_params, cam_spat_params, cam_spec_params, spectrogr
         DESCRIPTION.
     upload_metadata : TYPE
         DESCRIPTION.
+    combi_params : Combiner_Parameters
+        power and ON/OFF state of the lasers of the combiner : only the lasers ON are displayed in girder
+        (keys 'f)_COMBI_laser_...'). None : not uploaded.
 
     Returns
     -------
@@ -162,12 +166,24 @@ def transfer_data_SPIM1D(DMD_params, cam_spat_params, cam_spec_params, spectrogr
                 new_key = 'e)_CAM_SPAT_' + key
             cam_spat_dict2[new_key] = cam_spat_dict[key]
             
+        combi_dict2 = {}   # one group of keys per laser ON (all the lasers stay in metadata.json)
+        if combi_params is not None:
+            for laser in combi_params.lasers:
+                if laser['state'] != 'ON':
+                    continue
+                prefix = 'f)_COMBI_laser_' + f"{laser['wavelength_nm']:g}" + 'nm_'
+                combi_dict2[prefix + 'state'] = laser['state']
+                combi_dict2[prefix + 'power (mW)'] = laser['power_mW']
+                combi_dict2[prefix + 'power (%)'] = laser['power_percent']
+                combi_dict2[prefix + 'max_power (mW)'] = laser['max_power_mW']
+            
         dict = {}
         dict.update(acquisition_dict2)
         dict.update(spectrograph_dict2)
         dict.update(DMD_dict2)
         dict.update(cam_spec_dict2)
         dict.update(cam_spat_dict2)
+        dict.update(combi_dict2)
         
         del dict['a)_ACQ_class_description']
         del dict['a)_ACQ_patterns']

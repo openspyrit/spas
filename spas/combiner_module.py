@@ -321,7 +321,7 @@ class Combiner:
         Parameters
         ----------
         verbose : bool
-            print the parameters. The default is False.
+            print the parameters of the lasers ON only. The default is False.
 
         Returns
         -------
@@ -337,8 +337,11 @@ class Combiner:
                                         'power_mW': getattr(laser, 'power_mw', None),
                                         'power_percent': getattr(laser, 'power_pourcent', None),
                                         'state': state})
-        if verbose:
-            for laser in combi_params.lasers:
+        if verbose:   # only the lasers ON are printed (all the lasers are kept in combi_params)
+            lasers_on = [laser for laser in combi_params.lasers if laser['state'] == 'ON']
+            if not lasers_on:
+                print('Combiner : no laser ON')
+            for laser in lasers_on:
                 power_mW = '?' if laser['power_mW'] is None else f"{laser['power_mW']:.4g}"
                 power_percent = '?' if laser['power_percent'] is None else f"{laser['power_percent']:.3g}"
                 print('Laser ' + f"{laser['wavelength_nm']:g}" + ' nm : ' + laser['state'] + ', ' + power_mW + ' mW (' + power_percent + ' %)')

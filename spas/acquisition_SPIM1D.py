@@ -791,6 +791,7 @@ def acquire(DMD: ALP4,
             all_path,
             verbose,
             acquisition_arm,
+            combi_params = None,
             combi = None):
     """
     
@@ -824,9 +825,12 @@ def acquire(DMD: ALP4,
         
     acquisition_arm: str.
         specify which arm acquisiton is used, spectral or spatial
+    combi_params: Combiner_Parameters.
+        Power and ON/OFF state of the lasers of the combiner (combi.get_params()), saved in the metadata.
+        None : read from combi if given, else not saved.
     combi: Class.
-        To control the laser combiner. The power and the ON/OFF state of the lasers are read
-        at the beginning of the acquisition and saved in the metadata. None : not saved.
+        To control the laser combiner. Used only if combi_params is None : the power and the ON/OFF
+        state of the lasers are then read at the beginning of the acquisition.
 
     Returns
     -------
@@ -838,8 +842,7 @@ def acquire(DMD: ALP4,
     # total_iter = acquisition_params.pattern_amount * total_loop
     first_acqui = True
     boucle = 0
-    combi_params = None
-    if combi is not None:
+    if combi_params is None and combi is not None:
         combi_params = combi.get_params(verbose = True)
     if acquisition_arm == 'spatial':
         check_trigger_timing(cam_spat, DMD_params)
