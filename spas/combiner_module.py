@@ -137,7 +137,7 @@ def wait_usb_stable(min_wait: float = 3, stable: float = 2, timeout: float = 30)
         time.sleep(0.5)
 
 
-def check_combiner_usb(max_resets: int = 2, verbose: bool = True) -> bool:
+def check_combiner_usb(max_resets: int = 3, verbose: bool = True) -> bool:
     """Check that all the lasers of the combiner are enumerated by Windows. If not (some LuxX seen as
     'Unknown USB device'), restart the USB hub of the combiner (UAC prompt), as unplugging / replugging
     its cable. Return True if no failed device remains."""
