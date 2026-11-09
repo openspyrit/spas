@@ -168,9 +168,9 @@ yh_offset                = 0        # Default = 0
 pattern_compression      = 1
 pattern_dim              = '1D'
 scan_mode                = 'Walsh_sparse'  #'Walsh_inv' #'Raster_inv' #'Raster' #
-source                   = 'laser-405nm'#white_LED'#'No source'#'White_Zeiss_lamp'#'Thorlabs_White_halogen_lamp'#'HG-1_Oceanoptics'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
+source                   = 'laser-594nm'#white_LED'#'No source'#'White_Zeiss_lamp'#'Thorlabs_White_halogen_lamp'#'HG-1_Oceanoptics'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
 object_name              = 'fluo-cuve'#'fluo_µsphere-gel-bin10' #
-data_folder_name         = '2026-11-05_calib_light_sheet'#'Patient-69_exvivo_LGG_BU'
+data_folder_name         = '2026-11-06_calib_light_sheet'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_Lc_' + str(Lc[0][0]) + 'nm_Gr_' + str(Lc[0][1]) + '_' + scan_mode + '_im_'+str(pattern_thickness)+'x'+str(Np)+'_ti_'+str(round(ti))+'ms_zoom_x'+str(zoom)
 
 all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
@@ -184,8 +184,8 @@ if all_path.aborted == False:
     experiment_name      = data_name
     light_source         = source,
     object               = object_name
-    filter               = 'Notch filters at 473 and 532 nm' #+ OD=0.3',''No filter',#'linear colored filter',#'Orange filter (600nm)',#'Dichroic_420nm',#'HighPass_500nm + LowPass_750nm + Dichroic_560nm',#'BandPass filter 560nm Dl=10nm',#'None', # + , #'Nothing',#'Diffuser + HighPass_500nm + LowPass_750nm',##'Microsope objective x40',#'' linear colored filter + OD#0',#'Nothing',#
-    description          = 'formation of the light sheet. I''ve changed the optical tuning: DMD -200mm-> Lens(f=200) -200mm-> objx4 -30mm-> sample' 
+    filter               = 'Notch filters at 473 and 594 nm' #+ OD=0.3',''No filter',#'linear colored filter',#'Orange filter (600nm)',#'Dichroic_420nm',#'HighPass_500nm + LowPass_750nm + Dichroic_560nm',#'BandPass filter 560nm Dl=10nm',#'None', # + , #'Nothing',#'Diffuser + HighPass_500nm + LowPass_750nm',##'Microsope objective x40',#'' linear colored filter + OD#0',#'Nothing',#
+    description          = 'Calibration of the light sheet. Optical setup => DMD <-- 100mm --> Lens(f=100) <-- 100mm --> objx4 <-- 30mm --> sample' 
     
     acquisition_params = AcquisitionParameters(pattern_compression = pattern_compression, pattern_dimension_x = pattern_thickness, pattern_dimension_y = Np, 
                                                zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, mask_index = mask_index, 
