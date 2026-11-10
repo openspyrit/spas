@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from dataclasses_json import dataclass_json
 from progress.bar import Bar
 from scipy import interpolate
+from spas.spectral_calib_SPIM1D import define_wavelengths_matrix   # wavelength calibration (WAVELENGTH_CALIB)
 
 from matplotlib import pyplot as plt
 
@@ -1005,96 +1006,6 @@ def acquire(DMD: ALP4,
         
         save_metadata(DMD_params, spectrograph_params, cam_spat_params, cam_spec_params, acquisition_params, combi_params)
         return raw_data_arr 
-
-def find_nearest(array, value):
-    array = np.asarray(array)
-    idx = (np.abs(array - value)).argmin()
-    return idx
-
-
-def define_wavelengths_matrix(cam_spec_params, Lc: list = [], display_figure: bool = False, verbose: bool = False):
-    """
-    define the wavelength vector for each central wavelength of the spectrograph
-
-    Parameters
-    ----------
-    cam_spec_params: class.
-        the class containing the parameters of the spectral camera
-    Lc : list, optional
-        The list af the central wavelength of the spectrograph. The default is [].
-
-    Returns
-    -------
-    A matrix fo the wavelength vector for each Lc.
-
-    """
-    
-    if display_figure:
-        from matplotlib import pyplot as plt
-    
-    NLc = len(Lc)
-    for iLc in range(NLc):
-        Lcc = Lc[iLc][0]
-        Grating = Lc[iLc][1]
-        
-        if Grating == 2:
-            Lc_array = np.array([365, 435, 546, 577, 696, 912])
-            coeff_array = np.array([3.308, 3.311, 3.319, 3.324, 3.341, 3.365])
-            ord_origine = np.array([-5.5, -9.56, -7.58, -3.09, -6.92, -3.89])
-        elif Grating == 1:
-            # Lc_array = np.array([365, 405, 436, 546, 696, 795])
-            # coeff_array = np.array([14, 14.075, 14.3, 14.82, 15.75, 16.63])
-            # ord_origine = np.array([0, 0, 0, 0, 0, 0])
-            Lc_array = np.array([     365,   405,   436,   546,    696,   912])
-            coeff_array = np.array([13.26, 14.18, 14.12, 14.94,  15.89, 18.36])
-            ord_origine = np.array([ 3.94, -0.69, -6.5,  -3.53,  -9.63, -5.88])
-    
-        z = np.polyfit(Lc_array, coeff_array, 2)
-        p = np.poly1d(z)
-    
-        # xnew = np.arange(Lc_array[0], Lc_array[-1])
-        xnew = np.arange(200, 1000)
-        if display_figure:
-            plt.figure()
-            plt.plot(Lc_array, coeff_array, '.', xnew, p(xnew), '-')
-            plt.grid()
-            plt.title('GR = ' + str(Grating))
-            
-        indx = find_nearest(xnew, Lcc)
-        
-        px_width = cam_spec_params.width
-        px_offset = cam_spec_params.offsetX
-        
-        spam_lambda = px_width / p(xnew[indx]) # np.mean(p(xnew))
-        
-        L_offset = px_offset / p(xnew[indx]) # np.mean(p(xnew))
-        L1 = Lcc - spam_lambda / 2 + L_offset
-        L2 = Lcc + spam_lambda / 2 + L_offset
-        
-        if verbose:
-            print('L_offset = ' + str(L_offset))
-            print('spam_lambda = ' + str(spam_lambda))
-            print('Lcc = ' + str(Lcc))
-            print('L1 = ' + str(L1))
-            print('L2 = ' + str(L2))
-        
-        xnew2 = np.linspace(L1, L2, px_width)
-        if display_figure:
-            plt.figure()
-            plt.plot(Lc_array, coeff_array, '.', xnew2, p(xnew2), '-')
-            plt.grid()
-            plt.title('GR = ' + str(Grating))
-        
-        f = interpolate.interp1d(Lc_array, ord_origine, fill_value='extrapolate')    
-        ynew = f(xnew2)
-        
-        w = np.empty([NLc, px_width])
-        for i in range(px_width):
-            # w[iLc, i] = (i - 640 - ynew[i]) / p(xnew2[i]) + Lcc + L_offset # cette ligne est pour la caméra Ximea (1280 px)
-            w[iLc, i] = (i - int(px_width/2) - ynew[i]) / p(xnew2[i]) + Lcc + L_offset# c'est pour la Andor, attention, il faut vérifier que ce soit bien int(px_width/2) au lieu de 640 pour la Ximea
-        
-    return w
-
 
 def plot_spectrum(data, cam_spec_params, spectrograph_params):
     """

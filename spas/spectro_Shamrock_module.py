@@ -27,7 +27,7 @@ import ctypes
 import time
 from dataclasses_json import dataclass_json
 from dataclasses import dataclass, InitVar
-from typing import Optional
+from typing import Optional, ClassVar
 
 
 # flipper mirrors (removable mirrors that select the input and the output port)
@@ -49,6 +49,9 @@ SLITS = {('input', 'direct'):  ATSpectrograph.INPUT_DIRECT,
 # Windows enumerate the spectrograph again after the reset
 CONNECT_RETRIES = 2
 USB_RESET_DELAY = 5
+
+FOCAL_LENGTH_MM = 500   # Shamrock 500i
+PIXEL_WIDTH_UM = 6.5    # Andor Zyla 4.2 (spectral camera)
 
 
 def reset_ftdi_port(SN: Optional[str] = None) -> str:
@@ -370,6 +373,30 @@ class Shamrock:
         self.check_return(ret, 'SetWavelength')
 
 
+    def get_calibration(self, n_pixels: int = 2048, pixel_width: float = 6.5):
+        """Theoretical wavelength (nm) of each pixel of the sensor, computed by the SDK from the
+        grating equation (current grating and central wavelength). It is only a first guess
+        (used to identify the lines of a calibration lamp), not a measured calibration.
+
+        Args:
+            n_pixels (int):
+                the number of pixels of the sensor along the dispersion axis (unbinned). The default is 2048.
+            pixel_width (float):
+                the width (µm) of a pixel of the sensor. The default is 6.5 (Andor Zyla 4.2).
+
+        Returns:
+            list of n_pixels wavelengths (nm), from the pixel 0 to the pixel n_pixels-1.
+        """
+        ret = self.sdk.SetNumberPixels(self.device, int(n_pixels))
+        self.check_return(ret, 'SetNumberPixels')
+        ret = self.sdk.SetPixelWidth(self.device, float(pixel_width))
+        self.check_return(ret, 'SetPixelWidth')
+        (ret, calibration) = self.sdk.GetCalibration(self.device, int(n_pixels))
+        self.check_return(ret, 'GetCalibration')
+
+        return calibration
+
+
     def setup(self,
               grating_nbr: int = 1, print_select: bool = False,
               position: float = 600, print_position: bool = False,
@@ -390,7 +417,8 @@ class Shamrock:
             a boolean to print or not the position of the central wavenlength of the grating. The default is False.
         slit_width (float):
             the width of the input slit in µm. If the slit is motorized, the slit is moved,
-            otherwise the value is only stored in the metadata. None (default) : nothing to do.
+            otherwise the value is stored in Spectrograph_Parameters.manual_slit_width (it is kept for the
+            next setups of the session). None (default) : nothing to do.
         input_port (str):
             'direct' or 'side', the input port selected by the input flipper mirror.
             None (default) : the port is not changed.
@@ -443,15 +471,16 @@ class Shamrock:
                 print('grating position set to : ' + str(self.get_position()) + ' nm.')
 
         # input slit
-        if slit_width is not None and self.get_slit_width('input') is not None:
-            self.set_slit_width(slit_width, 'input')
+        if slit_width is not None:
+            if self.get_slit_width('input') is not None:
+                self.set_slit_width(slit_width, 'input')
+            else:
+                Spectrograph_Parameters.manual_slit_width = float(slit_width)   # manual slit : value given by the user
 
         spectrograph_params = Spectrograph_Parameters(spectrograph = self)
-        if spectrograph_params.slit_width is None:
-            # manual slit, the value given by the user is stored
-            spectrograph_params.slit_width = slit_width
-        elif print_ports:
-            print('input slit width : ' + str(spectrograph_params.slit_width) + ' µm')
+        if print_ports:
+            print('input slit width : ' + str(spectrograph_params.slit_width) + ' µm, resolution = ' +
+                  str(spectrograph_params.resolution_th) + ' nm')
 
         return spectrograph_params
 
@@ -495,11 +524,16 @@ class Spectrograph_Parameters:
             None if no flipper mirror.
         slit_width (float):
             the width of the input slit (µm). Read from the spectrograph if the slit is motorized,
-            otherwise given by the user in Shamrock.setup.
+            otherwise manual_slit_width (given by the user in Shamrock.setup).
         slit_height (int):
             the height of the input slit (µm).
         resolution_th (float):
-            the theoretical spectral resolution (nm).
+            the spectral resolution (nm, FWHM). The measured one (mean between 380 and 930 nm, lamp HG-1,
+            script main_SPIM1D_spectral_calib.py) for the grating and the slit width if it was measured,
+            otherwise the theoretical one (image of the slit, at least 2 pixels).
+        manual_slit_width (float, class variable):
+            the width (µm) of the input slit when it is not motorized (it can not be read). Default 3000 µm.
+            Changed by Shamrock.setup(slit_width = ...) or Spectrograph_Parameters.manual_slit_width = ...
         spectrograph (Shamrock):
             the object that controls the spectrograph.
     """
@@ -514,6 +548,8 @@ class Spectrograph_Parameters:
     resolution_th: Optional[float] = None
 
     spectrograph: InitVar[Shamrock] = None
+
+    manual_slit_width: ClassVar[float] = 3000.0   # (µm) input slit not motorized
 
     class_description: str = 'spectrograph Shamrock parameters'
 
@@ -539,7 +575,26 @@ class Spectrograph_Parameters:
         self.input_port    = spectrograph.get_port('input')
         self.output_port   = spectrograph.get_port('output')
         self.slit_width    = spectrograph.get_slit_width('input')
-        self.resolution_th = 0.378 * 300 / self.grating.grooves
+        if self.slit_width is None:
+            self.slit_width = Spectrograph_Parameters.manual_slit_width
+        self.update_resolution()
+
+
+    def update_resolution(self, verbose: bool = False):
+        """Set resolution_th for the current grating and slit width : measured value if it exists
+        (spas.spectral_calib_SPIM1D.measured_resolution), otherwise theoretical value."""
+        from spas.spectral_calib_SPIM1D import measured_resolution
+
+        measured = measured_resolution(self.grating.current_grating_nbr, self.slit_width, verbose = verbose)
+        if measured is not None:
+            self.resolution_th = measured
+        else:
+            # image of the slit (magnification 1) x reciprocal linear dispersion d / f (nm/µm), at least 2 pixels
+            width_um = max(self.slit_width or 0, 2 * PIXEL_WIDTH_UM)
+            self.resolution_th = round(width_um * (1e6 / self.grating.grooves) / (FOCAL_LENGTH_MM * 1e3), 4)
+            if verbose:
+                print('resolution not measured for this grating and slit width : theoretical value ' +
+                      str(self.resolution_th) + ' nm')
 
 
     @staticmethod

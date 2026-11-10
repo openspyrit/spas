@@ -745,3 +745,111 @@ def transfer_data(metadata, acquisition_parameters, spectrometer_params, DMD_par
 
 
 
+
+
+def transfer_data_spectral_calib(calib, spectrograph_params, cam_spec_params, measurements,
+                                 setup_version, data_folder_name, data_name, collection_access = 'public',
+                                 combi_params = None):
+    """
+    Upload in girder the data of the wavelength calibration (script main_SPIM1D_spectral_calib.py):
+    the folder data/<data_folder_name>/<data_name> (npz, json and figures), with the calibration,
+    the spectrograph and the spectral camera as metadata of the girder folder.
+
+    Parameters
+    ----------
+    calib : dict
+        the entry of WAVELENGTH_CALIB (spas.spectral_calib_SPIM1D.new_calib_entry).
+    spectrograph_params : Spectrograph_Parameters
+        the parameters of the spectrograph during the calibration.
+    cam_spec_params : cam_Parameters
+        the parameters of the spectral camera during the calibration.
+    measurements : list of dict
+        the measurements (one per central wavelength), for the list of Lc and exposure times.
+    setup_version, data_folder_name, data_name : str
+        the girder path : <collection>/data/<setup_version>/<data_folder_name>/<data_name>.
+    collection_access : str
+        'public' or 'private'. The default is 'public'.
+    combi_params : Combiner_Parameters
+        the lasers (laser method of the resolution) : only the lasers ON are uploaded. None : not uploaded.
+    """
+    #%%########################## Girder info #################################
+    url = 'https://pilot-warehouse.creatis.insa-lyon.fr/api/v1'
+    if collection_access == 'private':
+        parent_data_folder = 'private_data'
+        girder_data_folder_id = '??'
+    else:
+        parent_data_folder = 'data'
+        girder_data_folder_id = '63caaa937bef31845d991353'
+    collectionId = '63caa9497bef31845d991351'
+    with open('C:/Users/mahieu/girder/no_name.txt', 'r', encoding='utf8') as txt_file:
+        apiKey = txt_file.read()
+    #%%############################## path ####################################
+    data_path = '../../data/' + data_folder_name + '/' + data_name
+    temp_path = '../../temp/' + parent_data_folder + '/' + setup_version + '/' + data_folder_name + '/' + data_name
+    #%%################## copy data to the temp folder ##########################
+    for list_temp in os.listdir('../../temp'):
+        shutil.rmtree('../../temp/' + list_temp)
+    shutil.copytree(data_path, temp_path)
+    #%%########################### upload #####################################
+    gc = girder_client.GirderClient(apiUrl=url)
+    gc.authenticate(apiKey=apiKey)
+    gc.upload('../../temp/' + parent_data_folder + '/', collectionId, 'collection', reuseExisting=True)
+    #%%################## id of the data folder in girder ######################
+    data_folder_id = None
+    for version_folder in gc.listFolder(girder_data_folder_id, 'folder'):
+        if version_folder['name'] == setup_version:
+            for day_folder in gc.listFolder(version_folder['_id'], 'folder'):
+                if day_folder['name'] == data_folder_name:
+                    for data_folder in gc.listFolder(day_folder['_id'], 'folder'):
+                        if data_folder['name'] == data_name:
+                            data_folder_id = data_folder['_id']
+    if data_folder_id is None:
+        raise RuntimeError('girder folder ' + setup_version + '/' + data_folder_name + '/' + data_name + ' not found : metadata not uploaded')
+    #%%############################ metadata ##################################
+    def to_json(value):
+        if isinstance(value, (list, tuple, dict)):
+            return str(value)
+        if hasattr(value, 'item'):   # numpy scalar
+            return value.item()
+        return value
+
+    metadata = {}
+    for key, value in calib.items():
+        metadata['a)_CALIB_' + key] = to_json(value)
+    metadata['a)_CALIB_Lc_list (nm)'] = str([float(m['Lc']) for m in measurements])
+    if any('laser_nm' in m for m in measurements):
+        metadata['a)_CALIB_laser_list (nm)'] = str([float(m['laser_nm']) for m in measurements])
+    metadata['a)_CALIB_exposure_times (s)'] = str([round(float(m['expos_time']), 4) for m in measurements])
+
+    for key, value in spectrograph_params.__dict__.items():
+        if key == 'grating':
+            metadata['b)_SPECTRO_grating_grooves (gr/mm)'] = to_json(value.grooves)
+            metadata['b)_SPECTRO_grating_blaze (nm)'] = to_json(value.blaze)
+            metadata['b)_SPECTRO_current_grating_nbr'] = to_json(value.current_grating_nbr)
+        elif key in ('position', 'class_description'):
+            continue   # the position is the last Lc of the list : see a)_CALIB_Lc_list
+        elif key in ('slit_width', 'slit_height'):
+            metadata['b)_SPECTRO_' + key + ' (µm)'] = to_json(value)
+        elif key == 'resolution_th':
+            metadata['b)_SPECTRO_' + key + ' (nm)'] = to_json(value)
+        else:
+            metadata['b)_SPECTRO_' + key] = to_json(value)
+
+    for key, value in cam_spec_params.__dict__.items():
+        if key == 'class_description':
+            continue
+        new_key = 'd)_CAM_SPEC_size_' + key if key in ('height', 'width') else 'd)_CAM_SPEC_' + key
+        metadata[new_key] = to_json(value)
+
+    if combi_params is not None:
+        for laser in combi_params.lasers:
+            if laser['state'] == 'ON':
+                prefix = 'f)_COMBI_laser_' + f"{laser['wavelength_nm']:g}" + 'nm_'
+                metadata[prefix + 'power (mW)'] = to_json(laser['power_mW'])
+                metadata[prefix + 'power (%)'] = to_json(laser['power_percent'])
+
+    gc.addMetadataToFolder(data_folder_id, metadata)
+    print('calibration uploaded in girder : ' + setup_version + '/' + data_folder_name + '/' + data_name)
+    #%%##################### erase temp folder ################################
+    for list_temp in os.listdir('../../temp'):
+        shutil.rmtree('../../temp/' + list_temp)
