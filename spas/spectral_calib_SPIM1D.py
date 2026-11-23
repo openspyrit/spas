@@ -761,6 +761,32 @@ def get_calib(grating_nbr: int, slit_width_um: float = None, verbose: bool = Fal
     return calib
 
 
+def light_sheet_offset(grating_nbr: int, slit_width_um: float = None, verbose: bool = False):
+    """
+    Shift (nm) of the wavelengths of the lamp calibration for the light sheet : mean error (measured - real) of
+    the laser lines scattered in the cuvette (PART B of main_SPIM1D_spectral_calib.py, lambda_offset_nm in
+    laser_resolution). The fiber of the lamp fills the slit, the image of the light sheet is narrower and
+    shifted in the slit : the lines are shifted on the sensor (~ -1.1 nm, 2026-11-23).
+    The check of the slit width is used if it exists, otherwise the one of the nearest slit width (the shift
+    depends mainly on the alignment of the light sheet). Returns 0 if no laser check is stored.
+    """
+    checks = {float(s): v['lambda_offset_nm'] for s, v in
+              (WAVELENGTH_CALIB.get(int(grating_nbr), {}).get('laser_resolution') or {}).items()
+              if 'lambda_offset_nm' in v}
+    if not checks:
+        if verbose:
+            print('no laser check of the wavelengths (PART B) : no correction of the light sheet')
+        return 0.0
+    if slit_width_um is None:
+        slit_width_um = _current_slit_width()
+    slit = (min(checks, key=lambda s: abs(s - float(slit_width_um))) if slit_width_um is not None
+            else max(checks))
+    if verbose:
+        print('light sheet : wavelengths of the lamp calibration corrected by ' + f'{-checks[slit]:+.2f}' +
+              ' nm (laser check of the slit ' + str(slit) + ' µm)')
+    return float(checks[slit])
+
+
 def compare_slit_calibs(grating_nbr: int, Lc_list=(400, 500, 600, 700, 800, 900), ref_slit: float = None,
                         pixel_width_um: float = 6.5, save_path: str = None):
     """
@@ -886,7 +912,7 @@ def _define_wavelengths_legacy(cam_spec_params, Lcc: float, Grating: int) -> np.
 
 
 def define_wavelengths_matrix(cam_spec_params, Lc: list = [], display_figure: bool = False, verbose: bool = False,
-                              slit_width_um: float = None):
+                              slit_width_um: float = None, light_sheet: bool = True):
     """
     define the wavelength vector for each central wavelength of the spectrograph
 
@@ -907,6 +933,10 @@ def define_wavelengths_matrix(cam_spec_params, Lc: list = [], display_figure: bo
     slit_width_um : float, optional
         width of the entrance slit (µm) : the calibration of this slit width is used (get_calib). The default
         is None : the width given to Shamrock.setup (Spectrograph_Parameters.manual_slit_width).
+    light_sheet : bool, optional
+        True : light of the light sheet (acquisitions), the wavelengths are corrected by the shift measured
+        with the laser lines (light_sheet_offset, ~ +1.1 nm). False : light of the fiber of the lamp
+        (check of the calibration), no correction. The default is True.
 
     Returns
     -------
@@ -923,7 +953,8 @@ def define_wavelengths_matrix(cam_spec_params, Lc: list = [], display_figure: bo
 
         calib = get_calib(Grating, slit_width_um, verbose=verbose and iLc == 0)
         if calib is not None and 'coeffs' in calib:
-            w[iLc, :] = wavelengths_from_calib(x, Lcc, calib)
+            offset = light_sheet_offset(Grating, slit_width_um, verbose=verbose and iLc == 0) if light_sheet else 0.0
+            w[iLc, :] = wavelengths_from_calib(x, Lcc, calib) - offset   # real = measured - offset
             if not (calib['Lc_range'][0] <= Lcc <= calib['Lc_range'][1]):
                 print('Warning, Lc = ' + str(Lcc) + ' nm is outside the calibrated range ' + str(calib['Lc_range']) +
                       ' nm of the grating ' + str(Grating) + ' : the wavelengths are extrapolated')

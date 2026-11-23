@@ -96,12 +96,12 @@ combi_params = combi.get_params(verbose = True)
 position = stage.read_position(verbose = True)
 #%% setup the Spectrograph
 spectrograph_params = spectrograph.setup(grating_nbr =   1, print_select   = True,   # Arg: 1 => 300 l/mm. 2: Doesn't exist
-                                         position    = 594, print_position = True,   # the central wavelength of the grating (nm)
-                                         slit_width  = 200,                          # (µm) width of the manual input slit as set on the spectrograph : wavelength calibration of this width
+                                         position    = 0, print_position = True,   # the central wavelength of the grating (nm)
+                                         slit_width  = 350,                          # (µm) width of the manual input slit as set on the spectrograph : wavelength calibration of this width
                                          input_port  = None,                         # 'direct' or 'side', None : not changed
                                          output_port = None, print_ports  = True)    # 'direct' or 'side', None : not changed
 #%% setup Spectral Camera
-cam_spec_params = cam_spec.setup(expos_time  = 0.00025,        # (s)
+cam_spec_params = cam_spec.setup(expos_time  = 0.000005,        # (s)
                                  gain        = 1,        # 1 or 2                              
                                  width       = 2048,     # max = 2048
                                  height      = 2048,     # max = 2048

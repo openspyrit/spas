@@ -1007,7 +1007,7 @@ def acquire(DMD: ALP4,
         save_metadata(DMD_params, spectrograph_params, cam_spat_params, cam_spec_params, acquisition_params, combi_params)
         return raw_data_arr 
 
-def plot_spectrum(data, cam_spec_params, spectrograph_params):
+def plot_spectrum(data, cam_spec_params, spectrograph_params, light_sheet: bool = True):
     """
     plot the spectrum of the spectral cam
 
@@ -1019,6 +1019,9 @@ def plot_spectrum(data, cam_spec_params, spectrograph_params):
         A class containing the spectral cam parameters
     spectrograph_params: class.
         A class containing the spectrograph parameters
+    light_sheet: bool
+        True : light of the light sheet, wavelengths corrected by the shift measured with the lasers
+        (see define_wavelengths_matrix). False : light of the fiber of the lamp. The default is True.
 
     Returns
     -------
@@ -1028,7 +1031,7 @@ def plot_spectrum(data, cam_spec_params, spectrograph_params):
     from matplotlib import pyplot as plt
     
     wavelengths = define_wavelengths_matrix(cam_spec_params, [(spectrograph_params.position, spectrograph_params.grating.current_grating_nbr)],
-                                            slit_width_um = spectrograph_params.slit_width)
+                                            slit_width_um = spectrograph_params.slit_width, light_sheet = light_sheet)
 
     i, j = np.unravel_index(data.argmax(), data.shape)
     print('maximum found at the row : ' + str(i))

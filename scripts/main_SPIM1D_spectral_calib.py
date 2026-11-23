@@ -268,9 +268,9 @@ transfer_data_spectral_calib(calib, spectrograph_params_calib, cam_spec_params_c
 spectrograph_params = spectrograph.setup(grating_nbr = grating_nbr, position = 578, print_position = True)
 cam_spec_params = cam_spec.setup(expos_time = 0.1, binningX = 8, binningY = 8, snapshot = True)
 image, expos_time, saturated = snap_spec_auto(0.1)
-plot_spectrum(image, cam_spec_params, spectrograph_params)
+plot_spectrum(image, cam_spec_params, spectrograph_params, light_sheet = False)   # lamp : no correction
 wavelengths = define_wavelengths_matrix(cam_spec_params, [(spectrograph_params.position, grating_nbr)], verbose = True,
-                                        slit_width_um = spectrograph_params.slit_width)
+                                        slit_width_um = spectrograph_params.slit_width, light_sheet = False)   # lamp : no correction
 resolution = spectral_resolution(cam_spec_params, [(spectrograph_params.position, grating_nbr)], verbose = True,
                                  slit_width_um = spectrograph_params.slit_width)   # (nm), binning 8 included
 cam_spec_params = cam_spec.setup(expos_time = 0.05, binningX = 1, binningY = 8, snapshot = True)   # back to the calibration settings
