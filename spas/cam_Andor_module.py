@@ -64,12 +64,12 @@ def screen_width() -> int:
         return 1920
 
 
-def nice_ticks(vmin: float, vmax: float, n: int = 5) -> np.ndarray:
-    """About n round values (1, 2, 5 x 10^k steps) between vmin and vmax, for the scale of a curve."""
+def nice_ticks(vmin: float, vmax: float, n: int = 5, min_step: float = 0) -> np.ndarray:
+    """About n round values (1, 2, 5 x 10^k steps, min_step at least) between vmin and vmax, for the scale of a curve."""
     span = vmax - vmin
     if span <= 0:
         return np.array([vmin])
-    raw_step = span / max(n - 1, 1)
+    raw_step = max(span / max(n - 1, 1), min_step)
     magnitude = 10 ** np.floor(np.log10(raw_step))
     for factor in (1, 2, 5, 10):
         step = factor * magnitude
@@ -83,8 +83,9 @@ CURVE_MARGIN_LEFT = 55   # pixels on the left of the curves of display() for the
 CURVE_MARGIN_Y = 8       # pixels above and below the curves, so that the extreme labels are not cut
 
 
-def draw_curve(img: np.ndarray, values, thickness: int = 1):
+def draw_curve(img: np.ndarray, values, thickness: int = 1, integer_scale: bool = False):
     """Draw the curve of values in img (8 bits, cleared before) with an intensity scale on the left.
+    integer_scale : the labels of the scale are integers (no decimals), even for a small range of values.
 
     One point per pixel column if there are fewer values than columns (the curve grows from the left),
     otherwise the values are sampled to fit in the width.
@@ -101,17 +102,21 @@ def draw_curve(img: np.ndarray, values, thickness: int = 1):
     plot_height = y_bot - y_top
 
     y_min, y_max = np.min(values), np.max(values)
+    if integer_scale:   # integer limits : at least 2 integer ticks, even if the values vary by less than 1
+        y_min, y_max = np.floor(y_min), np.ceil(y_max)
+        if y_max == y_min:
+            y_max = y_min + 1
     y_range = y_max - y_min if y_max != y_min else 1
 
     def y_pix(value):
         return int(round(y_bot - (value - y_min) / y_range * plot_height))
 
     # Intensity scale (counts) : ticks, labels and dotted grid lines
-    for tick in nice_ticks(y_min, y_max, n = 5):
+    for tick in nice_ticks(y_min, y_max, n = 5, min_step = 1 if integer_scale else 0):
         yt = y_pix(tick)
         img[yt, x0:width:6] = 90
         cv2.line(img, (x0 - 4, yt), (x0, yt), 255, 1)
-        label = f'{tick:.0f}' if y_range >= 10 else f'{tick:.2f}'
+        label = f'{tick:.0f}' if (y_range >= 10 or integer_scale) else f'{tick:.2f}'
         (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1)
         cv2.putText(img, label, (x0 - 6 - tw, yt + th // 2),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.35, 255, 1, cv2.LINE_AA)
@@ -954,7 +959,7 @@ class AndorCam:
                 # Display integral curve (if enabled) : mean of the image in counts of the camera
                 if display_integral:
                     vector.append(np.mean(data))
-                    draw_curve(curve_img, vector, thickness = 2)
+                    draw_curve(curve_img, vector, thickness = 2, integer_scale = True)
 
                     # Display curve
                     cv2.imshow("Integral Curve", curve_img)

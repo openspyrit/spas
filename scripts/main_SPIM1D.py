@@ -60,7 +60,7 @@ combi.laser_on(exc_lambda)
 offset_vert = 0   # (micromirrors) vertical shift from the center of the DMD, > 0 : the pattern moves up
 offset_horz = 0   # (micromirrors) horizontal shift from the center of the DMD, > 0 : the pattern moves to the right
 #%% setup Spatial Camera
-cam_spat_params = cam_spat.setup(expos_time  = 0.2,  # (s)
+cam_spat_params = cam_spat.setup(expos_time  = 0.001,  # (s)
                                  gain        = 1,        # 1 or 2                              
                                  width       = 2048,     # max = 2048
                                  height      = 2048,     # max = 2048
@@ -86,7 +86,7 @@ mirror.set_position('spatial', verbose = True)
 shutter.open()
 stage.stage_adjustment(obj_stage = obj_stage, cam = cam_spat, x = x_win + combi.control_window_size()[0], y = y_win + combi.control_window_size()[1] + 20, align = 'right')  
 time.sleep(1)
-play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_33',                  
+play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spat_params, pattern_to_display = 'gray_0',                  
                  pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16,
                  offset_vert = offset_vert, offset_horz = offset_horz) 
 cam_spat.display(display_max = True, display_profile = True)
@@ -96,12 +96,12 @@ combi_params = combi.get_params(verbose = True)
 position = stage.read_position(verbose = True)
 #%% setup the Spectrograph
 spectrograph_params = spectrograph.setup(grating_nbr =   1, print_select   = True,   # Arg: 1 => 300 l/mm. 2: Doesn't exist
-                                         position    = 600, print_position = True,   # the central wavelength of the grating (nm)
+                                         position    = 594, print_position = True,   # the central wavelength of the grating (nm)
                                          slit_width  = 200,                          # (µm) width of the manual input slit as set on the spectrograph : wavelength calibration of this width
                                          input_port  = None,                         # 'direct' or 'side', None : not changed
                                          output_port = None, print_ports  = True)    # 'direct' or 'side', None : not changed
 #%% setup Spectral Camera
-cam_spec_params = cam_spec.setup(expos_time  = 0.0000001,        # (s)
+cam_spec_params = cam_spec.setup(expos_time  = 0.00025,        # (s)
                                  gain        = 1,        # 1 or 2                              
                                  width       = 2048,     # max = 2048
                                  height      = 2048,     # max = 2048
@@ -127,7 +127,7 @@ x_win, y_win = cam_spec.display_below_integral(x_offset = x_offset)
 combi.control(x = x_win, y = y_win)   # control of the lasers : below the integral curve, on the left
 mirror.set_position('spectral', verbose = True)
 shutter.open()
-stage.stage_adjustment(obj_stage = obj_stage, x = cam_spec.display_width(curve = True, x_offset = x_offset) + 20, y = 0)   # window on the right of the integral curve
+stage.stage_adjustment(obj_stage = obj_stage, cam = cam_spec, x = cam_spec.display_width(curve = True, x_offset = x_offset) + 20, y = 0)   # window on the right of the integral curve
 time.sleep(1)
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'white', 
                               pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 4,

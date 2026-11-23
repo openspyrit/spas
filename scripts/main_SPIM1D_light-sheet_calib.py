@@ -143,7 +143,7 @@ x_win, y_win = cam_spec.display_below_integral(x_offset = x_offset)
 combi.control(x = x_win, y = y_win)   # control of the lasers : below the integral curve, on the left
 mirror.set_position('spectral', verbose = True)
 shutter.open()
-stage.stage_adjustment(obj_stage = obj_stage, x = cam_spec.display_width(curve = True, x_offset = x_offset) + 20, y = 0)   # window on the right of the integral curve
+stage.stage_adjustment(obj_stage = obj_stage, cam = cam_spec, x = cam_spec.display_width(curve = True, x_offset = x_offset) + 20, y = 0)   # window on the right of the integral curve, AUTOFOCUS on the spectral image
 time.sleep(1)
 DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'gray_127', 
                               pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16,

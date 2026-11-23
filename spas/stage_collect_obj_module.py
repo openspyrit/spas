@@ -134,9 +134,22 @@ class CollectObjStage:
         return bool(self.device.Status.IsHomed)
 
 
+    def _ensure_enabled(self):
+        """Enable the motor if the TDC001 has disabled it (Kinesis DeviceNotEnabledException at the next move)."""
+        try:
+            enabled = bool(self.device.IsEnabled)
+        except Exception:
+            enabled = False
+        if not enabled:
+            print('stage of the collection objective : motor disabled, enabled again')
+            self.device.EnableDevice()
+            time.sleep(0.5)
+
+
     def home(self):
         """Move the stage to its 0 mm limit switch and set it as the origin."""
         print('homing of the stage of the collection objective...')
+        self._ensure_enabled()
         self.device.Home(TIMEOUT_MOVE_MS)
         print('stage of the collection objective homed')
 
@@ -154,6 +167,7 @@ class CollectObjStage:
         """
         if not TRAVEL_MM[0] <= position <= TRAVEL_MM[1]:
             raise ValueError('position = ' + str(position) + ' mm out of the travel range ' + str(TRAVEL_MM) + ' mm')
+        self._ensure_enabled()
         self.device.MoveTo(Decimal(position), TIMEOUT_MOVE_MS if wait else 0)
         if verbose and wait:
             self.read_position(verbose = True)
@@ -237,7 +251,7 @@ class CollectObjStage:
         Parameters
         ----------
         cam : AndorCam
-            the camera giving the images (the spatial camera, flipping mirror on the spatial arm).
+            the camera giving the images (the spatial or the spectral camera, flipping mirror on the corresponding arm).
         half_range, step : float
             (mm) the range and the step of the coarse scan. The default is None : self.af_half_range, self.af_step.
         stop_event : threading.Event
@@ -331,11 +345,14 @@ class CollectObjStage:
             home the stage (0 mm) before disconnection. The default is True.
             The position is saved in LAST_POSITION_FILE before.
         """
-        self.save_position()
-        if go_home:
-            self.home()
-
-        self.device.StopPolling()
-        self.device.Disconnect()
-        self.device = None
-        print('Stage of the collection objective disconnected')
+        try:
+            self.save_position()
+            if go_home:
+                self.home()
+        except Exception as e:
+            print('Warning, homing of the stage of the collection objective failed (' + str(e).splitlines()[0] + ')')
+        finally:   # always released, otherwise the controller stays locked for the next session
+            self.device.StopPolling()
+            self.device.Disconnect()
+            self.device = None
+            print('Stage of the collection objective disconnected')
