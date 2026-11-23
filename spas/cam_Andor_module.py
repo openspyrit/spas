@@ -55,6 +55,86 @@ WINDOW_GAP = 20
 WINDOW_FRAME = 40
 
 
+def screen_width() -> int:
+    """Width (pixels) of the main screen (1920 if it cannot be read)."""
+    try:
+        import ctypes
+        return int(ctypes.windll.user32.GetSystemMetrics(0))
+    except Exception:
+        return 1920
+
+
+def nice_ticks(vmin: float, vmax: float, n: int = 5) -> np.ndarray:
+    """About n round values (1, 2, 5 x 10^k steps) between vmin and vmax, for the scale of a curve."""
+    span = vmax - vmin
+    if span <= 0:
+        return np.array([vmin])
+    raw_step = span / max(n - 1, 1)
+    magnitude = 10 ** np.floor(np.log10(raw_step))
+    for factor in (1, 2, 5, 10):
+        step = factor * magnitude
+        if step >= raw_step:
+            break
+    first = np.ceil(vmin / step) * step
+    return np.arange(first, vmax + step * 1e-6, step)
+
+
+CURVE_MARGIN_LEFT = 55   # pixels on the left of the curves of display() for the intensity scale
+CURVE_MARGIN_Y = 8       # pixels above and below the curves, so that the extreme labels are not cut
+
+
+def draw_curve(img: np.ndarray, values, thickness: int = 1):
+    """Draw the curve of values in img (8 bits, cleared before) with an intensity scale on the left.
+
+    One point per pixel column if there are fewer values than columns (the curve grows from the left),
+    otherwise the values are sampled to fit in the width.
+    """
+    img.fill(0)
+    values = np.asarray(values, dtype=np.float64)
+    if values.size == 0:
+        return
+    height, width = img.shape[:2]
+    x0 = CURVE_MARGIN_LEFT
+    y_top = CURVE_MARGIN_Y
+    y_bot = height - CURVE_MARGIN_Y
+    plot_width = width - x0
+    plot_height = y_bot - y_top
+
+    y_min, y_max = np.min(values), np.max(values)
+    y_range = y_max - y_min if y_max != y_min else 1
+
+    def y_pix(value):
+        return int(round(y_bot - (value - y_min) / y_range * plot_height))
+
+    # Intensity scale (counts) : ticks, labels and dotted grid lines
+    for tick in nice_ticks(y_min, y_max, n = 5):
+        yt = y_pix(tick)
+        img[yt, x0:width:6] = 90
+        cv2.line(img, (x0 - 4, yt), (x0, yt), 255, 1)
+        label = f'{tick:.0f}' if y_range >= 10 else f'{tick:.2f}'
+        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1)
+        cv2.putText(img, label, (x0 - 6 - tw, yt + th // 2),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, 255, 1, cv2.LINE_AA)
+
+    # Curve
+    if values.size > plot_width:
+        idx = (np.arange(plot_width) * values.size / plot_width).astype(int)
+        values = values[idx]
+    points = [(x0 + i, y_pix(v)) for i, v in enumerate(values)]
+    if len(points) > 1:
+        cv2.polylines(img, [np.array(points, dtype=np.int32)], False, 255, thickness)
+
+    # Axes
+    cv2.line(img, (x0, y_bot), (width - 1, y_bot), 255, 1)
+    cv2.line(img, (x0, y_top), (x0, y_bot), 255, 1)
+
+
+def put_outlined_text(img: np.ndarray, text: str, org: tuple, scale: float = 0.5):
+    """Write a white text with a black outline (readable on a bright or a dark image)."""
+    cv2.putText(img, text, org, cv2.FONT_HERSHEY_SIMPLEX, scale, 0, 3, cv2.LINE_AA)
+    cv2.putText(img, text, org, cv2.FONT_HERSHEY_SIMPLEX, scale, 255, 1, cv2.LINE_AA)
+
+
 def get_sdk3() -> AndorSDK3:
     """Return the AndorSDK3 object shared by all the cameras (created at the first call)."""
     global _sdk3
@@ -93,6 +173,10 @@ class AndorCam:
     _live = False
     _live_frame = None
     _live_count = 0
+    # size (pixels) of the windows of display(), can be changed for each camera, e.g. cam.display_height = 700
+    display_height = DISPLAY_HEIGHT     # height of the image (max)
+    curve_width = CURVE_WIDTH           # width of the window of the profile or of the integral curve
+    integral_height = INTEGRAL_HEIGHT   # height of the window of the integral curve
 
     def __init__(self):
         self.sdk = None
@@ -610,7 +694,36 @@ class AndorCam:
         return data
 
 
-    def display_width(self, curve: bool = False, x_offset: int = 0) -> int:
+    def display_rot90(self, rot90: Optional[int] = None) -> int:
+        """Number of rotations of 90° (counterclockwise, np.rot90) of the image in display().
+        None : the default of the arm (1 for the spatial camera, 0 for the spectral camera)."""
+        if rot90 is None:
+            rot90 = 1 if self.arm == 'spatial' else 0
+        return int(rot90) % 4
+
+
+    def display_size(self, rot90: Optional[int] = None) -> tuple:
+        """Size (width, height) in pixels of the image displayed by display().
+
+        The aspect ratio is the one of the area of the sensor (binning included : with binningY = 8 the
+        image of 2048 x 256 super-pixels is displayed square), the height is self.display_height, reduced
+        if needed so that the image and the curve on its right fit in the width of the screen.
+        """
+        width = self.get("AOIWidth") * self.get("AOIHBin")
+        height = self.get("AOIHeight") * self.get("AOIVBin")
+        if self.display_rot90(rot90) % 2 == 1:
+            # the image is rotated by 90° (or 270°)
+            width, height = height, width
+        height_win = self.display_height
+        width_win = int(round(height_win * width / height))
+        max_width = screen_width() - WINDOW_GAP - self.curve_width
+        if width_win > max_width:
+            height_win = int(round(height_win * max_width / width_win))
+            width_win = max_width
+        return max(width_win, 1), max(height_win, 1)
+
+
+    def display_width(self, curve: bool = False, x_offset: int = 0, rot90: Optional[int] = None) -> int:
         """Return the right edge (pixels) of the windows of display(), to place another window on their right.
 
         Parameters
@@ -619,15 +732,12 @@ class AndorCam:
             True if the profile or the integral curve is displayed on the right of the image.
         x_offset : int
             the same horizontal shift as given to display(). The default is 0.
+        rot90 : int
+            the same rotation as given to display(). The default is None (default of the arm).
         """
-        width = self.get("AOIWidth")
-        height = self.get("AOIHeight")
-        if self.arm == 'spatial':
-            # the image is rotated
-            width, height = height, width
-        width_win = int(DISPLAY_HEIGHT * width / height)
+        width_win = self.display_size(rot90)[0]
         if curve:
-            width_win = width_win + WINDOW_GAP + CURVE_WIDTH
+            width_win = width_win + WINDOW_GAP + self.curve_width
 
         return width_win + x_offset
 
@@ -640,7 +750,7 @@ class AndorCam:
         return x, y
 
 
-    def display_below_integral(self, x_offset: int = 0) -> tuple:
+    def display_below_integral(self, x_offset: int = 0, rot90: Optional[int] = None) -> tuple:
         """Return the position (x, y) in pixels on the right of the image of display() and below
         its integral curve window, to place another window there.
 
@@ -648,14 +758,17 @@ class AndorCam:
         ----------
         x_offset : int
             the same horizontal shift as given to display(). The default is 0.
+        rot90 : int
+            the same rotation as given to display(). The default is None (default of the arm).
         """
-        x = self.display_width(curve = False, x_offset = x_offset) + WINDOW_GAP
-        y = INTEGRAL_HEIGHT + WINDOW_FRAME + WINDOW_GAP
+        x = self.display_width(curve = False, x_offset = x_offset, rot90 = rot90) + WINDOW_GAP
+        y = self.integral_height + WINDOW_FRAME + WINDOW_GAP
         return x, y
 
 
     def display(self, display_max: bool = False,
-                display_integral: bool = False, display_profile: bool = False, x_offset: int = 0):
+                display_integral: bool = False, display_profile: bool = False, x_offset: int = 0,
+                rot90: Optional[int] = None):
         """
         Continuous image display of the camera with optional integral/mean curve using OpenCV.
         Press 'q' to exit.
@@ -671,14 +784,17 @@ class AndorCam:
             x_offset (int):
                 horizontal shift (pixels) of the windows. A negative value moves them to the left
                 (the left part of the image goes out of the screen) so that all the windows fit. Default is 0.
+            rot90 (int):
+                number of rotations of 90° (counterclockwise) of the displayed image (display only, the
+                data are not changed). None : 1 for the spatial camera, 0 for the spectral camera. Default is None.
         Returns:
         -------
             None
         """
 
         # Define the output window size
-        height_win = DISPLAY_HEIGHT
-        width_win = self.display_width()
+        rot90 = self.display_rot90(rot90)
+        width_win, height_win = self.display_size(rot90)
 
         image_bit_depth = self.bit_depth()
         nframes = self.nframes
@@ -692,6 +808,20 @@ class AndorCam:
 
             cv2.namedWindow(window_name)
 
+            # position of the cursor on the image (pixels of the window), None before it moves on the image
+            mouse = {'pos': None}
+            # intensity under the cursor : moving average over the last CURSOR_AVG_TIME seconds,
+            # text refreshed CURSOR_REFRESH_RATE times per second (immediately when the pixel changes)
+            CURSOR_AVG_TIME = 0.5
+            CURSOR_REFRESH_RATE = 3
+            cursor_avg = {'pix': None, 'samples': deque(), 'text': '', 't_text': 0.0}
+
+            def on_mouse(event, x, y, flags, param):
+                if event == cv2.EVENT_MOUSEMOVE:
+                    mouse['pos'] = (x, y)
+
+            cv2.setMouseCallback(window_name, on_mouse)
+
             # Trackbar callback (does nothing)
             def nothing(x):
                 pass
@@ -703,9 +833,10 @@ class AndorCam:
 
             # Integral curve setup (if enabled)
             if display_integral:
-                max_points = CURVE_WIDTH
-                vector = deque(maxlen=max_points)
-                curve_height = INTEGRAL_HEIGHT
+                max_points = self.curve_width
+                # one point per pixel column of the curve (the left margin holds the intensity scale)
+                vector = deque(maxlen=max_points - CURVE_MARGIN_LEFT)
+                curve_height = self.integral_height
                 curve_img = np.zeros((curve_height, max_points), dtype=np.uint8)
                 cv2.namedWindow("Integral Curve")
                 cv2.resizeWindow("Integral Curve", max_points, curve_height)
@@ -723,7 +854,7 @@ class AndorCam:
 
             if display_profile:
                 curve_height = PROFILE_HEIGHT  # Hauteur de l'image de la courbe
-                fixed_width = CURVE_WIDTH    # Largeur fixe de la fenêtre
+                fixed_width = self.curve_width    # Largeur fixe de la fenêtre
                 # Initialiser l'image pour la courbe (noire, 1 canal)
                 curve_img = np.zeros((curve_height, fixed_width), dtype=np.uint8)
 
@@ -739,8 +870,8 @@ class AndorCam:
                 self._live_frame = data   # shared with fresh_frame() (autofocus)
                 self._live_count += 1
 
-                if self.arm == 'spatial':
-                    data = np.rot90(data, k=1, axes=(0, 1))
+                if rot90:
+                    data = np.rot90(data, k=rot90, axes=(0, 1))
 
                 data_8b = cv2.convertScaleAbs(data, alpha=(255.0 / (2**image_bit_depth - 1)))
 
@@ -786,6 +917,7 @@ class AndorCam:
                     self.set("ExposureTime", exposure_time / 1e6)
                     self.start_acquisition()
                     current_exposure_time = self.get("ExposureTime")
+                    cursor_avg['pix'] = None   # new exposure time : the moving average of the intensity restarts
 
                 # Process image
                 data_64b = data_8b.astype(np.float64)
@@ -793,34 +925,36 @@ class AndorCam:
                 data_8b = data2.astype(np.uint8)
                 data_8b_resize = cv2.resize(data_8b, (width_win, height_win))
 
+                # Coordinates (pixels of the displayed image, binning and rotation included) and
+                # intensity (counts of the camera) under the cursor : moving average over the last
+                # 0.5 s (restarted when the pixel changes), rounded to the integer, text refreshed at 3 Hz
+                if mouse['pos'] is not None:
+                    x_win, y_win = mouse['pos']
+                    col = min(max(int(x_win * data.shape[1] / width_win), 0), data.shape[1] - 1)
+                    row = min(max(int(y_win * data.shape[0] / height_win), 0), data.shape[0] - 1)
+                    now = time.monotonic()
+                    samples = cursor_avg['samples']
+                    new_pixel = cursor_avg['pix'] != (row, col)
+                    if new_pixel:
+                        cursor_avg['pix'] = (row, col)
+                        samples.clear()
+                    samples.append((now, float(data[row, col])))
+                    while now - samples[0][0] > CURSOR_AVG_TIME:
+                        samples.popleft()
+                    if new_pixel or now - cursor_avg['t_text'] >= 1 / CURSOR_REFRESH_RATE:
+                        mean_I = np.mean([value for _, value in samples])
+                        cursor_avg['text'] = f'x = {col}, y = {row}, I = {int(round(mean_I))}'
+                        cursor_avg['t_text'] = now
+                    put_outlined_text(data_8b_resize, cursor_avg['text'], (8, 22))
+
                 # Display camera image
                 cv2.imshow(window_name, data_8b_resize)
                 cv2.moveWindow(window_name, x_offset, 0)
 
-                # Display integral curve (if enabled)
+                # Display integral curve (if enabled) : mean of the image in counts of the camera
                 if display_integral:
-                    integral = np.mean(data_64b)
-                    vector.append(integral)
-
-                    # Normalize values for display
-                    y_values = np.array(vector)
-                    y_min, y_max = min(y_values), max(y_values)
-                    y_range = y_max - y_min if y_max != y_min else 1
-
-                    # Clear curve image
-                    curve_img.fill(0)
-
-                    # Draw curve
-                    for i in range(1, len(vector)):
-                        x1 = i - 1
-                        x2 = i
-                        y1 = int(curve_height - (vector[x1] - y_min) / y_range * curve_height)
-                        y2 = int(curve_height - (vector[x2] - y_min) / y_range * curve_height)
-                        cv2.line(curve_img, (x1, y1), (x2, y2), 255, 2)
-
-                    # Draw axes
-                    cv2.line(curve_img, (0, curve_height - 1), (max_points - 1, curve_height - 1), 255, 1)
-                    cv2.line(curve_img, (0, 0), (0, curve_height - 1), 255, 1)
+                    vector.append(np.mean(data))
+                    draw_curve(curve_img, vector, thickness = 2)
 
                     # Display curve
                     cv2.imshow("Integral Curve", curve_img)
@@ -835,30 +969,8 @@ class AndorCam:
 
                     profile = np.mean(data_rogne, axis=0)
                     profile = profile[10: len(profile) - 10]
-                    # Normaliser le profil pour l'affichage
-                    y_min, y_max = np.min(profile), np.max(profile)
-                    y_range = y_max - y_min if y_max != y_min else 1
-
-                    # Effacer l'image de la courbe
-                    curve_img.fill(0)
-
-                    # Échantillonner le profil pour qu'il tienne dans fixed_width
-                    step = len(profile) / fixed_width
-                    points = []
-                    for i in range(fixed_width):
-                        idx = int(i * step)
-                        if idx >= len(profile):
-                            break
-                        y = int(curve_height - (profile[idx] - y_min) / y_range * curve_height)
-                        points.append((i, y))
-
-                    # Tracer le profil
-                    if len(points) > 1:
-                        cv2.polylines(curve_img, [np.array(points, dtype=np.int32)], False, 255, 1)
-
-                    # Tracer les axes
-                    cv2.line(curve_img, (0, curve_height - 1), (fixed_width - 1, curve_height - 1), 255, 1)  # Axe horizontal
-                    cv2.line(curve_img, (0, 0), (0, curve_height - 1), 255, 1)  # Axe vertical
+                    # Tracer le profil avec l'échelle des intensités
+                    draw_curve(curve_img, profile)
 
                     # Afficher le profil
                     cv2.imshow("Profile", curve_img)

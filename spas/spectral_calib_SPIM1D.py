@@ -16,6 +16,11 @@ Principle:
        (it also covers the Lc where the lamp has few lines, e.g. 600-650 nm),
     4. the coefficients are written in WAVELENGTH_CALIB (in this module), used by
        define_wavelengths_matrix (also imported by spas.acquisition_SPIM1D).
+    5. one calibration per width of the entrance slit (calib_by_slit) : if only one jaw of the slit moves,
+       the center of the slit moves by half the change of width, so the lines move on the sensor.
+       get_calib takes the calibration of the slit width, interpolates linearly between 2 measured widths
+       (the shift is linear in the width), or takes the nearest one with a warning outside the measured
+       widths. compare_slit_calibs gives the shift between the slit widths.
 
 Used by the script main_SPIM1D_spectral_calib.py
 """
@@ -59,11 +64,460 @@ def find_nearest(array, value):
 
 # >>> WAVELENGTH CALIBRATION >>>
 # Written by write_wavelength_calib (script main_SPIM1D_spectral_calib.py).
-# Do not edit by hand. One entry per grating number. Model (see wavelengths_from_calib):
+# Do not edit by hand. One entry per grating number, one calibration per slit width (calib_by_slit, see get_calib).
+# Model (see wavelengths_from_calib):
 #     lambda = Lc + sum_ij coeffs[i][j] * u**i * v**j
 #     u = (x - x0) / x_scale    x : pixel of the full sensor (unbinned, 0 = first column)
 #     v = (Lc - Lc0) / Lc_scale Lc : central wavelength of the spectrograph (nm)
-WAVELENGTH_CALIB = {}
+WAVELENGTH_CALIB = {
+    1: {
+        'grooves': 300,
+        'calib_by_slit': {
+            100.0: {
+                'date': '2026-11-17',
+                'lamp': 'HG-1 Ocean Optics (Hg-Ar)',
+                'grooves': 300,
+                'slit_width_um': 100.0,
+                'data': '../../data/2026-11-17_spectral_calib/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_100um_Lc_380-920nm/spectral_calib_grating_1.npz',
+                'x0': 1023.5,
+                'x_scale': 1024.0,
+                'Lc0': 650.0,
+                'Lc_scale': 270.0,
+                'coeffs': [
+                    [0.48075335, -0.048187161, 0.035920415],
+                    [42.542656, -0.58711397, 0.11206028],
+                    [-0.07380958, 0.037268728, 0.086861761],
+                    [0.032545647, 0.051382103, -0.007640023],
+                ],
+                'rms_nm': 0.0827,
+                'Lc_range': [380.0, 920.0],
+                'n_lines': 90,
+                'second_order': True,
+                'resolution': {
+                    'coeffs': [
+                        [0.48536, -0.00973692],
+                        [0.00893115, -0.0179201],
+                        [-0.0210246, 0.037862],
+                    ],
+                    'rms_nm': 0.009207,
+                    'n_lines': 48,
+                    'median_nm': 0.4797,
+                    'min_nm': 0.456,
+                    'max_nm': 0.5154,
+                    'median_px': 11.58,
+                    'mean_380_930_nm': 0.479,
+                    'slit_width_um': 100.0,
+                },
+            },
+            200.0: {
+                'date': '2026-11-17',
+                'lamp': 'HG-1 Ocean Optics (Hg-Ar)',
+                'grooves': 300,
+                'slit_width_um': 200.0,
+                'data': '../../data/2026-11-17_spectral_calib/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_200um_Lc_380-920nm/spectral_calib_grating_1.npz',
+                'x0': 1023.5,
+                'x_scale': 1024.0,
+                'Lc0': 650.0,
+                'Lc_scale': 270.0,
+                'coeffs': [
+                    [0.47116048, -0.05445696, 0.030014057],
+                    [42.554758, -0.60755158, 0.10698723],
+                    [-0.064881695, 0.035685355, 0.055286073],
+                    [0.016610416, 0.071582328, 0.023241269],
+                ],
+                'rms_nm': 0.08122,
+                'Lc_range': [380.0, 920.0],
+                'n_lines': 83,
+                'second_order': True,
+                'resolution': {
+                    'coeffs': [
+                        [1.11366, 0.00465508],
+                        [0.00572503, -0.00534411],
+                        [-0.00209848, 0.014307],
+                    ],
+                    'rms_nm': 0.03652,
+                    'n_lines': 52,
+                    'median_nm': 1.106,
+                    'min_nm': 1.075,
+                    'max_nm': 1.204,
+                    'median_px': 26.76,
+                    'mean_380_930_nm': 1.113,
+                    'slit_width_um': 200.0,
+                },
+            },
+            300.0: {
+                'date': '2026-11-17',
+                'lamp': 'HG-1 Ocean Optics (Hg-Ar)',
+                'grooves': 300,
+                'slit_width_um': 300.0,
+                'data': '../../data/2026-11-17_spectral_calib/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_300um_Lc_380-920nm/spectral_calib_grating_1.npz',
+                'x0': 1023.5,
+                'x_scale': 1024.0,
+                'Lc0': 650.0,
+                'Lc_scale': 270.0,
+                'coeffs': [
+                    [0.53688358, -0.05761339, 0.018718509],
+                    [42.560464, -0.62811994, 0.14362999],
+                    [-0.053406288, 0.030670701, -0.014837873],
+                    [0.0017904044, 0.17492737, 0.14258868],
+                ],
+                'rms_nm': 0.1036,
+                'Lc_range': [380.0, 920.0],
+                'n_lines': 79,
+                'second_order': True,
+                'resolution': {
+                    'coeffs': [
+                        [1.72241, -0.0159835],
+                        [0.00519709, -0.0135868],
+                        [-0.0202693, 0.0668772],
+                    ],
+                    'rms_nm': 0.01413,
+                    'n_lines': 50,
+                    'median_nm': 1.718,
+                    'min_nm': 1.685,
+                    'max_nm': 1.751,
+                    'median_px': 41.49,
+                    'mean_380_930_nm': 1.716,
+                    'slit_width_um': 300.0,
+                },
+            },
+            360.0: {
+                'date': '2026-11-17',
+                'lamp': 'HG-1 Ocean Optics (Hg-Ar)',
+                'grooves': 300,
+                'slit_width_um': 360.0,
+                'data': '../../data/2026-11-17_spectral_calib/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_360um_Lc_380-920nm/spectral_calib_grating_1.npz',
+                'x0': 1023.5,
+                'x_scale': 1024.0,
+                'Lc0': 650.0,
+                'Lc_scale': 270.0,
+                'coeffs': [
+                    [0.50111227, -0.033900729, 0.079084514],
+                    [42.673346, -0.76699562, -0.095661551],
+                    [-0.082127665, 0.05373994, 0.010246303],
+                    [-0.28350209, 0.38356897, 0.61529572],
+                ],
+                'rms_nm': 0.15,
+                'Lc_range': [380.0, 920.0],
+                'n_lines': 74,
+                'second_order': True,
+                'resolution': {
+                    'coeffs': [
+                        [2.06529, -0.0209193],
+                        [-0.00651799, 0.0158857],
+                        [-0.0496112, 0.133069],
+                    ],
+                    'rms_nm': 0.01065,
+                    'n_lines': 49,
+                    'median_nm': 2.058,
+                    'min_nm': 2.032,
+                    'max_nm': 2.085,
+                    'median_px': 49.77,
+                    'mean_380_930_nm': 2.049,
+                    'slit_width_um': 360.0,
+                },
+            },
+            400.0: {
+                'date': '2026-11-17',
+                'lamp': 'HG-1 Ocean Optics (Hg-Ar)',
+                'grooves': 300,
+                'slit_width_um': 400.0,
+                'data': '../../data/2026-11-17_spectral_calib/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_400um_Lc_380-920nm/spectral_calib_grating_1.npz',
+                'x0': 1023.5,
+                'x_scale': 1024.0,
+                'Lc0': 650.0,
+                'Lc_scale': 270.0,
+                'coeffs': [
+                    [0.40404606, -0.029488976, 0.083576368],
+                    [42.67048, -0.77517982, -0.080677211],
+                    [-0.078843758, 0.054782269, -0.0010309621],
+                    [-0.27427448, 0.39382605, 0.58446811],
+                ],
+                'rms_nm': 0.1569,
+                'Lc_range': [380.0, 920.0],
+                'n_lines': 74,
+                'second_order': True,
+                'resolution': {
+                    'coeffs': [
+                        [2.3425, -0.0163413],
+                        [0.00799577, -0.00667058],
+                        [-0.0742397, 0.169247],
+                    ],
+                    'rms_nm': 0.01368,
+                    'n_lines': 45,
+                    'median_nm': 2.334,
+                    'min_nm': 2.303,
+                    'max_nm': 2.378,
+                    'median_px': 56.48,
+                    'mean_380_930_nm': 2.319,
+                    'slit_width_um': 400.0,
+                },
+            },
+            500.0: {
+                'date': '2026-11-17',
+                'lamp': 'HG-1 Ocean Optics (Hg-Ar)',
+                'grooves': 300,
+                'slit_width_um': 500.0,
+                'data': '../../data/2026-11-17_spectral_calib/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_500um_Lc_380-920nm/spectral_calib_grating_1.npz',
+                'x0': 1023.5,
+                'x_scale': 1024.0,
+                'Lc0': 650.0,
+                'Lc_scale': 270.0,
+                'coeffs': [
+                    [0.50894508, -0.03234434, 0.04179731],
+                    [42.693256, -0.72757639, -0.045224572],
+                    [-0.073630095, 0.078970964, 0.014488724],
+                    [-0.29026273, 0.32377578, 0.54813734],
+                ],
+                'rms_nm': 0.1467,
+                'Lc_range': [380.0, 920.0],
+                'n_lines': 67,
+                'second_order': True,
+                'resolution': {
+                    'coeffs': [
+                        [2.96264, -0.0131796],
+                        [-0.00911949, 0.0318114],
+                        [-0.0721022, 0.179796],
+                    ],
+                    'rms_nm': 0.008185,
+                    'n_lines': 41,
+                    'median_nm': 2.959,
+                    'min_nm': 2.918,
+                    'max_nm': 3.011,
+                    'median_px': 71.52,
+                    'mean_380_930_nm': 2.939,
+                    'slit_width_um': 500.0,
+                },
+            },
+            600.0: {
+                'date': '2026-11-17',
+                'lamp': 'HG-1 Ocean Optics (Hg-Ar)',
+                'grooves': 300,
+                'slit_width_um': 600.0,
+                'data': '../../data/2026-11-17_spectral_calib/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_600um_Lc_380-920nm/spectral_calib_grating_1.npz',
+                'x0': 1023.5,
+                'x_scale': 1024.0,
+                'Lc0': 650.0,
+                'Lc_scale': 270.0,
+                'coeffs': [
+                    [0.47874388, -0.020286235, 0.03850439],
+                    [42.619735, -0.76368306, 0.015249718],
+                    [-0.057921005, 0.023316639, -0.06102479],
+                    [-0.17012357, 0.28684396, 0.38390209],
+                ],
+                'rms_nm': 0.1268,
+                'Lc_range': [380.0, 920.0],
+                'n_lines': 63,
+                'second_order': True,
+                'resolution': {
+                    'coeffs': [
+                        [3.56665, -0.0361814],
+                        [0.00359902, -0.00414753],
+                        [-0.0805947, 0.21207],
+                    ],
+                    'rms_nm': 0.01089,
+                    'n_lines': 20,
+                    'median_nm': 3.55,
+                    'min_nm': 3.519,
+                    'max_nm': 3.603,
+                    'median_px': 85.85,
+                    'mean_380_930_nm': 3.541,
+                    'slit_width_um': 600.0,
+                },
+            },
+            700.0: {
+                'date': '2026-11-17',
+                'lamp': 'HG-1 Ocean Optics (Hg-Ar)',
+                'grooves': 300,
+                'slit_width_um': 700.0,
+                'data': '../../data/2026-11-17_spectral_calib/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_700um_Lc_380-920nm/spectral_calib_grating_1.npz',
+                'x0': 1023.5,
+                'x_scale': 1024.0,
+                'Lc0': 650.0,
+                'Lc_scale': 270.0,
+                'coeffs': [
+                    [0.44292634, -0.0038526974, 0.028722914],
+                    [42.519695, -0.8127102, 0.086178413],
+                    [-0.011080277, 0.1106327, -0.035412283],
+                    [0.085402412, 0.43806906, 0.22180452],
+                ],
+                'rms_nm': 0.1229,
+                'Lc_range': [380.0, 920.0],
+                'n_lines': 60,
+                'second_order': True,
+                'resolution': {
+                    'coeffs': [
+                        [3.97399, 0.242061],
+                        [0.0167388, 0.0142472],
+                        [0.246466, -0.152831],
+                    ],
+                    'rms_nm': 0.005423,
+                    'n_lines': 9,
+                    'median_nm': 4.168,
+                    'min_nm': 4.133,
+                    'max_nm': 4.264,
+                    'median_px': 100.6,
+                    'mean_380_930_nm': 4.056,
+                    'slit_width_um': 700.0,
+                },
+            },
+            800.0: {
+                'date': '2026-11-17',
+                'lamp': 'HG-1 Ocean Optics (Hg-Ar)',
+                'grooves': 300,
+                'slit_width_um': 800.0,
+                'data': '../../data/2026-11-17_spectral_calib/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_800um_Lc_380-920nm/spectral_calib_grating_1.npz',
+                'x0': 1023.5,
+                'x_scale': 1024.0,
+                'Lc0': 650.0,
+                'Lc_scale': 270.0,
+                'coeffs': [
+                    [0.61373483, -0.0078315031, -0.0059043597],
+                    [42.472491, -0.8181158, 0.16282721],
+                    [0.0036852736, 0.1201859, -0.060656806],
+                    [0.14338914, 0.4158987, 0.1945416],
+                ],
+                'rms_nm': 0.1238,
+                'Lc_range': [380.0, 920.0],
+                'n_lines': 57,
+                'second_order': True,
+                'resolution': {
+                    'coeffs': [
+                        [4.72861, 0.0100681],
+                        [0.0768709, -0.0964246],
+                        [-0.0545265, 0.330628],
+                    ],
+                    'rms_nm': 0.02747,
+                    'n_lines': 9,
+                    'median_nm': 4.778,
+                    'min_nm': 4.729,
+                    'max_nm': 4.919,
+                    'median_px': 115.0,
+                    'mean_380_930_nm': 4.714,
+                    'slit_width_um': 800.0,
+                },
+            },
+            900.0: {
+                'date': '2026-11-17',
+                'lamp': 'HG-1 Ocean Optics (Hg-Ar)',
+                'grooves': 300,
+                'slit_width_um': 900.0,
+                'data': '../../data/2026-11-17_spectral_calib/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_900um_Lc_380-920nm/spectral_calib_grating_1.npz',
+                'x0': 1023.5,
+                'x_scale': 1024.0,
+                'Lc0': 650.0,
+                'Lc_scale': 270.0,
+                'coeffs': [
+                    [0.57965446, 0.091940739, -0.07873423],
+                    [42.599886, -0.49128782, 0.26441027],
+                    [-0.15179157, 0.18694406, 0.3230967],
+                    [0.13252698, -0.40080448, -0.62013426],
+                ],
+                'rms_nm': 0.1685,
+                'Lc_range': [380.0, 920.0],
+                'n_lines': 47,
+                'second_order': True,
+                'resolution': {
+                    'coeffs': [
+                        [5.65956, -1.82377],
+                        [0.177852, -0.282165],
+                        [-0.839495, 3.0465],
+                    ],
+                    'rms_nm': 0.2555,
+                    'n_lines': 11,
+                    'median_nm': 5.286,
+                    'min_nm': 4.556,
+                    'max_nm': 5.334,
+                    'median_px': 128.0,
+                    'mean_380_930_nm': 5.387,
+                    'slit_width_um': 900.0,
+                },
+            },
+            1000.0: {
+                'date': '2026-11-17',
+                'lamp': 'HG-1 Ocean Optics (Hg-Ar)',
+                'grooves': 300,
+                'slit_width_um': 1000.0,
+                'data': '../../data/2026-11-17_spectral_calib/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_1000um_Lc_380-920nm/spectral_calib_grating_1.npz',
+                'x0': 1023.5,
+                'x_scale': 1024.0,
+                'Lc0': 650.0,
+                'Lc_scale': 270.0,
+                'coeffs': [
+                    [0.70491559, 0.061699983, -0.097527613],
+                    [42.308927, -0.87677889, 0.26740044],
+                    [0.049593613, 0.24520197, 0.055365592],
+                    [0.26596026, 0.18287664, -0.00066602208],
+                ],
+                'rms_nm': 0.1145,
+                'Lc_range': [380.0, 920.0],
+                'n_lines': 35,
+                'second_order': True,
+                'resolution': {
+                    'coeffs': [
+                        [5.05904, 3.81991],
+                        [0.000163495, 0.226138],
+                        [1.21626, -6.60009],
+                    ],
+                    'rms_nm': 0.05512,
+                    'n_lines': 7,
+                    'median_nm': 5.834,
+                    'min_nm': 5.72,
+                    'max_nm': 6.066,
+                    'median_px': 141.3,
+                    'mean_380_930_nm': 5.463,
+                    'slit_width_um': 1000.0,
+                },
+            },
+        },
+        'resolution_by_slit': {
+            100.0: {
+                'lamp': 0.479,
+                'used': 'lamp',
+            },
+            200.0: {
+                'lamp': 1.113,
+                'used': 'lamp',
+            },
+            300.0: {
+                'lamp': 1.716,
+                'used': 'lamp',
+            },
+            360.0: {
+                'lamp': 2.049,
+                'used': 'lamp',
+            },
+            400.0: {
+                'lamp': 2.319,
+                'used': 'lamp',
+            },
+            500.0: {
+                'lamp': 2.939,
+                'used': 'lamp',
+            },
+            600.0: {
+                'lamp': 3.541,
+                'used': 'lamp',
+            },
+            700.0: {
+                'lamp': 4.056,
+                'used': 'lamp',
+            },
+            800.0: {
+                'lamp': 4.714,
+                'used': 'lamp',
+            },
+            900.0: {
+                'lamp': 5.387,
+                'used': 'lamp',
+            },
+            1000.0: {
+                'lamp': 5.463,
+                'used': 'lamp',
+            },
+        },
+    },
+}
 # <<< WAVELENGTH CALIBRATION <<<
 
 
@@ -138,13 +592,169 @@ def resolution_from_calib(x, Lc: float, calib: dict) -> np.ndarray:
     return fwhm
 
 
-def spectral_resolution(cam_spec_params, Lc: list = [], include_binning: bool = True, verbose: bool = False):
+def _calibs_by_slit(entry: dict) -> dict:
+    """{slit width (µm): calibration} of a grating entry of WAVELENGTH_CALIB (old format : a single
+    calibration at the top level of the entry)."""
+    if not entry:
+        return {}
+    if 'calib_by_slit' in entry:
+        return {float(k): v for k, v in entry['calib_by_slit'].items()}
+    if 'coeffs' in entry:
+        calib = {k: v for k, v in entry.items() if k not in ('resolution_by_slit', 'laser_resolution')}
+        return {float(entry.get('slit_width_um') or 0): calib}
+    return {}
+
+
+def _current_slit_width():
+    """Width (µm) of the entrance slit given to Shamrock.setup (manual slit), None if unknown."""
+    try:
+        from spas.spectro_Shamrock_module import Spectrograph_Parameters
+        return float(Spectrograph_Parameters.manual_slit_width)
+    except Exception:
+        return None
+
+
+def get_calib(grating_nbr: int, slit_width_um: float = None, verbose: bool = False):
+    """
+    Wavelength calibration (entry usable by wavelengths_from_calib, resolution_from_calib) of the grating
+    for the width of the entrance slit.
+
+    If only one jaw of the slit moves, the center of the slit moves by half the change of width : the lines
+    move on the sensor (~ (change of width / 2) / pixel width x dispersion). So :
+        - slit width calibrated (1 %) : its calibration,
+        - between 2 calibrated widths : linear interpolation of the coefficients (the shift is linear in the
+          width ; the resolution is also interpolated),
+        - otherwise : the nearest calibrated width, with a warning (run main_SPIM1D_spectral_calib.py).
+
+    Parameters
+    ----------
+    slit_width_um : float
+        width of the entrance slit (µm). None : the one given to Shamrock.setup (manual_slit_width).
+
+    Returns
+    -------
+    dict, None if the grating is not calibrated.
+    """
+    by_slit = _calibs_by_slit(WAVELENGTH_CALIB.get(int(grating_nbr)))
+    if not by_slit:
+        return None
+    slits = sorted(by_slit)
+    if slit_width_um is None:
+        slit_width_um = _current_slit_width()
+    if slit_width_um is None:
+        s = max(slits, key=lambda k: by_slit[k].get('date', ''))
+        print('Warning, slit width unknown : the calibration of the slit ' + str(s) + ' µm (the last one) is used')
+        return by_slit[s]
+    w = float(slit_width_um)
+
+    match = [s for s in slits if np.isclose(s, w, rtol=0.01)]
+    if match:
+        return by_slit[match[0]]
+
+    nearest = min(slits, key=lambda s: abs(s - w))
+    warning = ('Warning, wavelength calibration not measured for a slit of ' + str(w) + ' µm (measured : ' +
+               str(slits) + ' µm) : ')
+    if w < slits[0] or w > slits[-1]:
+        print(warning + 'the calibration of the slit ' + str(nearest) + ' µm is used. The wavelengths can be shifted '
+              '(half the change of width if only one jaw moves) : run main_SPIM1D_spectral_calib.py with this slit width')
+        return by_slit[nearest]
+
+    i = int(np.searchsorted(slits, w))
+    s0, s1 = slits[i - 1], slits[i]
+    c0, c1 = by_slit[s0], by_slit[s1]
+    same_model = (all(c0[k] == c1[k] for k in ('x0', 'x_scale', 'Lc0', 'Lc_scale')) and
+                  np.shape(c0['coeffs']) == np.shape(c1['coeffs']))
+    if not same_model:
+        print(warning + 'the 2 calibrations around it have different models (Lc range or degrees), the calibration '
+              'of the slit ' + str(nearest) + ' µm is used')
+        return by_slit[nearest]
+
+    t = (w - s0) / (s1 - s0)
+    lerp = lambda a, b: ((1 - t) * np.asarray(a, dtype=float) + t * np.asarray(b, dtype=float)).tolist()
+    calib = dict(by_slit[nearest])
+    calib['coeffs'] = lerp(c0['coeffs'], c1['coeffs'])
+    r0, r1 = c0.get('resolution'), c1.get('resolution')
+    if r0 and r1 and np.shape(r0['coeffs']) == np.shape(r1['coeffs']):
+        calib['resolution'] = dict(calib['resolution'], coeffs=lerp(r0['coeffs'], r1['coeffs']), slit_width_um=w)
+    calib['Lc_range'] = [max(c0['Lc_range'][0], c1['Lc_range'][0]), min(c0['Lc_range'][1], c1['Lc_range'][1])]
+    calib['slit_width_um'] = w
+    calib['interpolated_from'] = [s0, s1]
+    if verbose:
+        print('slit ' + str(w) + ' µm : calibration interpolated between the slits ' + str(s0) + ' and ' + str(s1) + ' µm')
+    return calib
+
+
+def compare_slit_calibs(grating_nbr: int, Lc_list=(400, 500, 600, 700, 800, 900), ref_slit: float = None,
+                        pixel_width_um: float = 6.5, save_path: str = None):
+    """
+    Shift of the wavelength vector between the calibrations of the slit widths (calib_by_slit), relative
+    to ref_slit (default : the narrowest), compared to the shift expected if only one jaw of the slit moves
+    (center of the slit moved by half the change of width). Also prints the resolution of each slit.
+
+    Returns
+    -------
+    dict {slit (µm): {'mean_nm', 'min_nm', 'max_nm', 'mean_px', 'one_jaw_nm'}}, None if < 2 slit widths.
+    """
+    entry = WAVELENGTH_CALIB.get(int(grating_nbr))
+    by_slit = _calibs_by_slit(entry)
+    if len(by_slit) < 2:
+        print('Only ' + str(len(by_slit)) + ' slit width calibrated for the grating ' + str(grating_nbr) + ' : nothing to compare')
+        return None
+    slits = sorted(by_slit)
+    ref = slits[0] if ref_slit is None else min(slits, key=lambda s: abs(s - ref_slit))
+    xs = np.arange(N_SENSOR)
+    Lc_list = np.asarray(Lc_list, dtype=float)
+    disp = np.mean([dispersion_from_calib(np.array([X0]), L, by_slit[ref])[0] for L in Lc_list])   # nm / pixel
+    res_by_slit = (entry or {}).get('resolution_by_slit', {})
+
+    fig, ax = plt.subplots(1, 2, figsize=(13, 4.5))
+    shifts = {}
+    print('reference : slit ' + str(ref) + ' µm, dispersion ' + str(round(disp, 4)) + ' nm/pixel')
+    for s in slits:
+        res = res_by_slit.get(s, {})
+        res_txt = ', resolution ' + ', '.join(m + ' ' + str(res[m]) + ' nm' for m in ('lamp', 'laser') if m in res)
+        if s == ref:
+            print('slit ' + str(s) + ' µm : reference' + (res_txt if res else ''))
+            continue
+        d = np.array([wavelengths_from_calib(xs, L, by_slit[s]) - wavelengths_from_calib(xs, L, by_slit[ref]) for L in Lc_list])
+        one_jaw = (s - ref) / 2 / pixel_width_um * disp
+        shifts[s] = {'mean_nm': round(float(d.mean()), 4), 'min_nm': round(float(d.min()), 4),
+                     'max_nm': round(float(d.max()), 4), 'mean_px': round(float(d.mean() / disp), 2),
+                     'one_jaw_nm': round(float(one_jaw), 4)}
+        print('slit ' + str(s) + ' µm : shift ' + str(shifts[s]['mean_nm']) + ' nm (' + str(shifts[s]['mean_px']) +
+              ' pixels, ' + str(shifts[s]['min_nm']) + ' to ' + str(shifts[s]['max_nm']) + ' nm on the sensor), '
+              'one jaw : +/- ' + str(shifts[s]['one_jaw_nm']) + ' nm' + (res_txt if res else ''))
+        ax[0].plot(Lc_list, d.mean(axis=1), 'o-', label=str(s) + ' µm')
+        ax[1].plot(xs, d[len(Lc_list) // 2], label=str(s) + ' µm')
+    for s, v in shifts.items():
+        ax[0].axhline(v['one_jaw_nm'], ls=':', color='gray')
+        ax[0].axhline(-v['one_jaw_nm'], ls=':', color='gray')
+    ax[0].set_xlabel('central wavelength Lc (nm)')
+    ax[0].set_ylabel('mean shift / slit ' + str(ref) + ' µm (nm)')
+    ax[0].set_title('dotted : shift expected if only one jaw moves')
+    ax[1].set_xlabel('pixel of the sensor')
+    ax[1].set_ylabel('shift (nm)')
+    ax[1].set_title('Lc = ' + str(Lc_list[len(Lc_list) // 2]) + ' nm')
+    for a in ax:
+        a.grid()
+        a.legend()
+    fig.suptitle('wavelength calibration vs slit width, grating ' + str(grating_nbr))
+    fig.tight_layout()
+    if save_path is not None:
+        os.makedirs(save_path, exist_ok=True)
+        fig.savefig(os.path.join(save_path, 'spectral_calib_slit_comparison_grating_' + str(grating_nbr) + '.png'), dpi=150)
+    plt.show()
+    return shifts
+
+
+def spectral_resolution(cam_spec_params, Lc: list = [], include_binning: bool = True, verbose: bool = False,
+                        slit_width_um: float = None):
     """
     Spectral resolution (FWHM of a line, nm) of each column of the spectral camera, for each
     (central wavelength, grating) of Lc. Same use as define_wavelengths_matrix.
 
     The resolution is measured on the lines of the HG-1 lamp with the camera without binning (slit width
-    and focus of the calibration). With include_binning, the binning along the wavelength is added
+    and focus of the calibration, see get_calib for slit_width_um). With include_binning, the binning along the wavelength is added
     (the line, taken as a Gaussian, is convolved with a box of binningX pixels : see fwhm_gauss_box).
 
     Returns
@@ -159,7 +769,7 @@ def spectral_resolution(cam_spec_params, Lc: list = [], include_binning: bool = 
     for iLc in range(len(Lc)):
         Lcc = float(Lc[iLc][0])
         Grating = int(Lc[iLc][1])
-        calib = WAVELENGTH_CALIB.get(Grating)
+        calib = get_calib(Grating, slit_width_um)
         if calib is None or 'resolution' not in calib:
             print('Warning, no measured resolution for the grating ' + str(Grating) + ' (WAVELENGTH_CALIB)')
             return None
@@ -198,7 +808,8 @@ def _define_wavelengths_legacy(cam_spec_params, Lcc: float, Grating: int) -> np.
     return (i - int(px_width/2) - ynew) / p(xnew2) + Lcc + L_offset
 
 
-def define_wavelengths_matrix(cam_spec_params, Lc: list = [], display_figure: bool = False, verbose: bool = False):
+def define_wavelengths_matrix(cam_spec_params, Lc: list = [], display_figure: bool = False, verbose: bool = False,
+                              slit_width_um: float = None):
     """
     define the wavelength vector for each central wavelength of the spectrograph
 
@@ -216,6 +827,9 @@ def define_wavelengths_matrix(cam_spec_params, Lc: list = [], display_figure: bo
         plot the wavelength vs the column of the camera. The default is False.
     verbose : bool, optional
         print the wavelength range. The default is False.
+    slit_width_um : float, optional
+        width of the entrance slit (µm) : the calibration of this slit width is used (get_calib). The default
+        is None : the width given to Shamrock.setup (Spectrograph_Parameters.manual_slit_width).
 
     Returns
     -------
@@ -230,7 +844,7 @@ def define_wavelengths_matrix(cam_spec_params, Lc: list = [], display_figure: bo
         Lcc = float(Lc[iLc][0])
         Grating = int(Lc[iLc][1])
 
-        calib = WAVELENGTH_CALIB.get(Grating)
+        calib = get_calib(Grating, slit_width_um, verbose=verbose and iLc == 0)
         if calib is not None and 'coeffs' in calib:
             w[iLc, :] = wavelengths_from_calib(x, Lcc, calib)
             if not (calib['Lc_range'][0] <= Lcc <= calib['Lc_range'][1]):
@@ -660,7 +1274,7 @@ def measure_laser_line(spectrum: np.ndarray, x: np.ndarray, margin: float = 3, w
 
 
 def laser_resolution(measurements: list, grating_nbr: int = 1, linewidths: dict = None,
-                     lam_range: tuple = None, verbose: bool = True):
+                     lam_range: tuple = None, slit_width_um: float = None, verbose: bool = True):
     """
     Spectral resolution measured with laser lines (light scattered by the cuvette, light sheet of the SPIM).
 
@@ -677,6 +1291,9 @@ def laser_resolution(measurements: list, grating_nbr: int = 1, linewidths: dict 
         {laser wavelength (nm): FWHM of the laser line (nm)}. The default is None : 0 for all the lasers.
     lam_range : tuple
         range of the mean resolution, default RES_RANGE (380 - 930 nm).
+    slit_width_um : float
+        width of the entrance slit (µm) : calibration used for the dispersion and the measured wavelength
+        of the laser lines (get_calib). None : the width given to Shamrock.setup.
 
     Returns
     -------
@@ -684,7 +1301,7 @@ def laser_resolution(measurements: list, grating_nbr: int = 1, linewidths: dict 
     """
     lam_range = RES_RANGE if lam_range is None else lam_range
     linewidths = linewidths or {}
-    calib = WAVELENGTH_CALIB.get(int(grating_nbr))
+    calib = get_calib(grating_nbr, slit_width_um)
     calibrated = calib is not None and 'coeffs' in calib
 
     rows = []
@@ -947,8 +1564,9 @@ def write_wavelength_calib(grating_nbr: int, calib: dict, use_resolution: bool =
                            module_path: str = None, verbose: bool = True):
     """
     Write the calibration of the grating in WAVELENGTH_CALIB (in this module, between the lines
-    CALIB_BEGIN and CALIB_END). The calibrations of the other gratings and the resolutions measured
-    with the other slit widths or with the laser are kept.
+    CALIB_BEGIN and CALIB_END), for its slit width (calib['slit_width_um'], in calib_by_slit : it replaces
+    the calibration of the same slit width). The calibrations of the other gratings and of the other slit
+    widths, and the resolutions measured with the other slit widths or with the laser are kept.
     use_resolution : the resolution measured with the lamp becomes resolution_th (Spectrograph_Parameters)
     for this slit width. False : the method already chosen is kept (e.g. 'laser').
     WAVELENGTH_CALIB is also updated in memory : define_wavelengths_matrix uses the new calibration
@@ -959,16 +1577,25 @@ def write_wavelength_calib(grating_nbr: int, calib: dict, use_resolution: bool =
     calibs = _read_calibs(module_path)[4]
     old = calibs.get(int(grating_nbr), {})
     calib = dict(calib)
-    by_slit = _merge_resolution(old.get('resolution_by_slit'), calib.get('resolution_by_slit'),
-                                'lamp' if use_resolution else None)
-    if 'laser_resolution' in old and 'laser_resolution' not in calib:
-        calib['laser_resolution'] = old['laser_resolution']
+    if calib.get('slit_width_um') is None:
+        raise ValueError('slit width of the calibration unknown : new_calib_entry(..., slit_width_um = ...)')
+    slit = float(calib['slit_width_um'])
+    new_res = calib.pop('resolution_by_slit', None)
+    laser = calib.pop('laser_resolution', old.get('laser_resolution'))
+    by_slit = _merge_resolution(old.get('resolution_by_slit'), new_res, 'lamp' if use_resolution else None)
+    calib_by_slit = {k: v for k, v in _calibs_by_slit(old).items() if not np.isclose(k, slit, rtol=0.01)}
+    calib_by_slit[slit] = calib
+    entry = {'grooves': calib.get('grooves', old.get('grooves')),
+             'calib_by_slit': {k: calib_by_slit[k] for k in sorted(calib_by_slit)}}
     if by_slit:
-        calib['resolution_by_slit'] = by_slit
-    calibs[int(grating_nbr)] = calib
+        entry['resolution_by_slit'] = by_slit
+    if laser:
+        entry['laser_resolution'] = laser
+    calibs[int(grating_nbr)] = entry
     _write_calibs(module_path, calibs)
     if verbose:
-        print('calibration of the grating ' + str(grating_nbr) + ' written in ' + module_path)
+        print('calibration of the grating ' + str(grating_nbr) + ', slit ' + str(slit) + ' µm, written in ' + module_path +
+              ' (calibrated slits : ' + str(sorted(calib_by_slit)) + ' µm)')
 
 
 def write_resolution(grating_nbr: int, slit_width_um: float, result: dict, use_resolution: bool = True,

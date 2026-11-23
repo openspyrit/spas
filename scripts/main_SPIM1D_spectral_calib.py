@@ -5,16 +5,22 @@ Created on Tue Nov 10 2026
 @author: mahieu
 
 Spectral calibration of the spectral arm of the SPIM (copy of main_SPIM1D_light-sheet_calib.py) :
-    - wavelength vector : Hg-Ar lamp Ocean Optics HG-1 (PART A), written in WAVELENGTH_CALIB
-      (spas/spectral_calib_SPIM1D.py) and read by define_wavelengths_matrix, right for any Lc, ROI and binning,
-    - spectral resolution (FWHM of a line, mean between 380 and 930 nm), measured with one of 2 methods :
-        'lamp'  : the lines of the HG-1 (PART A, same acquisition as the wavelength calibration),
-        'laser' : the laser lines scattered by the fluorescent cuvette (PART B), with the light sheet of the SPIM.
-      The method chosen in resolution_method gives resolution_th of Spectrograph_Parameters, for the slit width.
+    - wavelength vector and spectral resolution : Hg-Ar lamp Ocean Optics HG-1 (PART A), written in
+      WAVELENGTH_CALIB (spas/spectral_calib_SPIM1D.py) and read by define_wavelengths_matrix and
+      spectral_resolution, right for any Lc, ROI and binning. The mean resolution (380 - 930 nm) gives
+      resolution_th of Spectrograph_Parameters for the slit width.
+    - check with the laser lines scattered by the fluorescent cuvette (PART B, optional), with the light sheet
+      of the SPIM : resolution of the real acquisitions and position of the laser lines with the calibration.
 
-With a wide slit (3 mm), the resolution is given by the width of the image of the light in the plane of the
-slit : the image of the fiber with the lamp, the image of the light sheet with the laser. The laser method
-measures the resolution of the acquisitions ; the lamp is needed for the wavelength vector.
+Narrow entrance slit (a few hundred µm) : the resolution is given by the slit (the image of the fiber of the
+lamp is wider than the slit), so the lamp gives the resolution. The laser check tells if the image of the light
+sheet in the plane of the slit is narrower than the slit (laser lines thinner than the lamp lines : the
+acquisitions have a better resolution than resolution_th).
+
+Slit width : the slit is manual, give its width in slit_width (Parameters). One calibration per slit width
+(WAVELENGTH_CALIB calib_by_slit) : if only one jaw of the slit moves, the lines move on the sensor by half the
+change of width (~ 0.3 nm for 100 µm). Run PART A for each slit width used (cells A4 to A7), then A9 compares
+them ; between 2 calibrated widths, the calibration is interpolated (get_calib).
 
 PROTOCOL A - HG-1 lamp (wavelength calibration + resolution 'lamp')
     1. Fiber of the HG-1 at the position of the sample, in front of the collection objective (in the holder of
@@ -24,9 +30,12 @@ PROTOCOL A - HG-1 lamp (wavelength calibration + resolution 'lamp')
        collection objective ("collect objective" axis or AUTOFOCUS) : the face of the fiber is sharp.
     4. Spectral camera (cell A3) : lines thin and bright (fine focus of the collection objective).
     5. Cells A4 to A8 : acquisition for each Lc (auto-exposure), fit, check of the figures, writing in
-       WAVELENGTH_CALIB, transfer to girder, check with another Lc and binning.
+       WAVELENGTH_CALIB (for this slit width), transfer to girder, check with another Lc and binning.
+    6. Other slit widths : change the slit (do not move the fiber), give its width in slit_width, run the
+       cells Parameters, setup the Spectrograph, A3 (lines in focus) and A4 to A7. Then A9 : shift of the
+       wavelengths and resolution vs slit width.
 
-PROTOCOL B - laser line (resolution 'laser', configuration of the acquisitions)
+PROTOCOL B - laser line (check of the resolution and of the wavelengths, configuration of the acquisitions)
     1. Fluorescent cuvette in its holder, at the position of the sample (as for the acquisitions).
     2. Remove the notch filters (473 and 594 nm) of the collection path, otherwise the laser line is cut,
        or use a laser that is not blocked by the notch filters. Fluorescence of the cuvette : a broad
@@ -37,8 +46,10 @@ PROTOCOL B - laser line (resolution 'laser', configuration of the acquisitions)
     4. Spatial camera (cell B2) : light sheet in the cuvette, at the position used for the acquisitions,
        focus with the collection objective.
     5. Spectral camera (cell B3) : thinnest laser line (fine focus of the collection objective), no saturation.
-    6. Cells B4 to B7 : scan of Lc around each laser (the line moves along the sensor), FWHM of the line,
-       writing in WAVELENGTH_CALIB, transfer to girder. Put back the notch filters after the measurement.
+    6. Cells B4 to B7 : scan of Lc around each laser (the line moves along the sensor), FWHM of the line and
+       wavelength measured with the calibration of PART A (same slit width), comparison with the lamp, storage
+       in WAVELENGTH_CALIB (laser_resolution, resolution_th not changed), transfer to girder. Put back the notch
+       filters after the measurement.
 """
 
 
@@ -84,22 +95,21 @@ combi.all_off()
 shutter.close()
 obj_stage.go_to_last_position(verbose = True)   # collection objective back to its position of the last session
 #%% Parameters
-resolution_method = 'laser'    # 'lamp' (PART A) or 'laser' (PART B) : the method that gives resolution_th of Spectrograph_Parameters
 grating_nbr       = 1          # 300 gr/mm
-slit_width        = 3000       # (µm) width of the input slit. Not motorized : stored in Spectrograph_Parameters (slit_width, resolution_th)
+slit_width        = 360        # (µm) width of the input slit, as set on the spectrograph (manual) : one calibration per slit width
 setup_version     = 'setup_v1.0'
 collection_access = 'public'   #'private'#
-data_folder_name  = '2026-11-10_spectral_calib'
+data_folder_name  = '2026-11-17_spectral_calib'
 pattern           = dict(pattern_to_display = 'gray_0', pattern_dim = '1D', scan_mode = 'Walsh_sparse',
                          Np = 128, pattern_thickness = 16)   # pattern of the DMD : trigger of the cameras (and light sheet with the laser)
 #%% setup the Spectrograph
 spectrograph_params = spectrograph.setup(grating_nbr = grating_nbr, print_select   = True,   # Arg:  1
-                                         position    = 546,         print_position = True,   # the central wavelength of the grating
+                                         position    = 473,         print_position = True,   # the central wavelength of the grating
                                          slit_width  = slit_width,                           # the width of the input slit in (µm), None : not changed
                                          input_port  = None,                                 # 'direct' or 'side', None : not changed
                                          output_port = None,        print_ports    = True)   # 'direct' or 'side', None : not changed
 #%% setup Spatial Camera : image of the fiber or of the light sheet, at the place of the sample
-cam_spat_params = cam_spat.setup(expos_time  = 0.05,     # (s), decrease it if the image is saturated
+cam_spat_params = cam_spat.setup(expos_time  = 0.01,     # (s), decrease it if the image is saturated
                                  gain        = 1,        # 1 or 2
                                  width       = 2048,     # max = 2048
                                  height      = 2048,     # max = 2048
@@ -110,7 +120,7 @@ cam_spat_params = cam_spat.setup(expos_time  = 0.05,     # (s), decrease it if t
                                  encodPix    = 12,       # 12 or 16 bit
                                  snapshot    = False)    # if false => acquire video, if True => acquire an image
 #%% setup Spectral Camera : no binning along the wavelength (binningX = 1) for the calibration
-cam_spec_params = cam_spec.setup(expos_time  = 0.05,     # (s), adjusted for each Lc by the auto-exposure
+cam_spec_params = cam_spec.setup(expos_time  = 0.01,     # (s), adjusted for each Lc by the auto-exposure
                                  gain        = 1,        # 1 or 2
                                  width       = 2048,     # max = 2048
                                  height      = 2048,     # max = 2048
@@ -160,31 +170,44 @@ def snap_spec_auto(expos_time, target = 0.6, expos_max = 2, n_iter = 6):
     return image, expos_time, saturated
 
 
-def display_cam(cam, cam_params, laser = None):
+def display_cam(cam, cam_params, laser = None, rot90 = None):
     """Continuous display of a camera (spatial : image + profile, spectral : image + integral) with the
-    window of the stages (and of the lasers if laser is not None), the shutter opened if laser is not None."""
+    window of the stages (and of the lasers if laser is not None), the shutter opened if laser is not None.
+    rot90 : rotations of 90° (counterclockwise) of the spectral image (display only), None : not rotated."""
+    # spectral camera : image, integral curve and stages side by side, lasers below the integral curve.
+    # Smaller windows (pixels) so that all of them fit in the screen (1920 x 1080) without shift to the left
+    x_offset = 0
+    cam_spec.display_height  = 700   # image (square : 700 x 700)
+    cam_spec.curve_width     = 450   # integral curve
+    cam_spec.integral_height = 400   # integral curve, the control of the lasers (B3) is below it
     if cam is cam_spat:
         mirror.set_position('spatial', verbose = True)
         x_win, y_win = cam_spat.display_below_profile()
+        x_stage, y_stage = x_win, y_win                     # stages below the profile (below the lasers if any)
     else:
         mirror.set_position('spectral', verbose = True)
-        x_win, y_win = cam_spec.display_below_integral()
+        x_win, y_win = cam_spec.display_below_integral(x_offset = x_offset, rot90 = rot90)   # lasers below the integral curve
+        x_stage = cam_spec.display_width(curve = True, x_offset = x_offset, rot90 = rot90) + 20   # stages on the right of the integral curve
+        y_stage = 0
     if laser is not None:
         combi.control(x = x_win, y = y_win)   # control of the lasers
-        y_win = y_win + combi.control_window_size()[1] + 20
+        if cam is cam_spat:
+            y_stage = y_win + combi.control_window_size()[1] + 20
         shutter.open()
-    stage.stage_adjustment(obj_stage = obj_stage, cam = cam_spat if cam is cam_spat else None, x = x_win, y = y_win)
+    # AUTOFOCUS button (collection objective) on the displayed camera : face of the fiber / light sheet sharp
+    # on the spatial camera, thinnest and brightest lines on the spectral camera
+    stage.stage_adjustment(obj_stage = obj_stage, cam = cam, x = x_stage, y = y_stage)
     time.sleep(1)
     play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_params, **pattern)
     if cam is cam_spat:
         cam_spat.display(display_max = True, display_profile = True)
     else:
-        cam_spec.display(display_max = False, display_integral = True)
+        cam_spec.display(display_max = False, display_integral = True, x_offset = x_offset, rot90 = rot90)
     DMD.Halt()
     shutter.close()
     mirror.set_position('spectral', verbose = True)
     print('stage : ' + str(stage.read_position()) + ', collection objective : ' + str(obj_stage.read_position()))
-#%% ======================= PART A : HG-1 lamp (wavelength + resolution 'lamp') =======================
+#%% ======================= PART A : HG-1 lamp (wavelength + resolution, for the slit width) =======================
 #%% A1 Prepare : lasers off, shutter closed. Fiber of the HG-1 at the position of the sample, lamp on since 5 min
 combi.all_off()
 shutter.close()
@@ -192,7 +215,8 @@ shutter.close()
 # The light of the lamp does not pass through the DMD : the pattern is only played to trigger the camera.
 display_cam(cam_spat, cam_spat_params)
 #%% A3 display spectral camera : lines thin and bright (fine focus of the collection objective)
-display_cam(cam_spec, cam_spec_params)
+# image rotated by 90° : wavelength along the horizontal axis (rot90 = -1 if the wavelengths decrease from left to right)
+display_cam(cam_spec, cam_spec_params, rot90 = 0)
 #%% A4 Acquisition of the lamp for each central wavelength
 Lc_list    = np.arange(380, 921, 20)   # (nm) central wavelengths. Lamp lines : 365-579 (Hg) and 696-922 (Ar), few lines for Lc ~ 600-650
 source     = 'HG-1_Oceanoptics'
@@ -233,25 +257,31 @@ sc.plot_calibration(measurements, calib, table, save_path = data_path)
 sc.save_calibration(calib_path + '.npz', measurements, calib, table)
 print(calib)
 #%% A6 Write the calibration in WAVELENGTH_CALIB (spas/spectral_calib_SPIM1D.py), check the figures before. Used immediately, no restart needed
-# the mean resolution (380 - 930 nm) is stored for this slit width ; it becomes resolution_th if resolution_method = 'lamp'
-sc.write_wavelength_calib(grating_nbr, calib, use_resolution = (resolution_method == 'lamp'))
+# stored for this slit width (the calibrations of the other widths are kept) ; the mean resolution (380 - 930 nm) becomes resolution_th
+sc.write_wavelength_calib(grating_nbr, calib, use_resolution = True)
 spectrograph_params_calib.update_resolution(verbose = True)
 print('resolution_th = ' + str(spectrograph_params_calib.resolution_th) + ' nm (slit ' + str(spectrograph_params_calib.slit_width) + ' µm)')
 #%% A7 transfer data to girder : npz (images, spectra, lines), json (calibration) and figures, calibration in the metadata
 transfer_data_spectral_calib(calib, spectrograph_params_calib, cam_spec_params_calib, measurements,
                              setup_version, data_folder_name, data_name, collection_access)
 #%% A8 Check : spectrum of the lamp with the new calibration (any Lc, ROI and binning)
-spectrograph_params = spectrograph.setup(grating_nbr = grating_nbr, position = 640, print_position = True)
+spectrograph_params = spectrograph.setup(grating_nbr = grating_nbr, position = 578, print_position = True)
 cam_spec_params = cam_spec.setup(expos_time = 0.1, binningX = 8, binningY = 8, snapshot = True)
 image, expos_time, saturated = snap_spec_auto(0.1)
 plot_spectrum(image, cam_spec_params, spectrograph_params)
-wavelengths = define_wavelengths_matrix(cam_spec_params, [(spectrograph_params.position, grating_nbr)], verbose = True)
-resolution = spectral_resolution(cam_spec_params, [(spectrograph_params.position, grating_nbr)], verbose = True)   # (nm), binning 8 included
+wavelengths = define_wavelengths_matrix(cam_spec_params, [(spectrograph_params.position, grating_nbr)], verbose = True,
+                                        slit_width_um = spectrograph_params.slit_width)
+resolution = spectral_resolution(cam_spec_params, [(spectrograph_params.position, grating_nbr)], verbose = True,
+                                 slit_width_um = spectrograph_params.slit_width)   # (nm), binning 8 included
 cam_spec_params = cam_spec.setup(expos_time = 0.05, binningX = 1, binningY = 8, snapshot = True)   # back to the calibration settings
-#%% ======================= PART B : laser line (resolution 'laser', light sheet of the SPIM) =======================
+#%% A9 Comparison of the slit widths (after PART A with each width) : shift of the wavelengths and resolution
+# shift ~ 0 : the slit opens symmetrically (one calibration is enough) ; shift ~ "one jaw" : only one jaw moves,
+# calibrate each width used (interpolation between 2 calibrated widths)
+shifts = sc.compare_slit_calibs(grating_nbr, save_path = '../../data/' + data_folder_name)
+#%% ======================= PART B (check) : laser line, light sheet of the SPIM =======================
 #%% B1 Lasers. Fluorescent cuvette in place, notch filters removed (or laser not blocked by them)
-lasers     = {473: {'power_mW': 0.5, 'linewidth_nm': 0},    # {wavelength (nm): power (mW), width of the laser line (nm, datasheet, 0 if << resolution)}
-              594: {'power_mW': 0.5, 'linewidth_nm': 0}}
+lasers     = {473: {'power_mW': 1, 'linewidth_nm': 0},    # {wavelength (nm): power (mW), width of the laser line (nm, datasheet, 0 if << resolution)}
+              594: {'power_mW': 1, 'linewidth_nm': 0}}
 Lc_offsets = np.arange(-40, 41, 10)   # (nm) Lc = laser - offset : the line moves along the sensor (~ +/- 43 nm on the sensor)
 combi.print_lasers()
 combi.all_off()
@@ -292,18 +322,24 @@ for L, laser in lasers.items():
 combi.all_off()
 cam_spec_params_laser     = cam_Parameters(cam = cam_spec)
 spectrograph_params_laser = Spectrograph_Parameters(spectrograph = spectrograph)
-#%% B5 FWHM of the laser line, resolution (dispersion from WAVELENGTH_CALIB if PART A done, otherwise from the scan itself)
+#%% B5 FWHM of the laser line and its wavelength with the calibration of PART A (same slit width), comparison with the lamp
 result, table_laser = sc.laser_resolution(measurements_laser, grating_nbr = grating_nbr,
-                                          linewidths = {L: laser['linewidth_nm'] for L, laser in lasers.items()})
+                                          linewidths = {L: laser['linewidth_nm'] for L, laser in lasers.items()},
+                                          slit_width_um = spectrograph_params_laser.slit_width)
 for L, laser in lasers.items():
     if float(L) in result['per_laser']:
         result['per_laser'][float(L)]['power_mW'] = laser['power_mW']
 sc.plot_laser_resolution(measurements_laser, result, table_laser, save_path = data_path_laser)
 sc.save_laser_resolution(data_path_laser + '/spectral_resolution_laser.npz', measurements_laser, result, table_laser)
-#%% B6 Write the resolution in WAVELENGTH_CALIB for this slit width ; it becomes resolution_th if resolution_method = 'laser'
-sc.write_resolution(grating_nbr, spectrograph_params_laser.slit_width, result, use_resolution = (resolution_method == 'laser'))
-spectrograph_params_laser.update_resolution(verbose = True)
-print('resolution_th = ' + str(spectrograph_params_laser.resolution_th) + ' nm (slit ' + str(spectrograph_params_laser.slit_width) + ' µm)')
+lamp_res = sc.measured_resolution(grating_nbr, spectrograph_params_laser.slit_width, method = 'lamp')
+print('resolution : laser ' + str(result['mean_nm']) + ' nm, lamp ' + str(lamp_res) + ' nm (slit ' +
+      str(spectrograph_params_laser.slit_width) + ' µm). Laser < lamp : the image of the light sheet is narrower than the slit')
+for L, v in result['per_laser'].items():
+    if 'lambda_measured_nm' in v:
+        print('laser ' + str(L) + ' nm measured at ' + str(v['lambda_measured_nm']) + ' nm (error ' +
+              str(round(v['lambda_measured_nm'] - L, 3)) + ' nm, tolerance of the laser wavelength : ~1 nm)')
+#%% B6 Store the laser check in WAVELENGTH_CALIB for this slit width (resolution_th stays the one of the lamp)
+sc.write_resolution(grating_nbr, spectrograph_params_laser.slit_width, result, use_resolution = False)
 #%% B7 transfer data to girder : npz (images, spectra), json (resolution) and figure, resolution in the metadata
 transfer_data_spectral_calib(result, spectrograph_params_laser, cam_spec_params_laser, measurements_laser,
                              setup_version, data_folder_name, data_name_laser, collection_access)

@@ -56,7 +56,7 @@ obj_stage.go_to_last_position(verbose = True)   # collection objective back to i
 combi.set_power(594, 40, unit = 'mW')   # laser (nm), power
 combi.laser_on(594)
 #%% setup Spatial Camera
-cam_spat_params = cam_spat.setup(expos_time  = 0.03,  # (s)
+cam_spat_params = cam_spat.setup(expos_time  = 0.2,  # (s)
                                  gain        = 1,        # 1 or 2                              
                                  width       = 2048,     # max = 2048
                                  height      = 2048,     # max = 2048
@@ -112,12 +112,12 @@ combi_params = combi.get_params(verbose = True)
 position = stage.read_position(verbose = True)
 #%% setup the Spectrograph
 spectrograph_params = spectrograph.setup(grating_nbr =   1, print_select   = True,   # Arg:  1 
-                                         position    = 640, print_position = True,   # the central wavelength of the grating
-                                         slit_width  = None,                         # the width of the input slit in (µm), None : not changed
+                                         position    = 578, print_position = True,   # the central wavelength of the grating
+                                         slit_width  = 200,                          # (µm) width of the manual input slit as set on the spectrograph : wavelength calibration of this width
                                          input_port  = None,                         # 'direct' or 'side', None : not changed
                                          output_port = None, print_ports  = True)    # 'direct' or 'side', None : not changed
 #%% setup Spectral Camera
-cam_spec_params = cam_spec.setup(expos_time  = 0.015,        # (s)
+cam_spec_params = cam_spec.setup(expos_time  = 0.0003,        # (s)
                                  gain        = 1,        # 1 or 2                              
                                  width       = 2048,     # max = 2048
                                  height      = 2048,     # max = 2048
@@ -130,7 +130,7 @@ cam_spec_params = cam_spec.setup(expos_time  = 0.015,        # (s)
 #%% get a snapshot of the spectral camera
 mirror.set_position('spectral', verbose = True)
 shutter.open()
-DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, zoom = 1, pattern_to_display = 'gray_0', 
+DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, zoom = 1, pattern_to_display = 'gray_33', 
                               pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16,
                               offset_vert = offset_vert, offset_horz = offset_horz) 
 data = cam_spec.snapshot(tilt_image = False) # data_format accepted: 8 or 16 bits
@@ -145,7 +145,7 @@ mirror.set_position('spectral', verbose = True)
 shutter.open()
 stage.stage_adjustment(obj_stage = obj_stage, x = cam_spec.display_width(curve = True, x_offset = x_offset) + 20, y = 0)   # window on the right of the integral curve
 time.sleep(1)
-DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'gray_0', 
+DMD_params = play_one_pattern(DMD, DMD_initial_memory, cam_Par = cam_spec_params, pattern_to_display = 'gray_127', 
                               pattern_dim = '1D', scan_mode = 'Walsh_sparse', Np = 128, pattern_thickness = 16,
                               offset_vert = offset_vert, offset_horz = offset_horz) 
 cam_spec.display(display_max = False, display_integral = True, x_offset = x_offset)

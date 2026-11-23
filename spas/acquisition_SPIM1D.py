@@ -1027,7 +1027,8 @@ def plot_spectrum(data, cam_spec_params, spectrograph_params):
     """
     from matplotlib import pyplot as plt
     
-    wavelengths = define_wavelengths_matrix(cam_spec_params, [(spectrograph_params.position, spectrograph_params.grating.current_grating_nbr)])
+    wavelengths = define_wavelengths_matrix(cam_spec_params, [(spectrograph_params.position, spectrograph_params.grating.current_grating_nbr)],
+                                            slit_width_um = spectrograph_params.slit_width)
 
     i, j = np.unravel_index(data.argmax(), data.shape)
     print('maximum found at the row : ' + str(i))

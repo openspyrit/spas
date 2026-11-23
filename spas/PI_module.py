@@ -67,6 +67,7 @@ class PIStage:
     _af_thread = None
     _af_stop = None
     _af_status = ''
+    _gui_autofocus = False
 
     def __init__(self):
         self.pidevice = None
@@ -84,6 +85,7 @@ class PIStage:
         self._af_thread = None
         self._af_stop = threading.Event()
         self._af_status = ''
+        self._gui_autofocus = False   # True if the open window has the AUTOFOCUS button
 
 
     def init(self, model: str = 'C-884', SN: str = '0000000000', stages_model: Optional[list] = None, verbose: bool = False):
@@ -293,21 +295,30 @@ class PIStage:
             4th axis "collect objective". The default is None : only the PI axes.
         cam : AndorCam, optional
             the camera used by the AUTOFOCUS button of the window (moves obj_stage, see CollectObjStage.autofocus),
-            the spatial camera : its display() must be running. The default is None : no autofocus button.
+            the spatial or the spectral camera : its display() must be running. The default is None : no autofocus button.
         """
         if self.pidevice is None:
             print('PI translation stage not connected, run stage.init() first')
             return
-        if self._gui is not None and self._gui.poll() is None:   # already open : only moved
-            if x is not None and self._gui_conn is not None:
-                try:
-                    self._gui_conn.send(('move', int(x), int(y), align))
-                except Exception:
-                    pass
-            return
+        autofocus = obj_stage is not None and cam is not None
+        if self._gui is not None and self._gui.poll() is None:   # already open
+            same_window = (obj_stage is self._obj_stage or obj_stage is None) and (self._gui_autofocus or not autofocus)
+            if same_window or self._autofocus_running():
+                # only moved, the camera of the autofocus is updated (spatial <-> spectral)
+                if cam is not None:
+                    self._af_cam = cam
+                if x is not None and self._gui_conn is not None:
+                    try:
+                        self._gui_conn.send(('move', int(x), int(y), align))
+                    except Exception:
+                        pass
+                return
+            # the window has no AUTOFOCUS button (or another collection objective stage) : reopened
+            self._close_window()
 
         self._obj_stage = obj_stage
         self._af_cam = cam
+        self._gui_autofocus = autofocus
         if self._af_stop is None:
             self._af_stop = threading.Event()
         axes = list(self.axes)
@@ -320,7 +331,7 @@ class PIStage:
         listener = Listener(('127.0.0.1', 0), authkey = key)   # local connection with the window
         settings = {'port': listener.address[1], 'title': 'PI manual control ' + str(self.model),
                     'axes': axes, 'labels': labels, 'x': x, 'y': y, 'align': align,
-                    'autofocus': obj_stage is not None and cam is not None}
+                    'autofocus': autofocus}
         env = dict(os.environ, PI_WINDOW_KEY = key.hex())
         log = tempfile.NamedTemporaryFile('w+', prefix = 'PI_window_', suffix = '.log', delete = False)
         self._gui = subprocess.Popen([sys.executable, '-c', 'from spas.PI_module import _jog_window_main; _jog_window_main()',
@@ -467,7 +478,8 @@ class PIStage:
                 print('Manual control window of the PI stage : communication stopped (' + str(e) + ')')
         finally:
             conn.close()
-            self._gui_conn = None
+            if self._gui_conn is conn:   # not the connection of a window reopened since
+                self._gui_conn = None
 
     def _close_window(self):
         """Close the manual control window, if it is open."""
