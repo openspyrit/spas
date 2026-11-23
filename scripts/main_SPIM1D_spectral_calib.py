@@ -99,7 +99,7 @@ grating_nbr       = 1          # 300 gr/mm
 slit_width        = 360        # (µm) width of the input slit, as set on the spectrograph (manual) : one calibration per slit width
 setup_version     = 'setup_v1.0'
 collection_access = 'public'   #'private'#
-data_folder_name  = '2026-11-23_spectral_calib_CL=75mm'
+data_folder_name  = '2026-11-23_spectral_calib_CL_75mm'
 pattern           = dict(pattern_to_display = 'gray_0', pattern_dim = '1D', scan_mode = 'Walsh_sparse',
                          Np = 128, pattern_thickness = 16)   # pattern of the DMD : trigger of the cameras (and light sheet with the laser)
 #%% setup the Spectrograph
@@ -334,10 +334,10 @@ sc.save_laser_resolution(data_path_laser + '/spectral_resolution_laser.npz', mea
 lamp_res = sc.measured_resolution(grating_nbr, spectrograph_params_laser.slit_width, method = 'lamp')
 print('resolution : laser ' + str(result['mean_nm']) + ' nm, lamp ' + str(lamp_res) + ' nm (slit ' +
       str(spectrograph_params_laser.slit_width) + ' µm). Laser < lamp : the image of the light sheet is narrower than the slit')
-for L, v in result['per_laser'].items():
+for L, v in result['per_laser'].items():   # real wavelength of the lasers : spectrometer (spas/laser_wavelengths.py)
     if 'lambda_measured_nm' in v:
-        print('laser ' + str(L) + ' nm measured at ' + str(v['lambda_measured_nm']) + ' nm (error ' +
-              str(round(v['lambda_measured_nm'] - L, 3)) + ' nm, tolerance of the laser wavelength : ~1 nm)')
+        print('laser ' + str(L) + ' nm (real ' + str(v['lambda_real_nm']) + ' nm) measured at ' + str(v['lambda_measured_nm']) +
+              ' nm with the calibration : error ' + f"{v['lambda_error_nm']:+.2f}" + ' nm')
 #%% B6 Store the laser check in WAVELENGTH_CALIB for this slit width (resolution_th stays the one of the lamp)
 sc.write_resolution(grating_nbr, spectrograph_params_laser.slit_width, result, use_resolution = False)
 #%% B7 transfer data to girder : npz (images, spectra), json (resolution) and figure, resolution in the metadata

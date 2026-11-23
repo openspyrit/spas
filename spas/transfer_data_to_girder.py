@@ -173,6 +173,7 @@ def transfer_data_SPIM1D(DMD_params, cam_spat_params, cam_spec_params, spectrogr
                     continue
                 prefix = 'f)_COMBI_laser_' + f"{laser['wavelength_nm']:g}" + 'nm_'
                 combi_dict2[prefix + 'state'] = laser['state']
+                combi_dict2[prefix + 'measured wavelength (nm)'] = laser.get('measured_wavelength_nm')
                 combi_dict2[prefix + 'power (mW)'] = laser['power_mW']
                 combi_dict2[prefix + 'power (%)'] = laser['power_percent']
                 combi_dict2[prefix + 'max_power (mW)'] = laser['max_power_mW']
@@ -845,6 +846,7 @@ def transfer_data_spectral_calib(calib, spectrograph_params, cam_spec_params, me
         for laser in combi_params.lasers:
             if laser['state'] == 'ON':
                 prefix = 'f)_COMBI_laser_' + f"{laser['wavelength_nm']:g}" + 'nm_'
+                metadata[prefix + 'measured wavelength (nm)'] = to_json(laser.get('measured_wavelength_nm'))
                 metadata[prefix + 'power (mW)'] = to_json(laser['power_mW'])
                 metadata[prefix + 'power (%)'] = to_json(laser['power_percent'])
 

@@ -35,6 +35,8 @@ import numpy as np
 from scipy import signal, ndimage, interpolate, special
 from matplotlib import pyplot as plt
 
+from spas.laser_wavelengths import measured_wavelength, MEASURED_WAVELENGTHS_DATE
+
 # Lines of the Ocean Optics HG-1 lamp (nm, first order), from the HG-1 manual
 HG1_LINES = {
     'Hg': [253.652, 296.728, 302.150, 313.155, 334.148, 365.015, 404.656, 407.783, 435.833,
@@ -78,107 +80,143 @@ WAVELENGTH_CALIB = {
                 'lamp': 'HG-1 Ocean Optics (Hg-Ar)',
                 'grooves': 300,
                 'slit_width_um': 100.0,
-                'data': '../../data/2026-11-23_spectral_calib_CL=75mm/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_100um_Lc_380-920nm/spectral_calib_grating_1.npz',
+                'data': '../../data/2026-11-23_spectral_calib_CL_75mm/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_100um_Lc_380-920nm/spectral_calib_grating_1.npz',
                 'x0': 1023.5,
                 'x_scale': 1024.0,
                 'Lc0': 650.0,
                 'Lc_scale': 270.0,
                 'coeffs': [
-                    [0.51521833, -0.044111854, 0.019319838],
-                    [42.53637, -0.58651565, 0.1025534],
-                    [-0.071210065, 0.047935656, 0.050931635],
-                    [0.026952887, 0.037533986, 0.020266908],
+                    [0.5184159, -0.038018654, 0.023286058],
+                    [42.53616, -0.57963875, 0.10137221],
+                    [-0.06923331, 0.046321819, 0.044680208],
+                    [0.027910811, 0.029586294, 0.022641144],
                 ],
-                'rms_nm': 0.08128,
+                'rms_nm': 0.08124,
                 'Lc_range': [380.0, 920.0],
-                'n_lines': 87,
+                'n_lines': 89,
                 'second_order': True,
                 'resolution': {
                     'coeffs': [
-                        [0.478352, -0.0130134],
-                        [-0.0118696, 0.0074388],
-                        [-0.00178707, 0.00512969],
+                        [0.476818, -0.0107096],
+                        [-0.00965638, 0.00444473],
+                        [-0.00894404, 0.0230751],
                     ],
-                    'rms_nm': 0.006533,
-                    'n_lines': 47,
-                    'median_nm': 0.4719,
-                    'min_nm': 0.4503,
-                    'max_nm': 0.4919,
-                    'median_px': 11.42,
-                    'mean_380_930_nm': 0.4775,
+                    'rms_nm': 0.006529,
+                    'n_lines': 49,
+                    'median_nm': 0.4712,
+                    'min_nm': 0.455,
+                    'max_nm': 0.4949,
+                    'median_px': 11.41,
+                    'mean_380_930_nm': 0.4737,
                     'slit_width_um': 100.0,
                 },
             },
             200.0: {
-                'date': '2026-11-17',
+                'date': '2026-11-23',
                 'lamp': 'HG-1 Ocean Optics (Hg-Ar)',
                 'grooves': 300,
                 'slit_width_um': 200.0,
-                'data': '../../data/2026-11-17_spectral_calib/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_200um_Lc_380-920nm/spectral_calib_grating_1.npz',
+                'data': '../../data/2026-11-23_spectral_calib_CL_75mm/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_200um_Lc_380-920nm/spectral_calib_grating_1.npz',
                 'x0': 1023.5,
                 'x_scale': 1024.0,
                 'Lc0': 650.0,
                 'Lc_scale': 270.0,
                 'coeffs': [
-                    [0.47116048, -0.05445696, 0.030014057],
-                    [42.554758, -0.60755158, 0.10698723],
-                    [-0.064881695, 0.035685355, 0.055286073],
-                    [0.016610416, 0.071582328, 0.023241269],
+                    [0.48367288, -0.029064615, 0.015702417],
+                    [42.537401, -0.65288181, 0.059566627],
+                    [-0.080280475, 0.0073419675, 0.044653585],
+                    [0.030764023, 0.20116792, 0.15953766],
                 ],
-                'rms_nm': 0.08122,
+                'rms_nm': 0.08872,
                 'Lc_range': [380.0, 920.0],
                 'n_lines': 83,
                 'second_order': True,
                 'resolution': {
                     'coeffs': [
-                        [1.11366, 0.00465508],
-                        [0.00572503, -0.00534411],
-                        [-0.00209848, 0.014307],
+                        [1.10801, 0.0048882],
+                        [-0.00641535, 0.0167264],
+                        [0.00936436, 0.0208029],
                     ],
-                    'rms_nm': 0.03652,
-                    'n_lines': 52,
-                    'median_nm': 1.106,
-                    'min_nm': 1.075,
-                    'max_nm': 1.204,
-                    'median_px': 26.76,
-                    'mean_380_930_nm': 1.113,
+                    'rms_nm': 0.03429,
+                    'n_lines': 51,
+                    'median_nm': 1.105,
+                    'min_nm': 1.065,
+                    'max_nm': 1.209,
+                    'median_px': 26.71,
+                    'mean_380_930_nm': 1.111,
                     'slit_width_um': 200.0,
                 },
             },
             300.0: {
-                'date': '2026-11-17',
+                'date': '2026-11-23',
                 'lamp': 'HG-1 Ocean Optics (Hg-Ar)',
                 'grooves': 300,
                 'slit_width_um': 300.0,
-                'data': '../../data/2026-11-17_spectral_calib/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_300um_Lc_380-920nm/spectral_calib_grating_1.npz',
+                'data': '../../data/2026-11-23_spectral_calib_CL_75mm/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_300um_Lc_380-920nm/spectral_calib_grating_1.npz',
                 'x0': 1023.5,
                 'x_scale': 1024.0,
                 'Lc0': 650.0,
                 'Lc_scale': 270.0,
                 'coeffs': [
-                    [0.53688358, -0.05761339, 0.018718509],
-                    [42.560464, -0.62811994, 0.14362999],
-                    [-0.053406288, 0.030670701, -0.014837873],
-                    [0.0017904044, 0.17492737, 0.14258868],
+                    [0.54910586, -0.055703316, -0.002889347],
+                    [42.553298, -0.62649139, 0.13288727],
+                    [-0.046914989, 0.032873835, -0.0256006],
+                    [-0.0098427621, 0.16523117, 0.17402014],
                 ],
-                'rms_nm': 0.1036,
+                'rms_nm': 0.1019,
                 'Lc_range': [380.0, 920.0],
-                'n_lines': 79,
+                'n_lines': 77,
                 'second_order': True,
                 'resolution': {
                     'coeffs': [
-                        [1.72241, -0.0159835],
-                        [0.00519709, -0.0135868],
-                        [-0.0202693, 0.0668772],
+                        [1.72672, 0.00453958],
+                        [0.0134596, -0.0204838],
+                        [-0.0143754, 0.0581831],
                     ],
-                    'rms_nm': 0.01413,
-                    'n_lines': 50,
-                    'median_nm': 1.718,
-                    'min_nm': 1.685,
-                    'max_nm': 1.751,
-                    'median_px': 41.49,
-                    'mean_380_930_nm': 1.716,
+                    'rms_nm': 0.007805,
+                    'n_lines': 47,
+                    'median_nm': 1.732,
+                    'min_nm': 1.712,
+                    'max_nm': 1.767,
+                    'median_px': 41.86,
+                    'mean_380_930_nm': 1.723,
                     'slit_width_um': 300.0,
+                },
+            },
+            350.0: {
+                'date': '2026-11-23',
+                'lamp': 'HG-1 Ocean Optics (Hg-Ar)',
+                'grooves': 300,
+                'slit_width_um': 350.0,
+                'data': '../../data/2026-11-23_spectral_calib_CL_75mm/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_350um_Lc_380-920nm/spectral_calib_grating_1.npz',
+                'x0': 1023.5,
+                'x_scale': 1024.0,
+                'Lc0': 650.0,
+                'Lc_scale': 270.0,
+                'coeffs': [
+                    [0.51732356, -0.035749996, 0.070034279],
+                    [42.583753, -0.82173992, -0.047786279],
+                    [-0.048892104, 0.1345895, 0.047103796],
+                    [-0.067532546, 0.50081828, 0.4548464],
+                ],
+                'rms_nm': 0.1422,
+                'Lc_range': [380.0, 920.0],
+                'n_lines': 71,
+                'second_order': True,
+                'resolution': {
+                    'coeffs': [
+                        [1.97823, -0.0281376],
+                        [0.00872159, 0.00441232],
+                        [-0.0313294, 0.170174],
+                    ],
+                    'rms_nm': 0.01046,
+                    'n_lines': 48,
+                    'median_nm': 1.978,
+                    'min_nm': 1.926,
+                    'max_nm': 2.039,
+                    'median_px': 47.83,
+                    'mean_380_930_nm': 1.968,
+                    'slit_width_um': 350.0,
                 },
             },
             360.0: {
@@ -218,74 +256,74 @@ WAVELENGTH_CALIB = {
                 },
             },
             400.0: {
-                'date': '2026-11-17',
+                'date': '2026-11-23',
                 'lamp': 'HG-1 Ocean Optics (Hg-Ar)',
                 'grooves': 300,
                 'slit_width_um': 400.0,
-                'data': '../../data/2026-11-17_spectral_calib/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_400um_Lc_380-920nm/spectral_calib_grating_1.npz',
+                'data': '../../data/2026-11-23_spectral_calib_CL_75mm/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_400um_Lc_380-920nm/spectral_calib_grating_1.npz',
                 'x0': 1023.5,
                 'x_scale': 1024.0,
                 'Lc0': 650.0,
                 'Lc_scale': 270.0,
                 'coeffs': [
-                    [0.40404606, -0.029488976, 0.083576368],
-                    [42.67048, -0.77517982, -0.080677211],
-                    [-0.078843758, 0.054782269, -0.0010309621],
-                    [-0.27427448, 0.39382605, 0.58446811],
+                    [0.29294499, -0.03399675, 0.055010683],
+                    [42.658383, -0.79728429, -0.11155447],
+                    [-0.086202663, 0.067016686, 0.038433452],
+                    [-0.26207042, 0.39545449, 0.62262266],
                 ],
-                'rms_nm': 0.1569,
+                'rms_nm': 0.1563,
                 'Lc_range': [380.0, 920.0],
-                'n_lines': 74,
+                'n_lines': 72,
                 'second_order': True,
                 'resolution': {
                     'coeffs': [
-                        [2.3425, -0.0163413],
-                        [0.00799577, -0.00667058],
-                        [-0.0742397, 0.169247],
+                        [2.36251, -0.0146434],
+                        [0.00887228, -0.00295903],
+                        [-0.05869, 0.185035],
                     ],
-                    'rms_nm': 0.01368,
+                    'rms_nm': 0.01318,
                     'n_lines': 45,
-                    'median_nm': 2.334,
-                    'min_nm': 2.303,
-                    'max_nm': 2.378,
-                    'median_px': 56.48,
-                    'mean_380_930_nm': 2.319,
+                    'median_nm': 2.362,
+                    'min_nm': 2.318,
+                    'max_nm': 2.41,
+                    'median_px': 57.19,
+                    'mean_380_930_nm': 2.344,
                     'slit_width_um': 400.0,
                 },
             },
             500.0: {
-                'date': '2026-11-17',
+                'date': '2026-11-23',
                 'lamp': 'HG-1 Ocean Optics (Hg-Ar)',
                 'grooves': 300,
                 'slit_width_um': 500.0,
-                'data': '../../data/2026-11-17_spectral_calib/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_500um_Lc_380-920nm/spectral_calib_grating_1.npz',
+                'data': '../../data/2026-11-23_spectral_calib_CL_75mm/obj_fiber_source_HG-1_Oceanoptics_spectral_calib_Gr_1_slit_500um_Lc_380-920nm/spectral_calib_grating_1.npz',
                 'x0': 1023.5,
                 'x_scale': 1024.0,
                 'Lc0': 650.0,
                 'Lc_scale': 270.0,
                 'coeffs': [
-                    [0.50894508, -0.03234434, 0.04179731],
-                    [42.693256, -0.72757639, -0.045224572],
-                    [-0.073630095, 0.078970964, 0.014488724],
-                    [-0.29026273, 0.32377578, 0.54813734],
+                    [0.42326184, -0.064077417, 0.042404073],
+                    [42.652657, -0.75195315, 0.12481307],
+                    [-0.06366324, 0.095294759, -0.049558466],
+                    [-0.25891653, 0.29022226, 0.41081327],
                 ],
-                'rms_nm': 0.1467,
+                'rms_nm': 0.1477,
                 'Lc_range': [380.0, 920.0],
-                'n_lines': 67,
+                'n_lines': 66,
                 'second_order': True,
                 'resolution': {
                     'coeffs': [
-                        [2.96264, -0.0131796],
-                        [-0.00911949, 0.0318114],
-                        [-0.0721022, 0.179796],
+                        [2.98447, -0.00428328],
+                        [0.014013, 0.000812554],
+                        [-0.0832788, 0.176505],
                     ],
-                    'rms_nm': 0.008185,
-                    'n_lines': 41,
-                    'median_nm': 2.959,
-                    'min_nm': 2.918,
-                    'max_nm': 3.011,
-                    'median_px': 71.52,
-                    'mean_380_930_nm': 2.939,
+                    'rms_nm': 0.01081,
+                    'n_lines': 35,
+                    'median_nm': 2.982,
+                    'min_nm': 2.95,
+                    'max_nm': 3.033,
+                    'median_px': 72.11,
+                    'mean_380_930_nm': 2.958,
                     'slit_width_um': 500.0,
                 },
             },
@@ -472,27 +510,32 @@ WAVELENGTH_CALIB = {
         },
         'resolution_by_slit': {
             100.0: {
-                'lamp': 0.4775,
+                'lamp': 0.4737,
                 'used': 'lamp',
             },
             200.0: {
-                'lamp': 1.113,
+                'lamp': 1.111,
                 'used': 'lamp',
             },
             300.0: {
-                'lamp': 1.716,
+                'lamp': 1.723,
+                'used': 'lamp',
+            },
+            350.0: {
+                'lamp': 1.968,
                 'used': 'lamp',
             },
             360.0: {
                 'lamp': 2.049,
                 'used': 'lamp',
+                'laser': 1.851,
             },
             400.0: {
-                'lamp': 2.319,
+                'lamp': 2.344,
                 'used': 'lamp',
             },
             500.0: {
-                'lamp': 2.939,
+                'lamp': 2.958,
                 'used': 'lamp',
             },
             600.0: {
@@ -514,6 +557,40 @@ WAVELENGTH_CALIB = {
             1000.0: {
                 'lamp': 5.463,
                 'used': 'lamp',
+            },
+        },
+        'laser_resolution': {
+            360.0: {
+                'date': '2026-11-23',
+                'mean_nm': 1.851,
+                'per_laser': {
+                    473.0: {
+                        'mean_nm': 1.905,
+                        'min_nm': 1.845,
+                        'max_nm': 1.952,
+                        'n': 8,
+                        'linewidth_nm': 0.0,
+                        'lambda_measured_nm': 468.2,
+                        'lambda_real_nm': 469.4,
+                        'lambda_error_nm': -1.19,
+                        'power_mW': 1,
+                    },
+                    594.0: {
+                        'mean_nm': 1.797,
+                        'min_nm': 1.775,
+                        'max_nm': 1.816,
+                        'n': 9,
+                        'linewidth_nm': 0.0,
+                        'lambda_measured_nm': 593.2,
+                        'lambda_real_nm': 594.3,
+                        'lambda_error_nm': -1.13,
+                        'power_mW': 1,
+                    },
+                },
+                'dispersion_from': 'calibration',
+                'lam_range': [380, 930],
+                'lambda_offset_nm': -1.16,
+                'lambda_real_date': '2026-11-23',
             },
         },
     },
@@ -1282,6 +1359,9 @@ def laser_resolution(measurements: list, grating_nbr: int = 1, linewidths: dict 
     The FWHM in pixels is converted in nm with the dispersion of WAVELENGTH_CALIB if the grating is
     calibrated, otherwise with the dispersion measured by the scan itself (|d Lc / d x| at fixed lambda).
     The width of the laser line is removed quadratically : sqrt(FWHM**2 - linewidth**2).
+    The wavelength of each line measured with the calibration is compared with the real wavelength of the
+    laser (measured with a spectrometer, spas.laser_wavelengths) : lambda_error_nm = measured - real, and
+    lambda_offset_nm = mean of the errors of the lasers.
 
     Parameters
     ----------
@@ -1344,11 +1424,17 @@ def laser_resolution(measurements: list, grating_nbr: int = 1, linewidths: dict 
         per_laser[f(L)] = {'mean_nm': f(np.mean(fwhm_nm[k])), 'min_nm': f(np.min(fwhm_nm[k])),
                            'max_nm': f(np.max(fwhm_nm[k])), 'n': int(np.sum(k)), 'linewidth_nm': f(linewidths.get(L, 0))}
         if calibrated:
+            lam_real = measured_wavelength(L, verbose = verbose)
             per_laser[f(L)]['lambda_measured_nm'] = f(np.mean(lam_measured[k]))
+            per_laser[f(L)]['lambda_real_nm'] = lam_real   # spectrometer (spas.laser_wavelengths)
+            per_laser[f(L)]['lambda_error_nm'] = round(float(np.mean(lam_measured[k])) - lam_real, 2)
     result = {'date': datetime.date.today().isoformat(), 'method': 'laser',
               'mean_nm': f(np.mean([v['mean_nm'] for v in per_laser.values()])),   # mean of the lasers
               'per_laser': per_laser, 'lam_range': list(lam_range),
               'dispersion_from': 'calibration' if calibrated else 'laser scan'}
+    if calibrated:   # mean shift of the wavelengths of the calibration for the light sheet
+        result['lambda_offset_nm'] = round(float(np.mean([v['lambda_error_nm'] for v in per_laser.values()])), 2)
+        result['lambda_real_date'] = MEASURED_WAVELENGTHS_DATE
     table = {'laser_nm': laser_nm, 'Lc': Lc, 'x': x, 'fwhm_px': fwhm_px, 'dispersion': disp,
              'fwhm_nm': fwhm_nm, 'lam_measured': lam_measured, 'used': ok}
 
@@ -1357,8 +1443,11 @@ def laser_resolution(measurements: list, grating_nbr: int = 1, linewidths: dict 
             print('laser ' + str(L) + ' nm : resolution ' + str(v['mean_nm']) + ' nm (' + str(v['min_nm']) + ' - ' +
                   str(v['max_nm']) + ' nm, ' + str(v['n']) + ' positions on the sensor)' +
                   ('' if 'lambda_measured_nm' not in v else ', measured at ' + str(v['lambda_measured_nm']) +
-                   ' nm with the calibration (tolerance of the laser wavelength : a few nm)'))
+                   ' nm with the calibration, real ' + str(v['lambda_real_nm']) + ' nm (spectrometer) : error ' +
+                   f"{v['lambda_error_nm']:+.2f}" + ' nm'))
         print('mean resolution (laser) : ' + str(result['mean_nm']) + ' nm, dispersion from the ' + result['dispersion_from'])
+        if 'lambda_offset_nm' in result:
+            print('mean error of the wavelengths of the calibration on the laser lines : ' + f"{result['lambda_offset_nm']:+.2f}" + ' nm')
     return result, table
 
 
@@ -1613,7 +1702,8 @@ def write_resolution(grating_nbr: int, slit_width_um: float, result: dict, use_r
                                                     {float(slit_width_um): {'laser': result['mean_nm']}},
                                                     'laser' if use_resolution else None)
     laser = dict(entry.get('laser_resolution', {}))
-    laser[float(slit_width_um)] = {k: result[k] for k in ('date', 'mean_nm', 'per_laser', 'dispersion_from', 'lam_range')}
+    laser[float(slit_width_um)] = {k: result[k] for k in ('date', 'mean_nm', 'per_laser', 'dispersion_from', 'lam_range',
+                                                          'lambda_offset_nm', 'lambda_real_date') if k in result}
     entry['laser_resolution'] = {k: laser[k] for k in sorted(laser)}
     calibs[int(grating_nbr)] = entry
     _write_calibs(module_path, calibs)

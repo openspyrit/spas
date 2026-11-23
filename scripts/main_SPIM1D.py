@@ -60,7 +60,7 @@ combi.laser_on(exc_lambda)
 offset_vert = 0   # (micromirrors) vertical shift from the center of the DMD, > 0 : the pattern moves up
 offset_horz = 0   # (micromirrors) horizontal shift from the center of the DMD, > 0 : the pattern moves to the right
 #%% setup Spatial Camera
-cam_spat_params = cam_spat.setup(expos_time  = 0.001,  # (s)
+cam_spat_params = cam_spat.setup(expos_time  = 0.0005,  # (s)
                                  gain        = 1,        # 1 or 2                              
                                  width       = 2048,     # max = 2048
                                  height      = 2048,     # max = 2048

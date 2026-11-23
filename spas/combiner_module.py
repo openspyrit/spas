@@ -23,6 +23,8 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 from dataclasses_json import dataclass_json
 
+from spas.laser_wavelengths import measured_wavelength
+
 COMBINER_LIB_PATH = r"D:\materiel\gitLab\toolbox\Combiner\python_lib\src"
 if COMBINER_LIB_PATH not in sys.path:
     sys.path.append(COMBINER_LIB_PATH)
@@ -171,7 +173,8 @@ class Combiner_Parameters:
     """
     Class containing the laser combiner parameters, read from the lasers.
     lasers : one dict per connected laser, sorted by increasing wavelength :
-        {'wavelength_nm', 'max_power_mW', 'power_mW', 'power_percent', 'state' ('ON' or 'OFF')}
+        {'wavelength_nm' (nominal), 'measured_wavelength_nm' (spectrometer, spas.laser_wavelengths),
+         'max_power_mW', 'power_mW', 'power_percent', 'state' ('ON' or 'OFF')}
     """
     class_description: str = 'laser combiner parameters'
     model: Optional[str] = None
@@ -333,6 +336,7 @@ class Combiner:
             power_percent, state = self.read_laser(wavelength)
             state = '?' if state is None else ('ON' if state else 'OFF')
             combi_params.lasers.append({'wavelength_nm': wavelength,
+                                        'measured_wavelength_nm': measured_wavelength(wavelength),
                                         'max_power_mW': laser_info['max_power'],
                                         'power_mW': getattr(laser, 'power_mw', None),
                                         'power_percent': getattr(laser, 'power_pourcent', None),
