@@ -96,7 +96,7 @@ shutter.close()
 obj_stage.go_to_last_position(verbose = True)   # collection objective back to its position of the last session
 #%% Parameters
 grating_nbr       = 1          # 300 gr/mm
-slit_width        = 360        # (µm) width of the input slit, as set on the spectrograph (manual) : one calibration per slit width
+slit_width        = 350        # (µm) width of the input slit, as set on the spectrograph (manual) : one calibration per slit width
 setup_version     = 'setup_v1.0'
 collection_access = 'public'   #'private'#
 data_folder_name  = '2026-11-23_spectral_calib_CL_75mm'
@@ -104,12 +104,12 @@ pattern           = dict(pattern_to_display = 'gray_0', pattern_dim = '1D', scan
                          Np = 128, pattern_thickness = 16)   # pattern of the DMD : trigger of the cameras (and light sheet with the laser)
 #%% setup the Spectrograph
 spectrograph_params = spectrograph.setup(grating_nbr = grating_nbr, print_select   = True,   # Arg:  1
-                                         position    = 594,         print_position = True,   # the central wavelength of the grating
+                                         position    = 560,         print_position = True,   # the central wavelength of the grating
                                          slit_width  = slit_width,                           # the width of the input slit in (µm), None : not changed
                                          input_port  = None,                                 # 'direct' or 'side', None : not changed
                                          output_port = None,        print_ports    = True)   # 'direct' or 'side', None : not changed
 #%% setup Spatial Camera : image of the fiber or of the light sheet, at the place of the sample
-cam_spat_params = cam_spat.setup(expos_time  = 0.001,     # (s), decrease it if the image is saturated
+cam_spat_params = cam_spat.setup(expos_time  = 0.0005,     # (s), decrease it if the image is saturated
                                  gain        = 1,        # 1 or 2
                                  width       = 2048,     # max = 2048
                                  height      = 2048,     # max = 2048
@@ -120,7 +120,7 @@ cam_spat_params = cam_spat.setup(expos_time  = 0.001,     # (s), decrease it if 
                                  encodPix    = 12,       # 12 or 16 bit
                                  snapshot    = False)    # if false => acquire video, if True => acquire an image
 #%% setup Spectral Camera : no binning along the wavelength (binningX = 1) for the calibration
-cam_spec_params = cam_spec.setup(expos_time  = 0.00025,     # (s), adjusted for each Lc by the auto-exposure
+cam_spec_params = cam_spec.setup(expos_time  = 0.0002,     # (s), adjusted for each Lc by the auto-exposure
                                  gain        = 1,        # 1 or 2
                                  width       = 2048,     # max = 2048
                                  height      = 2048,     # max = 2048
@@ -280,8 +280,8 @@ cam_spec_params = cam_spec.setup(expos_time = 0.05, binningX = 1, binningY = 8, 
 shifts = sc.compare_slit_calibs(grating_nbr, save_path = '../../data/' + data_folder_name)
 #%% ======================= PART B (check) : laser line, light sheet of the SPIM =======================
 #%% B1 Lasers. Fluorescent cuvette in place, notch filters removed (or laser not blocked by them)
-lasers     = {473: {'power_mW': 5, 'linewidth_nm': 0},    # {wavelength (nm): power (mW), width of the laser line (nm, datasheet, 0 if << resolution)}
-              594: {'power_mW': 5, 'linewidth_nm': 0}}
+lasers     = {473: {'power_mW': 1, 'linewidth_nm': 0},    # {wavelength (nm): power (mW), width of the laser line (nm, datasheet, 0 if << resolution)}
+              594: {'power_mW': 1, 'linewidth_nm': 0}}
 Lc_offsets = np.arange(-40, 41, 10)   # (nm) Lc = laser - offset : the line moves along the sensor (~ +/- 43 nm on the sensor)
 combi.print_lasers()
 combi.all_off()
