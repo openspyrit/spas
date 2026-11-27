@@ -171,7 +171,7 @@ if all_path.aborted == False:
     light_source         = source,
     object               = object_name
     filter               = 'Notch filter at 473 and 532 nm' #+ OD=0.3',''No filter',#'linear colored filter',#'Orange filter (600nm)',#'Dichroic_420nm',#'HighPass_500nm + LowPass_750nm + Dichroic_560nm',#'BandPass filter 560nm Dl=10nm',#'None', # + , #'Nothing',#'Diffuser + HighPass_500nm + LowPass_750nm',##'Microsope objective x40',#'' linear colored filter + OD#0',#'Nothing',#
-    description          = 'Sample: 5–6 Drosophila melanogaster legs with GFP and RFP fluoresence in muscles. Central wavelength of the spectrograph is ok, wavelength vector is not calibrated, warning! Optical setup: DMD -- 200mm --> Lens(f=200) -- 200mm --> objx4 -- 18mm --> sample' 
+    description          = 'Sample: 5–6 Drosophila melanogaster legs with GFP and RFP fluoresence in muscles. Wavelength vector calibrated with the HG-1 lamp (spectral_calib_SPIM1D). Optical setup: DMD -- 200mm --> Lens(f=200) -- 200mm --> objx4 -- 18mm --> sample' 
     
     acquisition_params = AcquisitionParameters(pattern_compression = pattern_compression, pattern_dimension_x = pattern_thickness, pattern_dimension_y = Np, 
                                                zoom = zoom, xw_offset = xw_offset, yh_offset = yh_offset, mask_index = mask_index, 
@@ -180,11 +180,7 @@ if all_path.aborted == False:
                                                experiment_name = experiment_name, light_source = light_source, object = object, filter = filter, 
                                                NAverages = NAverages, NRepetitions = NRepetitions, Lc = Lc, Nz = Nz, description = description)
     
-    acquisition_params.wavelengths = define_wavelengths_matrix(cam_spec_params, Lc, display_figure = False, verbose = True)  
-    acquisition_params.wavelengths = acquisition_params.wavelengths[0, :]
-    acquisition_params.wavelengths = np.linspace(spectrograph_params.position - 50,
-                                                 spectrograph_params.position + 50, 
-                                                 int(cam_spec_params.width))
+    acquisition_params.wavelengths = define_wavelengths_matrix(cam_spec_params, Lc, display_figure = False, verbose = True)   # (len(Lc), width) : one wavelength vector per Lc
     
     stage_params = stage_parameters(array_to_move = array_to_move)
                         
@@ -332,10 +328,11 @@ H_exp_bin = H_exp
 # plt.imshow(H_exp_bin)
 # plt.title('H_exp_bin')
 
+iLc_reco = 0   # index of the central wavelength Lc to reconstruct
 # Load positve data
-prep_pos = np.array(raw_data[:, :, 0::2, 0, 0, 0], dtype = np.int64)
+prep_pos = np.array(raw_data[:, :, 0::2, 0, iLc_reco, 0], dtype = np.int64)
 # Load negative data
-prep_neg =  np.array(raw_data[:, :, 1::2, 0, 0, 0], dtype = np.int64)
+prep_neg =  np.array(raw_data[:, :, 1::2, 0, iLc_reco, 0], dtype = np.int64)
 
 
 
@@ -395,9 +392,9 @@ rec = np.zeros((N, N))
 recs = []
 lambdas = []
 
-lambda_all = acquisition_params.wavelengths
+lambda_all = acquisition_params.wavelengths_Lc(iLc_reco)   # wavelength vector of Lc[iLc_reco]
 # lambda_central_list = [560, 580, 600, 620, 640]
-lambda_central_list = [spectrograph_params.position]
+lambda_central_list = [acquisition_params.Lc[iLc_reco][0]]
 c_step = 10
 
 for lambda_central in lambda_central_list:

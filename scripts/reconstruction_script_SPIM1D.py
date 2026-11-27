@@ -167,9 +167,9 @@ rec = np.zeros((N, N))
 recs = []
 lambdas = []
 
-lambda_all = acquisition_params.wavelengths
+lambda_all = acquisition_params.wavelengths_Lc(0)   # wavelength vector of the first Lc (raw_data[..., 0, 0, 0])
 # lambda_central_list = [560, 580, 600, 620, 640]
-lambda_central_list = [spectrograph_params.position]
+lambda_central_list = [acquisition_params.Lc[0][0]]
 c_step = 20
 
 for lambda_central in lambda_central_list:

@@ -196,11 +196,7 @@ if all_path.aborted == False:
                                                experiment_name = experiment_name, light_source = light_source, object = object, filter = filter, 
                                                NAverages = NAverages, NRepetitions = NRepetitions, Lc = Lc, Nz = Nz, description = description)
     
-    acquisition_params.wavelengths = define_wavelengths_matrix(cam_spec_params, Lc, display_figure = False, verbose = True)  
-    acquisition_params.wavelengths = acquisition_params.wavelengths[0, :]
-    acquisition_params.wavelengths = np.linspace(spectrograph_params.position - 50,
-                                                 spectrograph_params.position + 50, 
-                                                 int(cam_spec_params.width))
+    acquisition_params.wavelengths = define_wavelengths_matrix(cam_spec_params, Lc, display_figure = False, verbose = True)   # (len(Lc), width) : one wavelength vector per Lc
     
     stage_params = stage_parameters(array_to_move = array_to_move)
                         
@@ -435,10 +431,11 @@ plt.figure()
 plt.imshow(H_exp_bin)
 plt.title('H_exp_bin')
 
+iLc_reco = 0   # index of the central wavelength Lc to reconstruct
 # Load positve data
-prep_pos = np.array(raw_data[:, :, 0::2, 0, 0, 0], dtype = np.int64)
+prep_pos = np.array(raw_data[:, :, 0::2, 0, iLc_reco, 0], dtype = np.int64)
 # Load negative data
-prep_neg =  np.array(raw_data[:, :, 1::2, 0, 0, 0], dtype = np.int64)
+prep_neg =  np.array(raw_data[:, :, 1::2, 0, iLc_reco, 0], dtype = np.int64)
 
 
 
@@ -497,9 +494,9 @@ rec = np.zeros((N, N))
 recs = []
 lambdas = []
 
-lambda_all = acquisition_params.wavelengths
+lambda_all = acquisition_params.wavelengths_Lc(iLc_reco)   # wavelength vector of Lc[iLc_reco]
 # lambda_central_list = [560, 580, 600, 620, 640]
-lambda_central_list = [spectrograph_params.position]
+lambda_central_list = [acquisition_params.Lc[iLc_reco][0]]
 c_step = 60
 #%% débruitage
 import numpy as np

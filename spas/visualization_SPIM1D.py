@@ -407,7 +407,8 @@ def plot_color(F: np.ndarray, wavelengths: np.ndarray, filename: str = None,
     # plt.show()
 
 
-def plot_reco_without_NN(acquisition_parameters, GT, all_path, overwrite = True):
+def plot_reco_without_NN(acquisition_parameters, GT, all_path, overwrite = True, iLc: int = 0):
+    wavelengths = acquisition_parameters.wavelengths_Lc(iLc)   # wavelength vector of the central wavelength Lc[iLc]
     
     had_reco_path = all_path.had_reco_path
     fig_had_reco_path = all_path.fig_had_reco_path
@@ -422,12 +423,12 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path, overwrite = True)
     size_x = GT.shape[0]
     size_y = GT.shape[1]
         
-    F_bin, wavelengths_bin, bin_width = spectral_binning(GT.T, acquisition_parameters.wavelengths, acquisition_parameters.wavelengths[0], acquisition_parameters.wavelengths[-1], 8)
-    # F_bin, wavelengths_bin, bin_width = spectral_binning(GT.T, acquisition_parameters.wavelengths, 530, 730, 8)
+    F_bin, wavelengths_bin, bin_width = spectral_binning(GT.T, wavelengths, wavelengths[0], wavelengths[-1], 8)
+    # F_bin, wavelengths_bin, bin_width = spectral_binning(GT.T, wavelengths, 530, 730, 8)
     F_bin_rot = np.rot90(F_bin, axes=(1,2))
     F_bin_flip = F_bin_rot[:,::-1,:]
-    F_bin_1px, wavelengths_bin, bin_width = spectral_slicing(GT.T, acquisition_parameters.wavelengths, acquisition_parameters.wavelengths[0], acquisition_parameters.wavelengths[-1], 8)
-    # F_bin_1px, wavelengths_bin, bin_width = spectral_slicing(GT.T, acquisition_parameters.wavelengths, 530, 730, 8)
+    F_bin_1px, wavelengths_bin, bin_width = spectral_slicing(GT.T, wavelengths, wavelengths[0], wavelengths[-1], 8)
+    # F_bin_1px, wavelengths_bin, bin_width = spectral_slicing(GT.T, wavelengths, 530, 730, 8)
     F_bin_1px_rot = np.rot90(F_bin_1px, axes=(1,2))
     F_bin_1px_flip = F_bin_1px_rot[:,::-1,:]
     ############### spatial view, wavelength bin #############
@@ -455,7 +456,7 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path, overwrite = True)
 
     ####################### RGB view ########################
     print('Beging RGB conversion ...')
-    image_arr = plot_spec_to_rgb_image(GT, acquisition_parameters.wavelengths)
+    image_arr = plot_spec_to_rgb_image(GT, wavelengths)
     print('RGB convertion finished')
     # plt.figure()
     plt.imshow(image_arr) #, extent=[0, 10.5, 0, 10.5])
@@ -468,9 +469,9 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path, overwrite = True)
     GT50 = GT[round(size_x/4):round(size_x*3/4), round(size_y/4):round(size_y*3/4), :]
     GT25 = GT[round(size_x*3/8):round(size_x*5/8), round(size_y*3/8):round(size_y*5/8), :]
     # plt.figure()
-    plt.plot(acquisition_parameters.wavelengths, np.mean(np.mean(GT25,axis=1),axis=0))
-    plt.plot(acquisition_parameters.wavelengths, np.mean(np.mean(GT50,axis=1),axis=0))
-    plt.plot(acquisition_parameters.wavelengths, np.mean(np.mean(GT,axis=1),axis=0))
+    plt.plot(wavelengths, np.mean(np.mean(GT25,axis=1),axis=0))
+    plt.plot(wavelengths, np.mean(np.mean(GT50,axis=1),axis=0))
+    plt.plot(wavelengths, np.mean(np.mean(GT,axis=1),axis=0))
     plt.grid()
     plt.title("% of region from the center of the image")
     plt.legend(['25%', '50%', '100%'])
@@ -480,7 +481,8 @@ def plot_reco_without_NN(acquisition_parameters, GT, all_path, overwrite = True)
     plt.show()
 
 
-def plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, network_param, all_path, cov_path):
+def plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, network_param, all_path, cov_path, iLc: int = 0):
+    wavelengths = acquisition_parameters.wavelengths_Lc(iLc)   # wavelength vector of the central wavelength Lc[iLc]
     from spas.reconstruction_nn import reorder_subsample, reconstruct   # imported here, it loads the SPC2D modules
 
     reorder_spectral_data = reorder_subsample(spectral_data.T, acquisition_parameters, network_param, cov_path)
@@ -495,7 +497,7 @@ def plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, netw
         np.savez_compressed(nn_reco_path, reco)
 
     ############### spatial view, wavelength bin #############
-    meas_bin, wavelengths_bin, _ = spectral_binning(reorder_spectral_data, acquisition_parameters.wavelengths, 530, 730, 8)
+    meas_bin, wavelengths_bin, _ = spectral_binning(reorder_spectral_data, wavelengths, 530, 730, 8)
     rec = reconstruct(model, device, meas_bin[:, np.newaxis, :]) # add a dimension for the spyrit V3 new dim = [8, 1 , 8192]
     rec = np.rot90(rec, 2, axes=(1,2))
     
@@ -505,7 +507,7 @@ def plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, netw
     plt.show() 
     
     ############### spatial view, one wavelength #############
-    meas_bin_1w, wavelengths_bin, _ = spectral_slicing(reorder_spectral_data, acquisition_parameters.wavelengths, 530, 730, 8)
+    meas_bin_1w, wavelengths_bin, _ = spectral_slicing(reorder_spectral_data, wavelengths, 530, 730, 8)
     rec = reconstruct(model, device, meas_bin_1w[:, np.newaxis, :]) # Reconstruction
     rec = np.rot90(rec, 2, axes=(1,2))
     
@@ -530,7 +532,7 @@ def plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, netw
 
     ####################### RGB view ########################
     print('Beging RGB convertion ...')
-    image_arr = plot_spec_to_rgb_image(reco, acquisition_parameters.wavelengths)
+    image_arr = plot_spec_to_rgb_image(reco, wavelengths)
     image_arr = image_arr[:,::-1,:]
     image_arr = np.rot90(image_arr, 2)
     print('RGB convertion finished')
@@ -544,9 +546,9 @@ def plot_reco_with_NN(acquisition_parameters, spectral_data, model, device, netw
     GT50 = reco[round(size_x/4):round(size_x*3/4), round(size_y/4):round(size_y*3/4), :]
     GT25 = reco[round(size_x*3/8):round(size_x*5/8), round(size_y*3/8):round(size_y*5/8), :]
     plt.figure()
-    plt.plot(acquisition_parameters.wavelengths, np.mean(np.mean(GT25,axis=1),axis=0))
-    plt.plot(acquisition_parameters.wavelengths, np.mean(np.mean(GT50,axis=1),axis=0))
-    plt.plot(acquisition_parameters.wavelengths, np.mean(np.mean(reco,axis=1),axis=0))
+    plt.plot(wavelengths, np.mean(np.mean(GT25,axis=1),axis=0))
+    plt.plot(wavelengths, np.mean(np.mean(GT50,axis=1),axis=0))
+    plt.plot(wavelengths, np.mean(np.mean(reco,axis=1),axis=0))
     plt.grid()
     plt.title("% of region from the center of the image")
     plt.legend(['25%', '50%', '100%'])
@@ -621,13 +623,13 @@ def plot_acqui(had_reco_all, spatial_acqui, acquisition_params, all_path):
         elif len(Lc) > 1:
             for iLc in range(len(Lc)):
                 ### spectral ###
-                add_info_path = '_Ny_' + str(Nz[iNR]) + 'mm_Lc_' + str(Lc[iLc][0]) + '_'
+                add_info_path = '_Ny_' + str(Nz[0]) + 'mm_Lc_' + str(Lc[iLc][0]) + '_'
                 all_path.fig_had_reco_path = path_spec_temp + add_info_path                
-                plot_reco_without_NN(acquisition_params, np.squeeze(had_reco_all[:, :, :, 0, iLc]), all_path)
+                plot_reco_without_NN(acquisition_params, np.squeeze(had_reco_all[:, :, :, 0, iLc]), all_path, iLc = iLc)
                 all_path.fig_had_reco_path = path_spec_temp
                 ### spatial ###
                 if iLc == 0:
-                    add_info_path = '_Ny_' + str(Nz[iNR]) + 'mm_'
+                    add_info_path = '_Ny_' + str(Nz[0]) + 'mm_'
                     all_path.fig_spatial_path = path_spat_temp + add_info_path
                     plot_spatial_acqui(acquisition_params, np.squeeze(spatial_acqui[:, :, iLc]), all_path)
                     all_path.fig_spatial_path = path_spat_temp
@@ -636,7 +638,7 @@ def plot_acqui(had_reco_all, spatial_acqui, acquisition_params, all_path):
             for iLc in range(len(Lc)):
                 add_info_path = '_Ny_' + str(Nz[iNR]) + 'mm_Lc_' + str(Lc[iLc][0]) + '_'
                 all_path.fig_had_reco_path = path_spec_temp + add_info_path                
-                plot_reco_without_NN(acquisition_params, np.squeeze(had_reco_all[:, :, :, iNR, iLc]), all_path)
+                plot_reco_without_NN(acquisition_params, np.squeeze(had_reco_all[:, :, :, iNR, iLc]), all_path, iLc = iLc)
                 all_path.fig_had_reco_path = path_spec_temp
                 if iLc == 0:
                     add_info_path = '_Ny_' + str(Nz[iNR]) + 'mm_'
@@ -699,7 +701,7 @@ def extract_ROI_coord(DMD_params, acquisition_parameters, all_path, data_folder_
         GT = np.rot90(GT, 2) 
   
     # Find the indices that fit the spectral range  
-    wavelengths = acquisition_parameters.wavelengths
+    wavelengths = acquisition_parameters.wavelengths_Lc(0)   # first central wavelength
     init_lambda      = 550
     final_lambda     = 600
     init_lambda_index = min(range(len(wavelengths)), key=lambda i: abs(wavelengths[i]-init_lambda))

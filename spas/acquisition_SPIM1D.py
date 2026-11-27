@@ -97,8 +97,9 @@ class AcquisitionParameters:
             file. It is intended to be of type List[int] most of the execution
             List[int]time. Default is None.
         wavelengths (Union[np.ndarray, str], optional):
-            Array of `float` type corresponding to the wavelengths associated
-            with spectrometer's start and stop pixels.
+            Matrix (len(Lc), width of the spectral camera) of `float` : the wavelength vector of each
+            central wavelength Lc (define_wavelengths_matrix). Use wavelengths_Lc(iLc) to get the vector
+            of one Lc (old metadata with a single vector are read as a matrix of one row).
         timestamps (Union[List[float], str], optional):
             List of `float` type elapsed time between each measurement
             made by the spectrometer based on its internal clock. Units in 
@@ -158,6 +159,18 @@ class AcquisitionParameters:
     
     class_description: str = 'Acquisition parameters'
 
+    def wavelengths_Lc(self, iLc: int = 0) -> np.ndarray:
+        """
+        Wavelength vector (nm) of the central wavelength Lc[iLc]. Works with the matrix (len(Lc), width)
+        and with a single vector (old acquisitions, same vector for all the Lc).
+        """
+        w = np.asarray(self.wavelengths, dtype=float)
+        if w.ndim == 1:
+            return w
+        if iLc >= w.shape[0]:
+            raise IndexError('wavelengths : ' + str(w.shape[0]) + ' Lc in the matrix, iLc = ' + str(iLc))
+        return w[iLc]
+
 
     def undo_readable_pattern_order(self) -> None:
         """Changes the patterns attribute from `str` to `List` of `int`.
@@ -186,11 +199,9 @@ class AcquisitionParameters:
         except:
             print('patterns_wp has no attribute ''strip''')    
 
-        if self.wavelengths:
-            self.wavelengths = (
-                self.wavelengths.strip('[').strip(']').split(', '))
-            self.wavelengths = to_float(self.wavelengths)
-            self.wavelengths = np.asarray(self.wavelengths)
+        if self.wavelengths:   # '[[...], [...]]' : one vector per Lc, '[...]' : old metadata, one vector
+            rows = self.wavelengths.strip().strip('[').strip(']').split('], [')
+            self.wavelengths = np.asarray([to_float(row.strip('[').strip(']').split(', ')) for row in rows])
         else:
             print('wavelenghts not present in metadata.'
             ' Reading data in legacy mode.')
@@ -319,8 +330,11 @@ class AcquisitionParameters:
         readable_dict['patterns'] = str(readable_dict['patterns'])
         readable_dict['patterns_wp'] = str(readable_dict['patterns_wp'])
         
-        readable_dict['wavelengths'] = _hard_coded_conversion(
-            readable_dict['wavelengths'])
+        wavelengths = np.asarray(readable_dict['wavelengths'], dtype=float)
+        if wavelengths.ndim == 2:   # one vector per Lc : '[[...], [...]]'
+            readable_dict['wavelengths'] = '[' + ', '.join(_hard_coded_conversion(w) for w in wavelengths) + ']'
+        else:
+            readable_dict['wavelengths'] = _hard_coded_conversion(wavelengths)
     
         readable_dict['spat_timestamps'] = _hard_coded_conversion(
             readable_dict['spat_timestamps'])
