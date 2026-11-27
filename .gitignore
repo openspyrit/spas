@@ -161,6 +161,7 @@ Patterns/
 *.asv
 *.npy
 *.npz
+!scripts/H_exp/*.npz
 *.zip
 *.xlsx
 *.lnk

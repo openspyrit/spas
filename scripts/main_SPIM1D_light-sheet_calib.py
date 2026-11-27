@@ -53,10 +53,10 @@ position = stage.read_position(verbose = True)
 
 obj_stage.go_to_last_position(verbose = True)   # collection objective back to its position of the last session
 
-combi.set_power(594, 40, unit = 'mW')   # laser (nm), power
-combi.laser_on(594)
+combi.set_power(473, 20, unit = 'mW')   # laser (nm), power
+combi.laser_on(473)
 #%% setup Spatial Camera
-cam_spat_params = cam_spat.setup(expos_time  = 0.2,  # (s)
+cam_spat_params = cam_spat.setup(expos_time  = 0.4,  # (s)
                                  gain        = 1,        # 1 or 2                              
                                  width       = 2048,     # max = 2048
                                  height      = 2048,     # max = 2048
@@ -68,7 +68,7 @@ cam_spat_params = cam_spat.setup(expos_time  = 0.2,  # (s)
                                  snapshot    = False)    # if false => acquire video, if True => acquire an image 
 #%% get a snapshot of the spatial camera
 mirror.set_position('spatial', verbose = True)
-list_pat = [33]# [0, 33, 63, 127, 255]
+list_pat = [0]# [0, 33, 63, 127, 255]
 # pat = 127
 for pat in list_pat:
     shutter.open()
@@ -113,7 +113,7 @@ position = stage.read_position(verbose = True)
 #%% setup the Spectrograph
 spectrograph_params = spectrograph.setup(grating_nbr =   1, print_select   = True,   # Arg:  1 
                                          position    = 578, print_position = True,   # the central wavelength of the grating
-                                         slit_width  = 200,                          # (µm) width of the manual input slit as set on the spectrograph : wavelength calibration of this width
+                                         slit_width  = 350,                          # (µm) width of the manual input slit as set on the spectrograph : wavelength calibration of this width
                                          input_port  = None,                         # 'direct' or 'side', None : not changed
                                          output_port = None, print_ports  = True)    # 'direct' or 'side', None : not changed
 #%% setup Spectral Camera
@@ -170,9 +170,9 @@ yh_offset                = 0        # Default = 0
 pattern_compression      = 1
 pattern_dim              = '1D'
 scan_mode                = 'Walsh_sparse'  #'Walsh_inv' #'Raster_inv' #'Raster' #
-source                   = 'laser-594nm'#white_LED'#'No source'#'White_Zeiss_lamp'#'Thorlabs_White_halogen_lamp'#'HG-1_Oceanoptics'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
+source                   = 'laser-405nm'#white_LED'#'No source'#'White_Zeiss_lamp'#'Thorlabs_White_halogen_lamp'#'HG-1_Oceanoptics'#No-light'#'Bioblock'#'Laser_405nm_1.2W_A_0.14'#'''#' + white LED might'#
 object_name              = 'fluo-cuve'#'fluo_µsphere-gel-bin10' #
-data_folder_name         = '2026-11-10_calib_light_sheet'#'Patient-69_exvivo_LGG_BU'
+data_folder_name         = '2026-11-26_calib_light_sheet'#'Patient-69_exvivo_LGG_BU'
 data_name                = 'obj_' + object_name + '_source_' + source + '_Lc_' + str(Lc[0][0]) + 'nm_Gr_' + str(Lc[0][1]) + '_' + scan_mode + '_im_'+str(pattern_thickness)+'x'+str(Np)+'_ti_'+str(round(ti))+'ms_zoom_x'+str(zoom)
 
 all_path = func_path(data_folder_name, data_name, ask_overwrite = False)
@@ -246,8 +246,21 @@ spatial_acqui = spatial_reco(acquisition_params, all_path)
 from matplotlib import pyplot as plt
 plot_graph = True
 save_H_exp = True
+push_H_exp = True   # commit and push scripts/H_exp/H_exp_<scan_mode>_<thickness>x<Np>.npz on git after saving
 save_fig = True # save figures
-file_name = all_path.subfolder_path + '/H_exp.npy'
+file_name = all_path.subfolder_path + '/H_exp.npz'   # H_exp + laser_nm (nominal wavelength of the laser used)
+# all the H_exp of a pattern set, one per laser : scripts/H_exp/H_exp_<scan_mode>_<thickness>x<Np>.npz,
+# keys '405nm', '473nm', '405-473-594nm', ... or 'no_laser' (read : H_exp_all = dict(np.load(file)) ; H_exp_all['405nm'])
+H_exp_folder = 'C:/openspyrit/spas/scripts/H_exp'
+H_exp_all_file = H_exp_folder + '/H_exp_' + scan_mode + '_' + str(pattern_thickness) + 'x' + str(Np) + '.npz'
+
+# nominal wavelength(s) of the laser(s) ON during the acquisition (combi_params read just before acquire) :
+# '405nm', several lasers ON together '405-473-594nm', all the lasers OFF 'no_laser'.
+# The mean H_exp for several lasers used together is computed afterwards from the H_exp measured laser by laser.
+lasers_on = sorted(int(laser['wavelength_nm']) for laser in combi_params.lasers if laser['state'] == 'ON')
+H_exp_key = '-'.join(str(w) for w in lasers_on) + 'nm' if lasers_on else 'no_laser'
+laser_nm = H_exp_key
+print('H_exp measured with : ' + H_exp_key)
 
 if plot_graph:
     for i in range(spatial_acqui.shape[2]):
@@ -347,7 +360,32 @@ if save_fig:
     plt.savefig(all_path.overview_path + '/sum.png')
     
 if save_H_exp:
-    np.save(file_name, pos-neg)
+    np.savez(file_name, H_exp = pos - neg, laser_nm = laser_nm)   # read : f = np.load(file_name) ; f['H_exp'], f['laser_nm']
+    # add / replace the H_exp of this laser in the file of all the H_exp of this pattern set
+    os.makedirs(H_exp_folder, exist_ok = True)
+    H_exp_all = dict(np.load(H_exp_all_file)) if os.path.isfile(H_exp_all_file) else {}
+    write_H_exp = True
+    if H_exp_key in H_exp_all:
+        answer = input('H_exp ' + H_exp_key + ' already measured in ' + H_exp_all_file + ', overwrite it ? (y/n) : ')
+        write_H_exp = answer.strip().lower() in ('y', 'yes', 'o', 'oui')
+    if write_H_exp:
+        H_exp_all[H_exp_key] = pos - neg
+        np.savez(H_exp_all_file, **H_exp_all)
+        print('H_exp saved in ' + file_name + ' and in ' + H_exp_all_file + ' (keys : ' + ', '.join(sorted(H_exp_all)) + ')')
+        if push_H_exp:   # commit only this file and push it on the current branch
+            import subprocess
+            repo = os.path.dirname(H_exp_folder.rstrip('/\\'))   # scripts
+            msg = 'H_exp ' + H_exp_key + ' : ' + os.path.basename(H_exp_all_file) + ' (' + data_folder_name + ')'
+            cmds = [['git', 'add', '-f', H_exp_all_file], ['git', 'commit', '-m', msg, '--', H_exp_all_file], ['git', 'push']]
+            for cmd in cmds:
+                res = subprocess.run(cmd, cwd = repo, capture_output = True, text = True)
+                if res.returncode != 0:
+                    print('Warning, ' + ' '.join(cmd[:2]) + ' failed : ' + (res.stderr or res.stdout).strip())
+                    break
+            else:
+                print('H_exp pushed on git : ' + msg)
+    else:
+        print('H_exp ' + H_exp_key + ' NOT overwritten in ' + H_exp_all_file + ' (saved only in ' + file_name + ')')
 #%% reco avec la matrix de Had experimentale, mon propre code
 from spyrit.misc.walsh_hadamard import walsh_matrix
 import matplotlib.pyplot as plt
